@@ -1,0 +1,176 @@
+"""Зависимости FastAPI (dependency injection)."""
+
+from collections.abc import Iterator
+from typing import Annotated
+
+from fastapi import Depends
+from sqlalchemy.orm import Session
+
+from app.config import get_settings
+from app.db.session import get_session
+from app.integrations.telegram.client import TelegramPublishingClient
+from app.integrations.vk.client import VKPublishingClient
+from app.integrations.yandex_disk.client import YandexDiskClient
+from app.services.analytics_provider import FakeAnalyticsProvider
+from app.services.analytics_service import AnalyticsService
+from app.services.autonomous_pipeline_service import AutonomousPipelineService
+from app.services.autonomous_safety_service import AutonomousSafetyService
+from app.services.external_image_provider import FakeExternalImageProvider
+from app.services.external_image_provider_registry import ExternalImageProviderRegistry
+from app.services.external_image_search_service import ExternalImageSearchService
+from app.services.market_signal_provider import StaticMarketSignalProvider
+from app.services.media_analysis_service import MediaAnalysisService
+from app.services.media_status_service import MediaStatusService
+from app.services.media_tagging_service import MediaTaggingService
+from app.services.post_generation_service import PostGenerationService
+from app.services.post_media_selection_service import PostMediaSelectionService
+from app.services.post_publication_service import PostPublicationService
+from app.services.post_review_service import PostReviewService
+from app.services.publication_platform_registry import PublicationPlatformRegistry
+from app.services.topic_selection_service import TopicSelectionService
+from app.services.yandex_disk_media_sync_service import YandexDiskMediaSyncService
+
+
+def get_db() -> Iterator[Session]:
+    """Выдать сессию БД на время запроса и гарантированно закрыть её.
+
+    Делегирует в :func:`app.db.session.get_session`, чтобы не дублировать
+    логику жизненного цикла сессии.
+    """
+    yield from get_session()
+
+
+def get_yandex_disk_client() -> YandexDiskClient:
+    """Построить клиент Яндекс Диска из настроек.
+
+    Токен может быть пустым — ошибка возникнет только при реальном запросе
+    (см. ``YandexDiskAuthError``), поэтому эндпоинты без обращения к Диску
+    работают и без токена.
+    """
+    settings = get_settings()
+    return YandexDiskClient(
+        token=settings.yandex_disk_token,
+        base_url=settings.yandex_disk_base_url,
+    )
+
+
+def get_media_sync_service(
+    client: Annotated[YandexDiskClient, Depends(get_yandex_disk_client)],
+) -> YandexDiskMediaSyncService:
+    """Построить сервис синхронизации медиа (для тестов подменяется клиент)."""
+    return YandexDiskMediaSyncService(client=client, tagging_service=MediaTaggingService())
+
+
+def get_media_status_service() -> MediaStatusService:
+    """Построить сервис статусов медиа."""
+    return MediaStatusService()
+
+
+def get_media_analysis_service() -> MediaAnalysisService:
+    """Построить сервис анализа/ретегирования медиа."""
+    return MediaAnalysisService(
+        tagging_service=MediaTaggingService(),
+        status_service=MediaStatusService(),
+    )
+
+
+def get_topic_selection_service() -> TopicSelectionService:
+    """Построить сервис выбора тем и контент-плана."""
+    return TopicSelectionService(
+        market_provider=StaticMarketSignalProvider(),
+        media_analysis_service=get_media_analysis_service(),
+    )
+
+
+def get_post_generation_service() -> PostGenerationService:
+    """Построить сервис генерации постов (подбор медиа + выбор тем)."""
+    return PostGenerationService(
+        media_selection_service=PostMediaSelectionService(),
+        topic_selection_service=get_topic_selection_service(),
+    )
+
+
+def get_post_review_service() -> PostReviewService:
+    """Построить сервис согласования постов."""
+    return PostReviewService()
+
+
+def get_publication_platform_registry() -> PublicationPlatformRegistry:
+    """Построить реестр клиентов публикации (безопасные клиенты из настроек).
+
+    Реальные клиенты не делают сеть на Этапе 7: без токена/таргета они выдают
+    понятную ошибку. В тестах реестр подменяется на фейковый.
+    """
+    settings = get_settings()
+    return PublicationPlatformRegistry(
+        {
+            "telegram": TelegramPublishingClient(
+                token=settings.telegram_bot_token or None,
+                default_target_id=settings.telegram_default_channel_id,
+            ),
+            "vk": VKPublishingClient(
+                token=settings.vk_access_token or None,
+                default_target_id=settings.vk_default_group_id,
+            ),
+        }
+    )
+
+
+def get_post_publication_service(
+    registry: Annotated[PublicationPlatformRegistry, Depends(get_publication_platform_registry)],
+) -> PostPublicationService:
+    """Построить сервис планирования и публикации постов."""
+    settings = get_settings()
+    return PostPublicationService(
+        registry=registry,
+        default_targets={
+            "telegram": settings.telegram_default_channel_id,
+            "vk": settings.vk_default_group_id,
+        },
+    )
+
+
+def get_analytics_provider() -> FakeAnalyticsProvider:
+    """Построить провайдер метрик (fake на Этапе 8 — без сети)."""
+    return FakeAnalyticsProvider()
+
+
+def get_analytics_service(
+    provider: Annotated[FakeAnalyticsProvider, Depends(get_analytics_provider)],
+) -> AnalyticsService:
+    """Построить сервис аналитики публикаций."""
+    return AnalyticsService(provider=provider)
+
+
+def get_external_image_provider_registry() -> ExternalImageProviderRegistry:
+    """Построить реестр провайдеров внешних изображений (fake на Этапе 9)."""
+    return ExternalImageProviderRegistry({"fake": FakeExternalImageProvider()})
+
+
+def get_external_image_search_service(
+    registry: Annotated[
+        ExternalImageProviderRegistry, Depends(get_external_image_provider_registry)
+    ],
+) -> ExternalImageSearchService:
+    """Построить сервис поиска внешних изображений."""
+    return ExternalImageSearchService(registry=registry, tagging_service=MediaTaggingService())
+
+
+def get_autonomous_safety_service() -> AutonomousSafetyService:
+    """Построить сервис safety-guardrails автономного режима."""
+    return AutonomousSafetyService()
+
+
+def get_autonomous_pipeline_service() -> AutonomousPipelineService:
+    """Построить сервис автономного pipeline (связывает все этапы)."""
+    return AutonomousPipelineService(
+        topic_selection_service=get_topic_selection_service(),
+        post_generation_service=get_post_generation_service(),
+        post_review_service=get_post_review_service(),
+        post_publication_service=get_post_publication_service(get_publication_platform_registry()),
+        external_image_search_service=get_external_image_search_service(
+            get_external_image_provider_registry()
+        ),
+        analytics_service=get_analytics_service(get_analytics_provider()),
+        safety_service=get_autonomous_safety_service(),
+    )
