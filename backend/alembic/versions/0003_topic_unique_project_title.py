@@ -1,7 +1,7 @@
 """topics: unique index (project_id, title) + status/cluster indexes
 
 Revision ID: 0003_topic_unique_project_title
-Revises: 0002_media_asset_disk_path_indexes
+Revises: 0002_media_asset_idx
 Create Date: 2026-06-18
 
 """
@@ -12,7 +12,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "0003_topic_unique_project_title"
-down_revision: str | None = "0002_media_asset_disk_path_indexes"
+down_revision: str | None = "0002_media_asset_idx"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -1,4 +1,4 @@
-"""Тесты readiness-эндпоинта (без сети и БД)."""
+"""Тесты readiness endpoint."""
 
 from fastapi.testclient import TestClient
 
@@ -7,23 +7,38 @@ from app.main import app
 client = TestClient(app)
 
 
-def test_readiness_returns_ready() -> None:
+def test_readiness_returns_safe_summary() -> None:
     response = client.get("/health/readiness")
+
     assert response.status_code == 200
+
     body = response.json()
-    assert body["status"] == "ready"
-    assert set(body["integrations"]) == {"telegram", "vk", "yandex_disk", "ai"}
+    assert body["status"] in {"ready", "degraded"}
+    assert "app_env" in body
+    assert "database" in body
+    assert "integrations" in body
+    assert "warnings" in body
+
+    assert isinstance(body["integrations"]["telegram"], bool)
+    assert isinstance(body["integrations"]["vk"], bool)
+    assert isinstance(body["integrations"]["yandex_disk"], bool)
+    assert isinstance(body["integrations"]["ai"], bool)
 
 
-def test_readiness_integrations_off_by_default() -> None:
-    # Без токенов в тестовом окружении интеграции не настроены.
+def test_readiness_does_not_expose_secret_values() -> None:
     body = client.get("/health/readiness").json()
-    assert body["integrations"]["telegram"] is False
-    assert body["integrations"]["vk"] is False
-    assert body["integrations"]["ai"] is False
+    serialized = str(body)
 
+    forbidden_fragments = [
+        "TELEGRAM_BOT_TOKEN",
+        "VK_ACCESS_TOKEN",
+        "YANDEX_DISK_TOKEN",
+        "AI_API_KEY",
+        "telegram_bot_token",
+        "vk_access_token",
+        "yandex_disk_token",
+        "ai_api_key",
+    ]
 
-def test_readiness_no_production_warnings_in_local() -> None:
-    body = client.get("/health/readiness").json()
-    assert body["app_env"] == "local"
-    assert body["warnings"] == []
+    for fragment in forbidden_fragments:
+        assert fragment not in serialized

@@ -31,25 +31,32 @@ def test_database_is_sqlite() -> None:
 
 
 def test_integration_configured_flags() -> None:
-    empty = Settings()
+    empty = Settings(
+        telegram_bot_token="",
+        telegram_default_channel_id="",
+        vk_access_token="",
+        vk_default_group_id="",
+        yandex_disk_token="",
+        ai_api_key="",
+    )
     assert empty.telegram_configured is False
     assert empty.vk_configured is False
     assert empty.yandex_disk_configured is False
     assert empty.ai_configured is False
 
-    full = Settings(
-        telegram_bot_token="t",
-        telegram_default_channel_id="@c",
-        vk_access_token="v",
-        vk_default_group_id="-1",
-        yandex_disk_token="y",
-        ai_provider="anthropic",
-        ai_api_key="k",
+    configured = Settings(
+        telegram_bot_token="token",
+        telegram_default_channel_id="@channel",
+        vk_access_token="token",
+        vk_default_group_id="123",
+        yandex_disk_token="token",
+        ai_provider="openai",
+        ai_api_key="token",
     )
-    assert full.telegram_configured is True
-    assert full.vk_configured is True
-    assert full.yandex_disk_configured is True
-    assert full.ai_configured is True
+    assert configured.telegram_configured is True
+    assert configured.vk_configured is True
+    assert configured.yandex_disk_configured is True
+    assert configured.ai_configured is True
 
 
 def test_ai_stub_not_configured() -> None:
