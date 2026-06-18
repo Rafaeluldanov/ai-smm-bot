@@ -11,10 +11,21 @@ dist/
 venv/
 env/
 
-# Environment / secrets
+# Environment / secrets (РЕАЛЬНЫЕ ТОКЕНЫ В РЕПОЗИТОРИЙ НЕ ПОПАДАЮТ)
 .env
+.env.*
 *.env
 !.env.example
+*.secret
+*.pem
+*.key
+credentials.json
+
+# Local data / logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
 
 # Tooling caches
 .pytest_cache/

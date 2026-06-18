@@ -10,7 +10,8 @@ BIN := $(VENV)/bin
         schedule-post publish-post publish-due \
         ingest-analytics analytics-report \
         search-external-images convert-external-image \
-        autonomous-run autonomous-dry-run autonomous-report
+        autonomous-run autonomous-dry-run autonomous-report \
+        smoke
 
 help: ## Показать список команд
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -102,6 +103,9 @@ autonomous-dry-run: ## Сухой прогон: make autonomous-dry-run project_
 
 autonomous-report: ## Отчёт прогона: make autonomous-report run_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.autonomous_report --run-id "$(run_id)"
+
+smoke: ## Смоук-проверка: приложение поднимается, health/readiness отвечают
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.smoke_check
 
 test: ## Запустить тесты
 	$(BIN)/pytest

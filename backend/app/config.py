@@ -47,6 +47,43 @@ class Settings(BaseSettings):
     ai_provider: str = "stub"
     ai_api_key: str = ""
 
+    # --- Производные свойства (готовность к боевому запуску) ---
+
+    @property
+    def is_production(self) -> bool:
+        """Запущено ли приложение в production-окружении."""
+        return self.app_env.strip().lower() in {"production", "prod"}
+
+    @property
+    def is_local(self) -> bool:
+        """Локальное/тестовое окружение."""
+        return self.app_env.strip().lower() in {"local", "dev", "development", "test"}
+
+    @property
+    def database_is_sqlite(self) -> bool:
+        """Использует ли БД SQLite (для prod ожидается PostgreSQL)."""
+        return self.database_url.strip().lower().startswith("sqlite")
+
+    @property
+    def telegram_configured(self) -> bool:
+        """Готов ли Telegram к публикации (есть токен и канал по умолчанию)."""
+        return bool(self.telegram_bot_token and self.telegram_default_channel_id)
+
+    @property
+    def vk_configured(self) -> bool:
+        """Готов ли VK к публикации (есть токен и группа по умолчанию)."""
+        return bool(self.vk_access_token and self.vk_default_group_id)
+
+    @property
+    def yandex_disk_configured(self) -> bool:
+        """Задан ли токен Яндекс Диска."""
+        return bool(self.yandex_disk_token)
+
+    @property
+    def ai_configured(self) -> bool:
+        """Подключён ли реальный AI-провайдер (не заглушка и есть ключ)."""
+        return self.ai_provider.strip().lower() != "stub" and bool(self.ai_api_key)
+
 
 @lru_cache
 def get_settings() -> Settings:
