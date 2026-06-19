@@ -72,12 +72,23 @@ def get_default_scan_folders(project_slug: str, root_path: str | None = None) ->
 # КРИТИЧНОЕ ПРАВИЛО ДОСТУПА:
 #   teeon — ТОЛЬКО «Тион»; нельзя брать из «Фабрика сувениров».
 #   fabric-souvenirs — своя «Фабрика сувениров» И «Тион».
+
 _PUBLIC_ALLOWED_FOLDERS: dict[str, list[str]] = {
-    "teeon": ["Тион", "TEEON", "teeon", "Tion"],
+    "teeon": [
+        "Тион",
+        "TEEON",
+        "teeon",
+        "Tion",
+    ],
     "fabric-souvenirs": [
         "Фабрика сувениров",
-        "fabric-souvenirs",
         "Фабрика",
+        "fabric-souvenirs",
+        "fabrica suvenirov",
+        "fabrika suvenirov",
+        "fabrica",
+        "fabrika",
+        "suvenirov",
         "Тион",
         "TEEON",
         "teeon",
@@ -86,9 +97,16 @@ _PUBLIC_ALLOWED_FOLDERS: dict[str, list[str]] = {
 }
 
 # Канонические папки-источники проекта (для построения путей сканирования).
+
 _PUBLIC_CANONICAL_FOLDERS: dict[str, list[str]] = {
-    "teeon": ["Тион"],
-    "fabric-souvenirs": ["Тион", "Фабрика сувениров"],
+    "teeon": [
+        "Тион",
+    ],
+    "fabric-souvenirs": [
+        "Фабрика сувениров",
+        "fabrica suvenirov",
+        "Тион",
+    ],
 }
 
 # ЗАПРЕЩЁННЫЕ проекту папки (чужие проектные папки). Если такое имя встречается
@@ -97,7 +115,10 @@ _PUBLIC_CANONICAL_FOLDERS: dict[str, list[str]] = {
 # внутри «Тион»): teeon НИКОГДА не берёт медиа из «Фабрика сувениров».
 _PUBLIC_FORBIDDEN_FOLDERS: dict[str, list[str]] = {
     "teeon": ["Фабрика сувениров", "fabric-souvenirs", "Фабрика"],
-    "fabric-souvenirs": [],
+    "fabric-souvenirs": [
+        "fabrica suvenirov",
+        "fabrika suvenirov",
+    ],
 }
 
 
@@ -141,17 +162,65 @@ def is_public_folder_allowed_for_project(project_slug: str, folder_name_or_path:
     return target in allowed
 
 
-def is_public_path_allowed_for_project(project_slug: str, path: str) -> bool:
-    """Допустим ли проекту ПОЛНЫЙ путь файла (проверка всех сегментов).
+def _all_public_project_folder_aliases() -> set[str]:
+    """Все известные имена проектных папок в нормализованном виде."""
+    aliases: set[str] = set()
 
-    Возвращает False, если любой сегмент пути нормализуется в запрещённую проекту
-    папку. Это закрывает утечку, когда чужая проектная папка вложена в
-    разрешённую (например, файл в «/SMM/Тион/Фабрика сувениров/...» для teeon).
+    for names in _PUBLIC_ALLOWED_FOLDERS.values():
+        for name in names:
+            aliases.add(_normalize_folder_name(name))
+
+    return aliases
+
+
+def is_public_path_allowed_for_project(project_slug: str, path: str) -> bool:
+    """Проверить, что публичный путь разрешён для проекта.
+
+    Важно:
+    - проверяем проектные папки, а не имя файла;
+    - обычные вложенные папки внутри разрешённой папки допускаются;
+    - если в пути встречается известная папка другого проекта, она должна быть
+      разрешена текущему проекту.
+
+    Примеры:
+    - teeon + /teeon/IMG_1.HEIC -> True
+    - teeon + /fabrica suvenirov/IMG_1.HEIC -> False
+    - teeon + /teeon/fabrica suvenirov/IMG_1.HEIC -> False
+    - fabric-souvenirs + /teeon/IMG_1.HEIC -> True
+    - fabric-souvenirs + /fabrica suvenirov/IMG_1.HEIC -> True
     """
-    forbidden = {
-        _normalize_folder_name(name) for name in _PUBLIC_FORBIDDEN_FOLDERS.get(project_slug, [])
+    allowed = {
+        _normalize_folder_name(name) for name in get_public_project_folder_names(project_slug)
     }
-    if not forbidden:
-        return True
-    segments = [segment for segment in path.replace("\\", "/").split("/") if segment]
-    return not any(_normalize_folder_name(segment) in forbidden for segment in segments)
+    known_project_folders = _all_public_project_folder_aliases()
+
+    raw_parts = [part for part in path.strip("/").split("/") if part]
+    if not raw_parts:
+        return False
+
+    # Последний сегмент может быть именем файла. Его нельзя проверять как папку.
+    if "." in raw_parts[-1]:
+        raw_parts = raw_parts[:-1]
+
+    # Публичная ссылка может вести либо в корень, либо в SMM.
+    normalized_parts = [
+        _normalize_folder_name(part)
+        for part in raw_parts
+        if _normalize_folder_name(part) not in {"smm"}
+    ]
+
+    if not normalized_parts:
+        return False
+
+    # В пути должна встретиться хотя бы одна известная проектная папка.
+    project_folder_parts = [part for part in normalized_parts if part in known_project_folders]
+    if not project_folder_parts:
+        return False
+
+    # Первая проектная папка определяет источник ресурса.
+    if project_folder_parts[0] not in allowed:
+        return False
+
+    # Любая встреченная проектная папка тоже должна быть разрешена проекту.
+    # Это защищает teeon от /teeon/fabrica suvenirov/...
+    return all(part in allowed for part in project_folder_parts)

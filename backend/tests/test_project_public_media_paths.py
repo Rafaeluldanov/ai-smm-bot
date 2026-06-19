@@ -52,3 +52,38 @@ def test_path_policy_allows_everything_for_fabric() -> None:
         is_public_path_allowed_for_project("fabric-souvenirs", "/SMM/Фабрика сувениров/x.jpg")
         is True
     )
+
+
+def test_public_path_policy_allows_files_but_blocks_cross_project_folders() -> None:
+    assert is_public_path_allowed_for_project("teeon", "/teeon/IMG_5039.MOV") is True
+    assert is_public_path_allowed_for_project("teeon", "/SMM/Тион/IMG_5039.HEIC") is True
+
+    assert (
+        is_public_path_allowed_for_project(
+            "teeon",
+            "/fabrica suvenirov/IMG_5039.MOV",
+        )
+        is False
+    )
+    assert (
+        is_public_path_allowed_for_project(
+            "teeon",
+            "/teeon/fabrica suvenirov/IMG_5039.MOV",
+        )
+        is False
+    )
+
+    assert (
+        is_public_path_allowed_for_project(
+            "fabric-souvenirs",
+            "/fabrica suvenirov/IMG_5039.MOV",
+        )
+        is True
+    )
+    assert (
+        is_public_path_allowed_for_project(
+            "fabric-souvenirs",
+            "/teeon/IMG_5039.MOV",
+        )
+        is True
+    )
