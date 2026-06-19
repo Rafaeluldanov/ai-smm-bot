@@ -5,6 +5,7 @@ from app.models.autonomous_run import AutonomousRun
 from app.models.autonomous_run_step import AutonomousRunStep
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.media_asset import MediaAsset
+from app.models.media_asset_variant import MediaAssetVariant
 from app.models.post import Post
 from app.models.post_analytics_snapshot import PostAnalyticsSnapshot
 from app.models.post_publication import PostPublication
@@ -18,6 +19,7 @@ __all__ = [
     "Base",
     "ExternalImageCandidate",
     "MediaAsset",
+    "MediaAssetVariant",
     "Post",
     "PostAnalyticsSnapshot",
     "PostPublication",

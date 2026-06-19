@@ -7,6 +7,7 @@ from app.api.autonomous_runs import router as autonomous_runs_router
 from app.api.external_images import router as external_images_router
 from app.api.health import router as health_router
 from app.api.media_assets import router as media_assets_router
+from app.api.media_enhancements import router as media_enhancements_router
 from app.api.post_publications import router as post_publications_router
 from app.api.post_reviews import router as post_reviews_router
 from app.api.posts import router as posts_router
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(projects_router)
     app.include_router(media_assets_router)
+    app.include_router(media_enhancements_router)
     app.include_router(topics_router)
     app.include_router(posts_router)
     app.include_router(post_reviews_router)

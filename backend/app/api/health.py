@@ -32,6 +32,7 @@ class ReadinessResponse(BaseModel):
     database: str
     integrations: dict[str, bool] = Field(default_factory=dict)
     yandex_disk_public_mode: bool = False
+    media_enhancement_enabled: bool = False
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -69,5 +70,6 @@ def readiness() -> ReadinessResponse:
         database="sqlite" if settings.database_is_sqlite else "postgresql",
         integrations=integrations,
         yandex_disk_public_mode=settings.yandex_disk_public_mode,
+        media_enhancement_enabled=settings.media_enhancement_enabled,
         warnings=warnings,
     )

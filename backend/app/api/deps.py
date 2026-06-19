@@ -18,8 +18,11 @@ from app.services.autonomous_safety_service import AutonomousSafetyService
 from app.services.external_image_provider import FakeExternalImageProvider
 from app.services.external_image_provider_registry import ExternalImageProviderRegistry
 from app.services.external_image_search_service import ExternalImageSearchService
+from app.services.image_enhancement_processor import ImageEnhancementProcessor
 from app.services.market_signal_provider import StaticMarketSignalProvider
 from app.services.media_analysis_service import MediaAnalysisService
+from app.services.media_download_service import MediaDownloadService
+from app.services.media_enhancement_service import MediaEnhancementService
 from app.services.media_status_service import MediaStatusService
 from app.services.media_tagging_service import MediaTaggingService
 from app.services.post_generation_service import PostGenerationService
@@ -80,6 +83,39 @@ def get_public_media_sync_service(
         tagging_service=MediaTaggingService(),
         public_key=settings.yandex_disk_public_smm_url or None,
         root_folder=settings.yandex_disk_public_root_folder,
+    )
+
+
+def get_image_enhancement_processor() -> ImageEnhancementProcessor:
+    """Построить процессор локального улучшения изображений (Pillow)."""
+    settings = get_settings()
+    return ImageEnhancementProcessor(
+        output_format=settings.media_enhancement_output_format,
+        jpeg_quality=settings.media_enhancement_jpeg_quality,
+        max_image_mb=settings.media_enhancement_max_image_mb,
+    )
+
+
+def get_media_download_service() -> MediaDownloadService:
+    """Построить загрузчик медиа (публичная папка Яндекс Диска; в тестах подменяется)."""
+    settings = get_settings()
+    return MediaDownloadService(
+        public_client=YandexDiskPublicClient(base_url=settings.yandex_disk_base_url),
+        public_key=settings.yandex_disk_public_smm_url or None,
+    )
+
+
+def get_media_enhancement_service(
+    processor: Annotated[ImageEnhancementProcessor, Depends(get_image_enhancement_processor)],
+    downloader: Annotated[MediaDownloadService, Depends(get_media_download_service)],
+) -> MediaEnhancementService:
+    """Построить сервис улучшения медиа (создаёт копии, не трогает оригиналы)."""
+    settings = get_settings()
+    return MediaEnhancementService(
+        processor=processor,
+        downloader=downloader,
+        storage_dir=settings.media_enhancement_storage_dir,
+        default_profile=settings.media_enhancement_default_profile,
     )
 
 

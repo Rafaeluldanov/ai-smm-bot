@@ -26,6 +26,8 @@ credentials.json
 *.sqlite
 *.sqlite3
 *.log
+# Производные улучшенные копии медиа (MEDIA_ENHANCEMENT_STORAGE_DIR)
+backend/data/
 
 # Tooling caches
 .pytest_cache/

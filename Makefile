@@ -6,6 +6,7 @@ BIN := $(VENV)/bin
         db-up db-down migrate revision seed-projects sync-media \
         sync-public-media \
         retag-media media-summary select-topics content-plan \
+        enhance-media enhance-project-media media-enhancement-summary \
         generate-post generate-weekly-posts \
         review-post approve-post reject-post \
         schedule-post publish-post publish-due \
@@ -56,6 +57,15 @@ retag-media: ## Перетегировать медиа проекта: make ret
 
 media-summary: ## Сводка по тегам проекта: make media-summary project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_summary --project-slug "$(project_slug)"
+
+enhance-media: ## Улучшить медиа (копию): make enhance-media media_asset_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.enhance_media --media-asset-id "$(media_asset_id)"
+
+enhance-project-media: ## Улучшить медиа проекта: make enhance-project-media project_slug=teeon
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.enhance_project_media --project-slug "$(project_slug)"
+
+media-enhancement-summary: ## Сводка улучшений: make media-enhancement-summary project_slug=teeon
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_enhancement_summary --project-slug "$(project_slug)"
 
 select-topics: ## Выбрать темы проекта: make select-topics project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.select_topics --project-slug "$(project_slug)"

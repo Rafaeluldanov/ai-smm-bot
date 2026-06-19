@@ -52,6 +52,16 @@ class Settings(BaseSettings):
     ai_provider: str = "stub"
     ai_api_key: str = ""
 
+    # --- Улучшение медиа (Media Enhancement) ---
+    # Локальная обработка изображений (brightness/contrast, resize, конвертация).
+    # Оригиналы НЕ изменяются — создаются производные копии (MediaAssetVariant).
+    media_enhancement_enabled: bool = False
+    media_enhancement_storage_dir: str = "backend/data/enhanced_media"
+    media_enhancement_max_image_mb: int = 25
+    media_enhancement_default_profile: str = "social_safe"
+    media_enhancement_output_format: str = "jpg"
+    media_enhancement_jpeg_quality: int = 92
+
     # --- Производные свойства (готовность к боевому запуску) ---
 
     @property
@@ -93,6 +103,14 @@ class Settings(BaseSettings):
     def ai_configured(self) -> bool:
         """Подключён ли реальный AI-провайдер (не заглушка и есть ключ)."""
         return self.ai_provider.strip().lower() != "stub" and bool(self.ai_api_key)
+
+    @property
+    def media_enhancement_configured(self) -> bool:
+        """Готово ли локальное улучшение медиа (задана папка для копий).
+
+        Внешние ключи не нужны: обработка идёт локально через Pillow.
+        """
+        return bool(self.media_enhancement_storage_dir.strip())
 
 
 @lru_cache

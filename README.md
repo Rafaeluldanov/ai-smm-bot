@@ -93,6 +93,9 @@ docker compose up --build
 | `make sync-public-media project_slug=teeon` | Публичная синхронизация (без токена)  |
 | `make retag-media project_slug=teeon` | Перетегировать медиа проекта (по данным из БД) |
 | `make media-summary project_slug=teeon` | Сводка по тегам медиа проекта               |
+| `make enhance-media media_asset_id=1` | Улучшить медиа — создать копию (оригинал не трогается) |
+| `make enhance-project-media project_slug=teeon` | Улучшить медиа проекта (копии)        |
+| `make media-enhancement-summary project_slug=teeon` | Сводка по улучшенным копиям       |
 | `make select-topics project_slug=teeon` | Выбрать темы проекта                         |
 | `make content-plan project_slug=teeon` | Недельный контент-план тем                    |
 | `make generate-post topic_id=1` | Сгенерировать черновик поста по теме              |
@@ -328,6 +331,56 @@ curl -X PATCH http://localhost:8000/media-assets/1/status \
 
 > Подробности словарей терминов и правил тегирования — в
 > [`Докс/09_Словарь_медиа_тегов.md`](./Докс/09_Словарь_медиа_тегов.md).
+
+### Улучшение медиа (Media Enhancement)
+
+Бот умеет создавать **улучшенные копии** изображений локально (через Pillow):
+авто-контраст, мягкая коррекция яркости/насыщенности, лёгкий sharpen, ресайз и
+конвертация в рабочий формат (JPEG по умолчанию), а также баланс белого/denoise
+в профиле `product_clean`.
+
+- **Оригиналы НЕ изменяются и НЕ перезаписываются.** Каждое улучшение создаёт
+  отдельную копию-вариант (`MediaAssetVariant`) и новый файл в
+  `MEDIA_ENHANCEMENT_STORAGE_DIR` (по умолчанию `backend/data/enhanced_media`).
+- **Видео пропускаются** (только изображения).
+- **Спорные правки** (меняющие реальный цвет/текстуру изделия — баланс белого,
+  denoise) помечают копию статусом `needs_review` для ручной проверки.
+- **Реальной AI-ретуши нет**: удаление пятен/грязи, выравнивание цвета ткани —
+  только интерфейс-заглушка (`app/ai/image_editing.py`), реальный AI не подключён.
+
+Профили: `social_safe` (безопасный, по умолчанию), `product_clean` (сильнее,
+с балансом белого/denoise → review), `minimal` (только конвертация/ресайз).
+
+```bash
+# Улучшить один медиа-актив (создать копию). 200; 404 — нет актива;
+#   409 — уже улучшено (нужен force); 400 — формат/источник не поддержан;
+#   503 — загрузчик не настроен
+curl -X POST http://localhost:8000/media-enhancements/media/1/enhance \
+  -H "Content-Type: application/json" -d '{"profile": "social_safe"}'
+
+# Пакетно улучшить медиа проекта (по умолчанию статус approved). 404 — нет проекта
+curl -X POST http://localhost:8000/media-enhancements/project \
+  -H "Content-Type: application/json" \
+  -d '{"project_slug": "teeon", "status": "approved", "profile": "social_safe"}'
+
+# Список вариантов с фильтрами (media_asset_id / project_id / status / variant_type)
+curl "http://localhost:8000/media-enhancements?project_id=1"
+
+# Сводка по статусам и типам вариантов
+curl "http://localhost:8000/media-enhancements/summary?project_id=1"
+
+# Сменить статус варианта (created|needs_review|approved|rejected|failed).
+#   200; 404 — нет варианта; 422 — неизвестный статус
+curl -X PATCH http://localhost:8000/media-enhancements/1/status \
+  -H "Content-Type: application/json" -d '{"status": "approved"}'
+
+# CLI
+make enhance-media media_asset_id=1
+make enhance-project-media project_slug=teeon
+make media-enhancement-summary project_slug=teeon
+```
+
+> Подробности — [`Докс/19_Улучшение_медиа.md`](./Докс/19_Улучшение_медиа.md).
 
 ## Статус
 
