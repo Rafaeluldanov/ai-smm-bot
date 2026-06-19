@@ -47,6 +47,27 @@ curl http://localhost:8000/health/readiness
    - `make autonomous-run project_slug=teeon` (`semi_auto`) — посты уходят на согласование человеку;
    - только после ручной проверки качества — включать `auto_schedule`/`auto_publish` с явными флагами.
 
+## Упрощённый сценарий: публичная папка Яндекс Диска (без токена)
+
+Если нет OAuth-токена Яндекс Диска, медиа можно подтянуть из публичной папки SMM:
+
+1. Вставить публичную ссылку и включить публичный режим в `.env`:
+   ```dotenv
+   YANDEX_DISK_PUBLIC_MODE=true
+   YANDEX_DISK_PUBLIC_SMM_URL=https://disk.yandex.ru/d/PYnchGnSLKW3yw
+   YANDEX_DISK_PUBLIC_ROOT_FOLDER=SMM
+   ```
+2. Синхронизировать медиа из публичной папки:
+   ```bash
+   make sync-public-media project_slug=teeon
+   make media-summary project_slug=teeon
+   make autonomous-run project_slug=teeon
+
+   make sync-public-media project_slug=fabric-souvenirs
+   make media-summary project_slug=fabric-souvenirs
+   ```
+3. Доступ строго по правилам: `teeon` видит только «Тион»; `fabric-souvenirs` — «Тион» + «Фабрика сувениров». Файлы **не скачиваются** (только метаданные). Подробности — в `Докс/18_Публичная_папка_Яндекс_Диска.md`.
+
 ## Что ещё нужно вне бэкенда
 
 - **Мониторинг и алерты:** ошибки публикации, упавшие автономные прогоны, посты `needs_media`, рост `failed`-публикаций.

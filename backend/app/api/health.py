@@ -31,6 +31,7 @@ class ReadinessResponse(BaseModel):
     app_env: str
     database: str
     integrations: dict[str, bool] = Field(default_factory=dict)
+    yandex_disk_public_mode: bool = False
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -51,6 +52,10 @@ def readiness() -> ReadinessResponse:
         "ai": settings.ai_configured,
     }
     warnings: list[str] = []
+    if settings.yandex_disk_public_mode and not settings.yandex_disk_public_configured:
+        warnings.append(
+            "Публичный режим Яндекс Диска включён, но YANDEX_DISK_PUBLIC_SMM_URL не задан"
+        )
     if settings.is_production:
         if settings.database_is_sqlite:
             warnings.append("В production используется SQLite — задайте PostgreSQL DATABASE_URL")
@@ -63,5 +68,6 @@ def readiness() -> ReadinessResponse:
         app_env=settings.app_env,
         database="sqlite" if settings.database_is_sqlite else "postgresql",
         integrations=integrations,
+        yandex_disk_public_mode=settings.yandex_disk_public_mode,
         warnings=warnings,
     )

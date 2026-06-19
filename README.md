@@ -90,6 +90,7 @@ docker compose up --build
 | `make revision message="..."`   | Создать новую миграцию Alembic                    |
 | `make seed-projects`            | Заполнить БД проектами (идемпотентно)             |
 | `make sync-media project_slug=teeon` | Синхронизация медиа проекта с Яндекс Диска   |
+| `make sync-public-media project_slug=teeon` | Публичная синхронизация (без токена)  |
 | `make retag-media project_slug=teeon` | Перетегировать медиа проекта (по данным из БД) |
 | `make media-summary project_slug=teeon` | Сводка по тегам медиа проекта               |
 | `make select-topics project_slug=teeon` | Выбрать темы проекта                         |
@@ -261,6 +262,32 @@ curl -X POST http://localhost:8000/media-assets/sync/project/1
 
 Коды ответов: `200` — успех (чтение или синхронизация); `404` — медиа/проект не найден;
 `503` — синхронизация недоступна (`YANDEX_DISK_TOKEN` не задан или отклонён).
+
+#### Публичная папка Яндекс Диска (без токена)
+
+Альтернатива OAuth-токену: медиа можно читать из **публичной папки** SMM. OAuth-токен
+не нужен. Файлы **не скачиваются** — сохраняются только метаданные.
+
+```dotenv
+# .env
+YANDEX_DISK_PUBLIC_MODE=true
+YANDEX_DISK_PUBLIC_SMM_URL=https://disk.yandex.ru/d/PYnchGnSLKW3yw
+YANDEX_DISK_PUBLIC_ROOT_FOLDER=SMM
+```
+
+```bash
+# Публичная синхронизация по slug/id (200; 404 — нет проекта; 503 — нет публичной ссылки)
+curl -X POST http://localhost:8000/media-assets/sync/public/slug/teeon
+curl -X POST http://localhost:8000/media-assets/sync/public/project/1
+
+# CLI
+make sync-public-media project_slug=teeon
+```
+
+**Правила доступа к папкам:** внутри SMM лежат «Тион» и «Фабрика сувениров».
+`teeon` видит **только «Тион»**; `fabric-souvenirs` видит **«Тион» + «Фабрика сувениров»**
+(teeon никогда не берёт из «Фабрика сувениров»). Подробности —
+[`Докс/18_Публичная_папка_Яндекс_Диска.md`](./Докс/18_Публичная_папка_Яндекс_Диска.md).
 
 ### Анализ медиа (Этап 3)
 

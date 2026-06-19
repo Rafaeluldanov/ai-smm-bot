@@ -10,7 +10,7 @@ from app.config import get_settings
 from app.db.session import get_session
 from app.integrations.telegram.client import TelegramPublishingClient
 from app.integrations.vk.client import VKPublishingClient
-from app.integrations.yandex_disk.client import YandexDiskClient
+from app.integrations.yandex_disk.client import YandexDiskClient, YandexDiskPublicClient
 from app.services.analytics_provider import FakeAnalyticsProvider
 from app.services.analytics_service import AnalyticsService
 from app.services.autonomous_pipeline_service import AutonomousPipelineService
@@ -26,6 +26,9 @@ from app.services.post_generation_service import PostGenerationService
 from app.services.post_media_selection_service import PostMediaSelectionService
 from app.services.post_publication_service import PostPublicationService
 from app.services.post_review_service import PostReviewService
+from app.services.public_yandex_disk_media_sync_service import (
+    PublicYandexDiskMediaSyncService,
+)
 from app.services.publication_platform_registry import PublicationPlatformRegistry
 from app.services.topic_selection_service import TopicSelectionService
 from app.services.yandex_disk_media_sync_service import YandexDiskMediaSyncService
@@ -59,6 +62,25 @@ def get_media_sync_service(
 ) -> YandexDiskMediaSyncService:
     """Построить сервис синхронизации медиа (для тестов подменяется клиент)."""
     return YandexDiskMediaSyncService(client=client, tagging_service=MediaTaggingService())
+
+
+def get_public_yandex_disk_client() -> YandexDiskPublicClient:
+    """Построить публичный клиент Яндекс Диска (без токена)."""
+    settings = get_settings()
+    return YandexDiskPublicClient(base_url=settings.yandex_disk_base_url)
+
+
+def get_public_media_sync_service(
+    client: Annotated[YandexDiskPublicClient, Depends(get_public_yandex_disk_client)],
+) -> PublicYandexDiskMediaSyncService:
+    """Построить сервис публичной синхронизации медиа (в тестах подменяется)."""
+    settings = get_settings()
+    return PublicYandexDiskMediaSyncService(
+        client=client,
+        tagging_service=MediaTaggingService(),
+        public_key=settings.yandex_disk_public_smm_url or None,
+        root_folder=settings.yandex_disk_public_root_folder,
+    )
 
 
 def get_media_status_service() -> MediaStatusService:

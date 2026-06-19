@@ -4,6 +4,7 @@ BIN := $(VENV)/bin
 .DEFAULT_GOAL := help
 .PHONY: help install run test lint format typecheck check \
         db-up db-down migrate revision seed-projects sync-media \
+        sync-public-media \
         retag-media media-summary select-topics content-plan \
         generate-post generate-weekly-posts \
         review-post approve-post reject-post \
@@ -46,6 +47,9 @@ seed-projects: ## Заполнить базовые проекты (TEEON, Фа�
 
 sync-media: ## Синхронизировать медиа проекта: make sync-media project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.sync_media --project-slug "$(project_slug)"
+
+sync-public-media: ## Публичная синхронизация: make sync-public-media project_slug=teeon
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.sync_media --project-slug "$(project_slug)" --public
 
 retag-media: ## Перетегировать медиа проекта: make retag-media project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.retag_media --project-slug "$(project_slug)"

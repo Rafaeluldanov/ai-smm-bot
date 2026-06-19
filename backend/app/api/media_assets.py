@@ -11,6 +11,7 @@ from app.api.deps import (
     get_media_analysis_service,
     get_media_status_service,
     get_media_sync_service,
+    get_public_media_sync_service,
 )
 from app.integrations.yandex_disk.client import YandexDiskAuthError, YandexDiskError
 from app.models.media_asset import MediaAsset
@@ -32,6 +33,10 @@ from app.services.media_status_service import (
     MediaStatusService,
 )
 from app.services.project_media_paths import UnknownProjectError
+from app.services.public_yandex_disk_media_sync_service import (
+    PublicLinkNotConfiguredError,
+    PublicYandexDiskMediaSyncService,
+)
 from app.services.yandex_disk_media_sync_service import (
     ProjectNotFoundError,
     YandexDiskMediaSyncService,
@@ -41,6 +46,9 @@ router = APIRouter(prefix="/media-assets", tags=["media-assets"])
 
 DbSession = Annotated[Session, Depends(get_db)]
 SyncService = Annotated[YandexDiskMediaSyncService, Depends(get_media_sync_service)]
+PublicSyncService = Annotated[
+    PublicYandexDiskMediaSyncService, Depends(get_public_media_sync_service)
+]
 AnalysisService = Annotated[MediaAnalysisService, Depends(get_media_analysis_service)]
 StatusService = Annotated[MediaStatusService, Depends(get_media_status_service)]
 
@@ -71,6 +79,23 @@ def _project_404(action: Callable[[], MediaAssetRetagResult]) -> MediaAssetRetag
         return action()
     except ProjectNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+
+def _run_public_sync(action: Callable[[], MediaAssetSyncResult]) -> MediaAssetSyncResult:
+    """Выполнить публичную синхронизацию и привести ошибки к HTTP-кодам."""
+    try:
+        return action()
+    except ProjectNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PublicLinkNotConfiguredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+    except YandexDiskError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Ошибка публичного Яндекс Диска: {exc}",
+        ) from exc
 
 
 # --- Коллекция и сводки (статические пути объявляем ДО /{media_asset_id}) ---
@@ -129,6 +154,20 @@ def sync_by_project(project_id: int, db: DbSession, sync: SyncService) -> MediaA
 def sync_by_slug(slug: str, db: DbSession, sync: SyncService) -> MediaAssetSyncResult:
     """Синхронизация медиа проекта по slug. 404 — нет проекта; 503 — нет токена."""
     return _run_sync(lambda: sync.sync_project_media_by_slug(db, slug))
+
+
+@router.post("/sync/public/project/{project_id}", response_model=MediaAssetSyncResult)
+def sync_public_by_project(
+    project_id: int, db: DbSession, sync: PublicSyncService
+) -> MediaAssetSyncResult:
+    """Публичная синхронизация по id проекта. 404 — нет проекта; 503 — нет публичной ссылки."""
+    return _run_public_sync(lambda: sync.sync_project_media_from_public_link(db, project_id))
+
+
+@router.post("/sync/public/slug/{slug}", response_model=MediaAssetSyncResult)
+def sync_public_by_slug(slug: str, db: DbSession, sync: PublicSyncService) -> MediaAssetSyncResult:
+    """Публичная синхронизация по slug проекта. 404 — нет проекта; 503 — нет публичной ссылки."""
+    return _run_public_sync(lambda: sync.sync_project_media_by_slug_from_public_link(db, slug))
 
 
 @router.post("/retag/project/{project_id}", response_model=MediaAssetRetagResult)

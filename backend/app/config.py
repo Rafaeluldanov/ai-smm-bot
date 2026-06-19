@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     yandex_disk_token: str | None = None
     yandex_disk_base_url: str = "https://cloud-api.yandex.net/v1/disk"
     yandex_disk_root_path: str = "/SMM_BOT"
+    # Публичная папка Яндекс Диска (альтернатива OAuth-токену). Если
+    # yandex_disk_public_mode=true — sync-media работает по публичной ссылке.
+    yandex_disk_public_smm_url: str = ""
+    yandex_disk_public_mode: bool = False
+    yandex_disk_public_root_folder: str = "SMM"
     # Токены автопостинга (Этап 7). Пустые значения трактуются как «не задано»:
     # реальная публикация выдаст понятную ошибку, но API и тесты работают без них.
     telegram_bot_token: str = ""
@@ -76,8 +81,13 @@ class Settings(BaseSettings):
 
     @property
     def yandex_disk_configured(self) -> bool:
-        """Задан ли токен Яндекс Диска."""
+        """Задан ли токен Яндекс Диска (приватный OAuth-режим)."""
         return bool(self.yandex_disk_token)
+
+    @property
+    def yandex_disk_public_configured(self) -> bool:
+        """Задана ли публичная ссылка на папку SMM (публичный режим)."""
+        return bool(self.yandex_disk_public_smm_url)
 
     @property
     def ai_configured(self) -> bool:
