@@ -113,6 +113,9 @@ class MediaDownloadService:
             )
         public_path = self._public_path_from_disk_path(disk_path)
         try:
+            # Устойчивое получение ссылки: download-эндпоинт, затем фолбэк на прямую
+            # ссылку (download_url/file) из метаданных листинга — публичные ссылки
+            # часто 404-ят на download-эндпоинте (например, HEIC).
             href = self._public_client.get_public_download_url(self._public_key, public_path)
         except YandexDiskError as exc:
             raise MediaDownloadError(f"Не удалось получить ссылку на скачивание: {exc}") from exc

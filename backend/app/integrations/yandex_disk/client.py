@@ -38,6 +38,12 @@ _MEDIA_EXTENSIONS: tuple[str, ...] = (
     ".m4v",
 )
 
+# Постраничный обход публичной папки (Яндекс отдаёт содержимое страницами; в
+# реальных папках бывают сотни файлов, поэтому листинг нельзя ограничивать одной
+# страницей при поиске файла для скачивания).
+_PUBLIC_LISTING_PAGE_SIZE = 200
+_PUBLIC_MAX_LISTING_ITEMS = 10000
+
 
 class YandexDiskError(Exception):
     """Базовая ошибка работы с Яндекс Диском."""
@@ -192,6 +198,8 @@ class YandexDiskPublicResource:
     public_key: str | None = None
     preview: str | None = None
     file: str | None = None
+    # Прямая (временная) ссылка на скачивание из метаданных — поле API ``file``.
+    download_url: str | None = None
     media_type: str | None = None
     embedded: list["YandexDiskPublicResource"] = field(default_factory=list)
 
@@ -230,6 +238,7 @@ class YandexDiskPublicResource:
             public_key=data.get("public_key"),
             preview=data.get("preview"),
             file=data.get("file"),
+            download_url=data.get("file"),
             media_type=data.get("media_type"),
             embedded=[cls.from_api(item) for item in embedded_raw],
         )
@@ -313,13 +322,148 @@ class YandexDiskPublicClient:
             elif resource.is_dir and remaining_depth > 0:
                 self._collect_public_files(public_key, resource.path, remaining_depth - 1, acc)
 
+    def find_public_resource_by_path(self, public_key: str, path: str) -> YandexDiskPublicResource:
+        """Найти публичный ресурс по пути через листинг родительской папки.
+
+        Скачивание здесь НЕ выполняется — возвращаются только метаданные (в т. ч.
+        прямая ссылка ``download_url`` из поля ``file``, если она есть). Метод
+        устойчив к ведущему ``/``, к файлам в корне публичного ресурса и к большим
+        папкам — родительский листинг обходится ПОСТРАНИЧНО (Яндекс отдаёт по
+        страницам, поэтому одной страницы для папки с сотнями файлов недостаточно).
+        """
+        normalized = path if path.startswith("/") else f"/{path}"
+        trimmed = normalized.rstrip("/")
+        file_name = trimmed.rsplit("/", 1)[-1]
+        parent = trimmed.rsplit("/", 1)[0]
+
+        for parent_path in self._parent_path_candidates(parent):
+            try:
+                first_page = self.list_public_resources(
+                    public_key, parent_path, limit=_PUBLIC_LISTING_PAGE_SIZE
+                )
+            except YandexDiskNotFoundError:
+                continue
+            match = self._search_listing_pages(
+                public_key, parent_path, first_page, file_name, normalized, path, trimmed
+            )
+            if match is not None:
+                return match
+            # Папка существует, но файла в ней нет. Варианты пути со слешем/без
+            # указывают на ТУ ЖЕ папку — повторно её не перечитываем.
+            if first_page:
+                break
+        raise YandexDiskNotFoundError(f"Публичный ресурс не найден: {path}")
+
+    def _search_listing_pages(
+        self,
+        public_key: str,
+        parent_path: str | None,
+        first_page: list[YandexDiskPublicResource],
+        file_name: str,
+        normalized: str,
+        path: str,
+        trimmed: str,
+    ) -> YandexDiskPublicResource | None:
+        """Постранично искать ресурс в родительской папке (``None`` — не найден)."""
+        page = first_page
+        offset = 0
+        while page:
+            for resource in page:
+                if self._resource_matches(resource, file_name, normalized, path, trimmed):
+                    return resource
+            if len(page) < _PUBLIC_LISTING_PAGE_SIZE:
+                return None
+            offset += _PUBLIC_LISTING_PAGE_SIZE
+            if offset >= _PUBLIC_MAX_LISTING_ITEMS:
+                return None
+            page = self.list_public_resources(
+                public_key, parent_path, limit=_PUBLIC_LISTING_PAGE_SIZE, offset=offset
+            )
+        return None
+
+    @staticmethod
+    def _resource_matches(
+        resource: YandexDiskPublicResource,
+        file_name: str,
+        normalized: str,
+        path: str,
+        trimmed: str,
+    ) -> bool:
+        """Совпадает ли ресурс с искомым файлом (по имени или полному пути)."""
+        return (
+            resource.name == file_name
+            or resource.path == normalized
+            or resource.path == path
+            or resource.path.rstrip("/") == trimmed
+        )
+
     def get_public_download_url(self, public_key: str, path: str | None = None) -> str:
-        """Получить ссылку для скачивания файла из публичного ресурса."""
+        """Получить ссылку для скачивания файла из публичного ресурса.
+
+        Публичные ссылки часто 404-ят на download-эндпоинте из-за формата пути
+        (например, HEIC по пути ``/teeon/IMG_5007.HEIC``). Поэтому порядок такой:
+          1) штатный ``/public/resources/download`` (с ведущим ``/`` и без него);
+          2) фолбэк — найти ресурс листингом родителя и взять его прямую ссылку
+             ``download_url`` (поле ``file`` из метаданных).
+        """
+        last_error: YandexDiskError | None = None
+        for candidate in self._download_path_candidates(path):
+            try:
+                href = self._request_download_href(public_key, candidate)
+            except YandexDiskError as exc:
+                # И 404, и иные ошибки формата пути (например, 400 DiskPathFormatError)
+                # не должны прерывать фолбэк на прямую ссылку из метаданных листинга.
+                last_error = exc
+                continue
+            if href:
+                return href
+
+        if path is not None:
+            try:
+                resource: YandexDiskPublicResource | None = self.find_public_resource_by_path(
+                    public_key, path
+                )
+            except YandexDiskError:
+                resource = None
+            if resource is not None and resource.download_url:
+                return resource.download_url
+
+        # Сообщение использует канонический путь (как он сохранён в MediaAsset), а не
+        # последний пробный вариант, — чтобы ошибку было легко сопоставить с активом.
+        raise YandexDiskNotFoundError(f"Публичный ресурс не найден: {path}") from last_error
+
+    def _request_download_href(self, public_key: str, path: str | None) -> str | None:
+        """Запросить href через ``/public/resources/download`` (404 пробрасывается).
+
+        Возвращает ``None``, если ответ 200, но без ``href`` — тогда вызывающий код
+        пробует следующий вариант пути или фолбэк на метаданные.
+        """
         params: dict[str, Any] = {"public_key": public_key}
         if path is not None:
             params["path"] = path
         data = self._request("/public/resources/download", params)
         href = data.get("href")
-        if not href:
-            raise YandexDiskError("Ответ Яндекс Диска не содержит href для скачивания")
-        return str(href)
+        return str(href) if href else None
+
+    @staticmethod
+    def _download_path_candidates(path: str | None) -> list[str | None]:
+        """Варианты пути для download-эндпоинта (с ведущим ``/`` и без него)."""
+        if path is None:
+            return [None]
+        trimmed = path.lstrip("/")
+        with_slash = f"/{trimmed}" if trimmed else "/"
+        candidates: list[str | None] = [path]
+        for candidate in (with_slash, trimmed or None):
+            if candidate not in candidates:
+                candidates.append(candidate)
+        return candidates
+
+    @staticmethod
+    def _parent_path_candidates(parent: str) -> list[str | None]:
+        """Варианты пути родительской папки для листинга (устойчиво к слешам)."""
+        raw = parent.strip("/")
+        candidates: list[str | None] = []
+        for candidate in (parent or "/", f"/{raw}" if raw else "/", raw or None, "/", None):
+            if candidate not in candidates:
+                candidates.append(candidate)
+        return candidates
