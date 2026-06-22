@@ -38,12 +38,6 @@ _MEDIA_EXTENSIONS: tuple[str, ...] = (
     ".m4v",
 )
 
-# Постраничный обход публичной папки (Яндекс отдаёт содержимое страницами; в
-# реальных папках бывают сотни файлов, поэтому листинг нельзя ограничивать одной
-# страницей при поиске файла для скачивания).
-_PUBLIC_LISTING_PAGE_SIZE = 200
-_PUBLIC_MAX_LISTING_ITEMS = 10000
-
 
 class YandexDiskError(Exception):
     """Базовая ошибка работы с Яндекс Диском."""
@@ -256,7 +250,7 @@ class YandexDiskPublicClient:
         self,
         base_url: str = DEFAULT_BASE_URL,
         *,
-        timeout: float = 30.0,
+        timeout: float = 20.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
@@ -277,7 +271,12 @@ class YandexDiskPublicClient:
                     "GET", url, params=params, headers={"Accept": "application/json"}
                 )
         except httpx.HTTPError as exc:
-            raise YandexDiskError(f"Сетевая ошибка запроса к Яндекс Диску: {exc}") from exc
+            # Таймауты/сетевые сбои оборачиваем в доменную ошибку, чтобы вызывающий
+            # код (sync) мог записать её в errors и не падать целиком.
+            raise YandexDiskError(
+                f"Ошибка публичного Яндекс Диска: сетевая ошибка/таймаут "
+                f"({type(exc).__name__}): {exc}"
+            ) from exc
 
         if response.status_code == 404:
             raise YandexDiskNotFoundError(f"Публичный ресурс не найден: {params.get('path')}")
@@ -301,6 +300,38 @@ class YandexDiskPublicClient:
         items = embedded.get("items") or []
         return [YandexDiskPublicResource.from_api(item) for item in items]
 
+    def list_all_public_resources(
+        self,
+        public_key: str,
+        path: str | None = None,
+        page_size: int = 100,
+        max_pages: int = 50,
+    ) -> list[YandexDiskPublicResource]:
+        """Собрать ВСЕ ресурсы одной публичной папки постранично.
+
+        Яндекс отдаёт содержимое папки страницами, поэтому одной страницы
+        (``limit=100``) недостаточно для папок с сотнями файлов. Скачивание не
+        выполняется — только метаданные. Порядок элементов сохраняется как в API.
+        ``max_pages`` ограничивает число запросов (защита от зависания на огромных
+        или «бесконечных» ответах).
+        """
+        if page_size <= 0:
+            raise ValueError("page_size должен быть положительным")
+        if max_pages <= 0:
+            raise ValueError("max_pages должен быть положительным")
+
+        collected: list[YandexDiskPublicResource] = []
+        offset = 0
+        for _ in range(max_pages):
+            page = self.list_public_resources(public_key, path=path, limit=page_size, offset=offset)
+            if not page:
+                break
+            collected.extend(page)
+            if len(page) < page_size:
+                break
+            offset += page_size
+        return collected
+
     def list_public_files_recursive(
         self, public_key: str, path: str | None = None, max_depth: int = 5
     ) -> list[YandexDiskPublicResource]:
@@ -316,7 +347,8 @@ class YandexDiskPublicClient:
         remaining_depth: int,
         acc: list[YandexDiskPublicResource],
     ) -> None:
-        for resource in self.list_public_resources(public_key, path):
+        # Постранично, чтобы не потерять файлы в больших папках (>100 шт.).
+        for resource in self.list_all_public_resources(public_key, path):
             if resource.is_file:
                 acc.append(resource)
             elif resource.is_dir and remaining_depth > 0:
@@ -338,48 +370,17 @@ class YandexDiskPublicClient:
 
         for parent_path in self._parent_path_candidates(parent):
             try:
-                first_page = self.list_public_resources(
-                    public_key, parent_path, limit=_PUBLIC_LISTING_PAGE_SIZE
-                )
+                resources = self.list_all_public_resources(public_key, parent_path)
             except YandexDiskNotFoundError:
                 continue
-            match = self._search_listing_pages(
-                public_key, parent_path, first_page, file_name, normalized, path, trimmed
-            )
-            if match is not None:
-                return match
-            # Папка существует, но файла в ней нет. Варианты пути со слешем/без
-            # указывают на ТУ ЖЕ папку — повторно её не перечитываем.
-            if first_page:
-                break
-        raise YandexDiskNotFoundError(f"Публичный ресурс не найден: {path}")
-
-    def _search_listing_pages(
-        self,
-        public_key: str,
-        parent_path: str | None,
-        first_page: list[YandexDiskPublicResource],
-        file_name: str,
-        normalized: str,
-        path: str,
-        trimmed: str,
-    ) -> YandexDiskPublicResource | None:
-        """Постранично искать ресурс в родительской папке (``None`` — не найден)."""
-        page = first_page
-        offset = 0
-        while page:
-            for resource in page:
+            for resource in resources:
                 if self._resource_matches(resource, file_name, normalized, path, trimmed):
                     return resource
-            if len(page) < _PUBLIC_LISTING_PAGE_SIZE:
-                return None
-            offset += _PUBLIC_LISTING_PAGE_SIZE
-            if offset >= _PUBLIC_MAX_LISTING_ITEMS:
-                return None
-            page = self.list_public_resources(
-                public_key, parent_path, limit=_PUBLIC_LISTING_PAGE_SIZE, offset=offset
-            )
-        return None
+            # Папка существует, но файла в ней нет. Варианты пути со слешем/без
+            # указывают на ТУ ЖЕ папку — повторно её не перечитываем.
+            if resources:
+                break
+        raise YandexDiskNotFoundError(f"Публичный ресурс не найден: {path}")
 
     @staticmethod
     def _resource_matches(

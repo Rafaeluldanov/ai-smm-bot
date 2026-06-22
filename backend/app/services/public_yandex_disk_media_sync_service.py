@@ -85,6 +85,12 @@ class PublicYandexDiskMediaSyncService:
         public_key = self._public_key
 
         result = MediaAssetSyncResult(project_id=project.id, project_slug=project.slug)
+        # Пути медиа, реально пришедших из текущего sync (для поиска устаревших).
+        current_paths: set[str] = set()
+        # Если хоть одна разрешённая папка не прочиталась (ошибка/таймаут), скан
+        # неполный — тогда stale-проверку делать НЕЛЬЗЯ (иначе ложные срабатывания
+        # по файлам, которые на самом деле есть в недочитанной папке).
+        scan_incomplete = False
         allowed_dirs = self._discover_allowed_dirs(public_key, project.slug, result)
         if not allowed_dirs:
             result.errors.append(
@@ -99,12 +105,16 @@ class PublicYandexDiskMediaSyncService:
                 )
             except YandexDiskNotFoundError:
                 result.errors.append(f"Папка не найдена: {directory.path}")
+                scan_incomplete = True
                 continue
             except YandexDiskError as exc:
                 result.errors.append(f"Ошибка при сканировании {directory.path}: {exc}")
+                scan_incomplete = True
                 continue
             for file_resource in files:
-                self._process_file(db, project, file_resource, result)
+                self._process_file(db, project, file_resource, result, current_paths)
+
+        self._warn_stale_public_media(db, project, current_paths, result, scan_incomplete)
 
         logger.info(
             "Публичная синхронизация %s: папок=%d, найдено=%d, создано=%d, обновлено=%d",
@@ -158,6 +168,7 @@ class PublicYandexDiskMediaSyncService:
         project: Project,
         file_resource: YandexDiskPublicResource,
         result: MediaAssetSyncResult,
+        current_paths: set[str],
     ) -> None:
         result.found_files += 1
         if not file_resource.is_media:
@@ -172,6 +183,8 @@ class PublicYandexDiskMediaSyncService:
         # Путь содержит slug проекта: один и тот же файл из общей папки «Тион»
         # становится отдельным MediaAsset для каждого проекта (без коллизий).
         disk_path = f"public://yandex/{project.slug}{file_resource.path}"
+        # Файл реально присутствует на диске в этом sync — фиксируем как «текущий».
+        current_paths.add(disk_path)
         tags = self._tagging.analyze_file_name(
             file_resource.name,
             project_slug=project.slug,
@@ -207,6 +220,42 @@ class PublicYandexDiskMediaSyncService:
             result.updated += 1
         else:
             result.skipped += 1
+
+    def _warn_stale_public_media(
+        self,
+        db: Session,
+        project: Project,
+        current_paths: set[str],
+        result: MediaAssetSyncResult,
+        scan_incomplete: bool,
+    ) -> None:
+        """Предупредить об устаревших публичных медиа (в БД есть, на диске — нет).
+
+        Файлы на Яндекс Диске могли переименовать/удалить после прошлого sync —
+        тогда путь в БД становится устаревшим (его нельзя скачать). Метод НЕ
+        удаляет записи и НЕ меняет их статус — только добавляет warning в
+        ``result.errors`` (не фатально), чтобы было видно, что нужна чистка/ресинк.
+
+        Stale-проверка выполняется ТОЛЬКО при полностью успешном скане: если хотя
+        бы одна папка не дочиталась (``scan_incomplete``) или вообще ничего не
+        найдено, проверку пропускаем — иначе пометим как stale файлы, которые на
+        самом деле есть в недочитанной папке.
+        """
+        if scan_incomplete:
+            return
+        if not current_paths:
+            # Sync ничего не нашёл (например, все папки недоступны) — не помечаем
+            # всё как stale, чтобы не выдавать ложные предупреждения.
+            return
+        prefix = f"public://yandex/{project.slug}/"
+        existing = media_asset_repository.list_media_assets_by_path_prefix(db, prefix, project.id)
+        existing_paths = {a.yandex_disk_path for a in existing if a.yandex_disk_path}
+        stale = sorted(existing_paths - current_paths)
+        if not stale:
+            return
+        result.errors.append(f"Stale public media not found on disk: {len(stale)}")
+        for path in stale[:5]:
+            result.errors.append(f"  stale: {path}")
 
     @staticmethod
     def _title_from_name(name: str) -> str:

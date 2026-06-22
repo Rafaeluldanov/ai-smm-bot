@@ -1,10 +1,12 @@
 """Тесты публичного клиента Яндекс Диска (httpx.MockTransport, без сети, без токена)."""
 
+from collections.abc import Callable
+
 import httpx
 import pytest
 
 from app.integrations.yandex_disk.client import (
-    _PUBLIC_LISTING_PAGE_SIZE,
+    YandexDiskError,
     YandexDiskNotFoundError,
     YandexDiskPublicClient,
     YandexDiskPublicResource,
@@ -261,10 +263,10 @@ def test_download_url_paginates_parent_listing_to_find_file() -> None:
                     "type": "file",
                     "file": f"https://dl.example/{i}",
                 }
-                for i in range(_PUBLIC_LISTING_PAGE_SIZE)
+                for i in range(100)
             ]
             return httpx.Response(200, json={"_embedded": {"items": items}})
-        if offset == _PUBLIC_LISTING_PAGE_SIZE:
+        if offset == 100:
             return httpx.Response(
                 200,
                 json={
@@ -314,3 +316,94 @@ def test_find_and_download_for_file_at_root() -> None:
     resource = client.find_public_resource_by_path("pk", "/ROOT.HEIC")
     assert resource.name == "ROOT.HEIC"
     assert client.get_public_download_url("pk", "/ROOT.HEIC") == "https://dl.example/root"
+
+
+# --- Пагинация больших папок и обработка таймаутов ---
+
+
+def _paginated_files_handler(total: int) -> Callable[[httpx.Request], httpx.Response]:
+    """Хэндлер /public/resources, отдающий `total` файлов страницами (limit/offset)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        limit = int(request.url.params.get("limit", "100"))
+        offset = int(request.url.params.get("offset", "0"))
+        items = [
+            {
+                "name": f"f{i}.jpg",
+                "path": f"/big/f{i}.jpg",
+                "type": "file",
+                "media_type": "image",
+            }
+            for i in range(offset, min(offset + limit, total))
+        ]
+        return httpx.Response(200, json={"_embedded": {"items": items}})
+
+    return handler
+
+
+def test_list_all_single_page() -> None:
+    client = YandexDiskPublicClient(
+        base_url=BASE, transport=httpx.MockTransport(_paginated_files_handler(30))
+    )
+    items = client.list_all_public_resources("pk", "/big")
+    assert len(items) == 30
+
+
+def test_list_all_two_pages_preserves_order() -> None:
+    client = YandexDiskPublicClient(
+        base_url=BASE, transport=httpx.MockTransport(_paginated_files_handler(150))
+    )
+    items = client.list_all_public_resources("pk", "/big", page_size=100)
+    assert len(items) == 150
+    assert [r.name for r in items[:3]] == ["f0.jpg", "f1.jpg", "f2.jpg"]
+
+
+def test_list_all_empty_folder() -> None:
+    client = YandexDiskPublicClient(
+        base_url=BASE, transport=httpx.MockTransport(_paginated_files_handler(0))
+    )
+    assert client.list_all_public_resources("pk", "/big") == []
+
+
+def test_list_all_respects_max_pages() -> None:
+    client = YandexDiskPublicClient(
+        base_url=BASE, transport=httpx.MockTransport(_paginated_files_handler(1000))
+    )
+    items = client.list_all_public_resources("pk", "/big", page_size=10, max_pages=3)
+    assert len(items) == 30  # 3 страницы по 10, цикл ограничен max_pages
+
+
+def test_list_all_validates_arguments() -> None:
+    client = YandexDiskPublicClient(
+        base_url=BASE, transport=httpx.MockTransport(_paginated_files_handler(1))
+    )
+    with pytest.raises(ValueError):
+        client.list_all_public_resources("pk", "/big", page_size=0)
+    with pytest.raises(ValueError):
+        client.list_all_public_resources("pk", "/big", max_pages=0)
+
+
+def test_recursive_listing_sees_files_on_second_page() -> None:
+    client = YandexDiskPublicClient(
+        base_url=BASE, transport=httpx.MockTransport(_paginated_files_handler(150))
+    )
+    files = client.list_public_files_recursive("pk", "/big", max_depth=2)
+    assert len(files) == 150
+
+
+def test_find_resource_sees_file_on_second_page() -> None:
+    # Целевой файл f140.jpg лежит на второй странице листинга родителя.
+    client = YandexDiskPublicClient(
+        base_url=BASE, transport=httpx.MockTransport(_paginated_files_handler(150))
+    )
+    resource = client.find_public_resource_by_path("pk", "/big/f140.jpg")
+    assert resource.name == "f140.jpg"
+
+
+def test_network_timeout_wrapped_in_yandex_disk_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("read timed out", request=request)
+
+    client = YandexDiskPublicClient(base_url=BASE, transport=httpx.MockTransport(handler))
+    with pytest.raises(YandexDiskError):
+        client.list_public_resources("pk", "/big")

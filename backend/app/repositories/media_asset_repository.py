@@ -59,6 +59,20 @@ def list_media_assets_by_project(db: Session, project_id: int | None = None) -> 
     return list(db.scalars(stmt).all())
 
 
+def list_media_assets_by_path_prefix(
+    db: Session, prefix: str, project_id: int | None = None
+) -> list[MediaAsset]:
+    """Вернуть медиа с ``yandex_disk_path``, начинающимся с префикса.
+
+    Используется для поиска устаревших публичных медиа (``public://yandex/<slug>/``).
+    ``autoescape`` экранирует ``%``/``_`` в префиксе.
+    """
+    stmt = select(MediaAsset).where(MediaAsset.yandex_disk_path.startswith(prefix, autoescape=True))
+    if project_id is not None:
+        stmt = stmt.where(MediaAsset.project_id == project_id)
+    return list(db.scalars(stmt.order_by(MediaAsset.id)).all())
+
+
 def count_media_assets(
     db: Session, project_id: int | None = None, status: str | None = None
 ) -> int:
