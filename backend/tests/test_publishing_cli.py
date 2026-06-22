@@ -28,3 +28,10 @@ def test_publish_parser_force() -> None:
     args = publish_post.build_parser().parse_args(["--post-id", "2", "--force"])
     assert args.post_id == 2
     assert args.force is True
+
+
+def test_publish_parser_dry_run() -> None:
+    args = publish_post.build_parser().parse_args(["--post-id", "3", "--dry-run"])
+    assert args.post_id == 3
+    assert args.dry_run is True
+    assert args.force is False

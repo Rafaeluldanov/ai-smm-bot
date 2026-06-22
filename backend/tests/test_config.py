@@ -61,3 +61,33 @@ def test_integration_configured_flags() -> None:
 
 def test_ai_stub_not_configured() -> None:
     assert Settings(ai_provider="stub", ai_api_key="k").ai_configured is False
+
+
+def test_live_publishing_flags_default_off() -> None:
+    settings = Settings()
+    assert settings.telegram_live_publishing_enabled is False
+    assert settings.vk_live_publishing_enabled is False
+    assert settings.telegram_live_publishing_configured is False
+    assert settings.vk_live_publishing_configured is False
+
+
+def test_live_publishing_configured_requires_flag_and_credentials() -> None:
+    # Флаг включён, но нет токена/канала -> не configured.
+    partial = Settings(
+        telegram_live_publishing_enabled=True,
+        telegram_bot_token="",
+        telegram_default_channel_id="",
+    )
+    assert partial.telegram_live_publishing_configured is False
+    # Флаг + токен + канал -> configured.
+    full = Settings(
+        telegram_live_publishing_enabled=True,
+        telegram_bot_token="T",
+        telegram_default_channel_id="@c",
+    )
+    assert full.telegram_live_publishing_configured is True
+    # Креды есть, но флаг выключен -> публиковать всё равно нельзя.
+    no_flag = Settings(
+        vk_live_publishing_enabled=False, vk_access_token="V", vk_default_group_id="-1"
+    )
+    assert no_flag.vk_live_publishing_configured is False

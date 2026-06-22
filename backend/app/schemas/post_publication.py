@@ -97,3 +97,28 @@ class DuePublicationsResult(BaseModel):
     failed_count: int = 0
     skipped_count: int = 0
     warnings: list[str] = Field(default_factory=list)
+
+
+class PublicationPreviewItem(BaseModel):
+    """Превью публикации для одной платформы (БЕЗ отправки)."""
+
+    platform: str
+    target_id: str | None = None
+    text: str
+    hashtags: list[str] = Field(default_factory=list)
+    media_asset_id: int | None = None
+    # Откуда взято медиа: "enhanced_variant" | "original" | "none".
+    media_source: str = "none"
+    # Предпочтительный путь к медиа (улучшенная копия, если есть approved-вариант).
+    preferred_media_path: str | None = None
+    live_enabled: bool = False
+    would_send: bool = False
+
+
+class PostPublishPreview(BaseModel):
+    """Dry-run preview публикации поста: что и куда ушло бы, без отправки."""
+
+    post_id: int
+    post_status: str
+    items: list[PublicationPreviewItem] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)

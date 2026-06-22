@@ -44,6 +44,8 @@ class PublishingClient(Protocol):
     """Интерфейс клиента публикации (структурный протокол)."""
 
     platform: str
+    # Включена ли реальная отправка (для dry-run preview и диагностики).
+    live_enabled: bool
 
     def publish_post(self, request: PublishRequest) -> PublishResponse:
         """Опубликовать пост и вернуть внешний идентификатор."""
@@ -54,9 +56,15 @@ class FakePublishingClient:
     """Фейковый клиент для тестов: без сети, детерминированный ответ."""
 
     def __init__(
-        self, platform: str, *, fail: bool = False, external_post_id: str | None = None
+        self,
+        platform: str,
+        *,
+        fail: bool = False,
+        external_post_id: str | None = None,
+        live_enabled: bool = True,
     ) -> None:
         self.platform = platform
+        self.live_enabled = live_enabled
         self._fail = fail
         self._external_post_id = external_post_id or f"{platform}-fake-1"
         self.calls: list[PublishRequest] = []

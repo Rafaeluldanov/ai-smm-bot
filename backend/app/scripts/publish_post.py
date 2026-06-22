@@ -3,6 +3,7 @@
 Запуск:
   make publish-post post_id=1
   python -m app.scripts.publish_post --post-id 1 --platform telegram --force
+  python -m app.scripts.publish_post --post-id 1 --dry-run   # превью без отправки
 """
 
 import argparse
@@ -20,13 +21,39 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--post-id", type=int, required=True)
     parser.add_argument("--platform", action="append", default=None)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="показать payload публикации без отправки"
+    )
     return parser
+
+
+def _print_preview(post_id: int, request: PostPublishRequest) -> None:
+    service = get_post_publication_service(get_publication_platform_registry())
+    factory = get_sessionmaker()
+    with factory() as db:
+        try:
+            preview = service.preview_publication(db, post_id, request)
+        except PostNotFoundError as exc:
+            print(f"Ошибка: {exc}")
+            return
+    print(f"DRY-RUN: пост {preview.post_id} | статус {preview.post_status} (ничего не отправлено)")
+    for item in preview.items:
+        print(f"  [{item.platform}] target={item.target_id} live_enabled={item.live_enabled}")
+        print(f"    media_source={item.media_source}")
+        print(f"    preferred_media_path={item.preferred_media_path}")
+        print(f"    text={item.text[:120]!r}")
+    for warning in preview.warnings:
+        print(f"  ! {warning}")
 
 
 def main() -> None:
     """Точка входа CLI публикации."""
     args = build_parser().parse_args()
     request = PostPublishRequest(platforms=args.platform, force=args.force)
+
+    if args.dry_run:
+        _print_preview(args.post_id, request)
+        return
 
     service = get_post_publication_service(get_publication_platform_registry())
     factory = get_sessionmaker()

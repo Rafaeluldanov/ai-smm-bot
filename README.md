@@ -602,7 +602,9 @@ curl -X POST http://localhost:8000/post-reviews/1/comment \
 
 Реализованы **Этапы 0, 1, 2, 3, 4, 5, 6 и 7**.
 
-Одобренный пост можно запланировать и опубликовать в Telegram и VK через изолированные клиенты. Публикация идемпотентна (один пост — одна публикация на платформу), ошибки фиксируются в публикации и не роняют процесс. Реальные сетевые вызовы и Instagram **не** подключены — в тестах используются fake-клиенты; без токенов реальная публикация выдаёт понятную ошибку.
+Одобренный пост можно запланировать и опубликовать в Telegram и VK через изолированные клиенты. Публикация идемпотентна (один пост — одна публикация на платформу), ошибки фиксируются в публикации и не роняют процесс. Instagram **не** подключён; в тестах реальная сеть не вызывается (fake-клиенты или `httpx.MockTransport`).
+
+**Безопасная live-публикация.** Реальная отправка по умолчанию **выключена**: без флагов `TELEGRAM_LIVE_PUBLISHING_ENABLED` / `VK_LIVE_PUBLISHING_ENABLED` (`.env`, по умолчанию `false`) `publish` возвращает «Live publishing disabled by config» и ничего не отправляет. При включённом флаге Telegram использует `TELEGRAM_BOT_TOKEN` + `TELEGRAM_DEFAULT_CHANNEL_ID`, VK — `VK_ACCESS_TOKEN` + `VK_DEFAULT_GROUP_ID`. Текст берётся из `post.telegram_text` / `post.vk_text`; если у медиа есть **одобренная** улучшенная копия (`MediaAssetVariant`), в запрос кладётся путь к ней (`preferred_media_path`), иначе — метаданные оригинала. Посмотреть payload без отправки: `POST /post-publications/preview/{post_id}` или `python -m app.scripts.publish_post --post-id 1 --dry-run`.
 
 ### Команды
 
@@ -633,6 +635,10 @@ curl -X POST http://localhost:8000/post-publications/publish/1 \
 # Опубликовать все созревшие публикации (планировщик вручную)
 curl -X POST http://localhost:8000/post-publications/publish-due \
   -H "Content-Type: application/json" -d '{"now": "2026-06-18T12:00:00"}'
+
+# Dry-run preview: что и куда ушло бы, без отправки (404 — нет поста)
+curl -X POST http://localhost:8000/post-publications/preview/1 \
+  -H "Content-Type: application/json" -d '{}'
 
 # Ручная правка публикации (target_id/status/error_message)
 curl -X PATCH http://localhost:8000/post-publications/1 \

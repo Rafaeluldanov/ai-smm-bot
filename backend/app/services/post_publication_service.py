@@ -13,9 +13,11 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
 from app.integrations.publishing import PublishError, PublishRequest
+from app.models.media_asset import MediaAsset
 from app.models.post import Post
 from app.repositories import (
     media_asset_repository,
+    media_asset_variant_repository,
     post_publication_repository,
     post_repository,
 )
@@ -25,9 +27,11 @@ from app.schemas.post_publication import (
     PostPublicationCreate,
     PostPublicationRead,
     PostPublicationUpdate,
+    PostPublishPreview,
     PostPublishRequest,
     PostPublishResult,
     PostScheduleRequest,
+    PublicationPreviewItem,
 )
 from app.services import post_status_service
 from app.services.publication_platform_registry import PublicationPlatformRegistry
@@ -161,30 +165,101 @@ class PostPublicationService:
     def build_publish_request(
         self, db: Session, post: Post, platform: str, target_id: str | None
     ) -> PublishRequest:
-        """Собрать запрос на публикацию под платформу (текст, теги, attachment)."""
+        """Собрать запрос на публикацию под платформу (текст, теги, медиа).
+
+        Текст берётся под платформу (``telegram_text``/``vk_text``). Медиа: если у
+        актива есть одобренный (``approved``) улучшенный вариант — предпочитаем путь
+        к улучшенной копии (``preferred_media_path``); иначе используем метаданные
+        оригинала.
+        """
         text = post.telegram_text if platform == "telegram" else post.vk_text
         hashtags = list(post.hashtags or [])
         payload: dict[str, object] = {
             "post_id": post.id,
             "media_asset_id": post.media_asset_id,
             "hashtags": hashtags,
+            "media_source": "none",
         }
+        media_path: str | None = None
         if post.media_asset_id is not None:
             asset = media_asset_repository.get_media_asset_by_id(db, post.media_asset_id)
             if asset is not None:
+                media_path, media_source, variant_id = self._preferred_media(db, asset)
+                payload["media_source"] = media_source
                 payload["attachment"] = {
                     "file_name": asset.file_name,
                     "yandex_disk_path": asset.yandex_disk_path,
                 }
+                if variant_id is not None:
+                    payload["variant_id"] = variant_id
+                    payload["preferred_media_path"] = media_path
         return PublishRequest(
             platform=platform,
             target_id=target_id,
             text=text or "",
             media_url=None,
-            media_path=None,
+            media_path=media_path,
             hashtags=hashtags,
             payload=payload,
         )
+
+    def preview_publication(
+        self, db: Session, post_id: int, request: PostPublishRequest | None = None
+    ) -> PostPublishPreview:
+        """Dry-run preview: показать payload публикации по платформам БЕЗ отправки."""
+        request = request or PostPublishRequest()
+        post = post_repository.get_post_by_id(db, post_id)
+        if post is None:
+            raise PostNotFoundError(post_id)
+
+        platforms = self._resolve_platforms(db, post, request.platforms)
+        available = set(self._registry.get_available_platforms())
+
+        items: list[PublicationPreviewItem] = []
+        warnings: list[str] = []
+        for platform in platforms:
+            if platform not in available:
+                warnings.append(f"Платформа '{platform}' не поддерживается — пропущена")
+                continue
+            target_id = self._resolve_preview_target(db, post.id, platform)
+            publish_request = self.build_publish_request(db, post, platform, target_id)
+            live_enabled = bool(getattr(self._registry.get_client(platform), "live_enabled", False))
+            media_source = str(publish_request.payload.get("media_source", "none"))
+            items.append(
+                PublicationPreviewItem(
+                    platform=platform,
+                    target_id=target_id,
+                    text=publish_request.text,
+                    hashtags=publish_request.hashtags,
+                    media_asset_id=post.media_asset_id,
+                    media_source=media_source,
+                    preferred_media_path=publish_request.media_path,
+                    live_enabled=live_enabled,
+                    would_send=live_enabled and bool(target_id),
+                )
+            )
+        return PostPublishPreview(
+            post_id=post_id, post_status=post.status, items=items, warnings=warnings
+        )
+
+    @staticmethod
+    def _preferred_media(db: Session, asset: MediaAsset) -> tuple[str | None, str, int | None]:
+        """Вернуть (путь, источник, id_варианта): улучшенную копию, если одобрена.
+
+        Берём самый свежий approved enhanced-вариант С готовым файлом — поэтому
+        ``media_source='enhanced_variant'`` всегда сопровождается реальным путём.
+        """
+        variant = media_asset_variant_repository.get_latest_approved_enhanced_variant(db, asset.id)
+        if variant is not None:
+            return variant.output_path, "enhanced_variant", variant.id
+        return None, "original", None
+
+    def _resolve_preview_target(self, db: Session, post_id: int, platform: str) -> str | None:
+        existing = post_publication_repository.get_publication_by_post_and_platform(
+            db, post_id, platform
+        )
+        target_default = self._default_targets.get(platform)
+        return (existing.target_id if existing is not None else None) or target_default
 
     # --- Внутреннее ---
 

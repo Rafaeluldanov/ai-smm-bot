@@ -61,6 +61,27 @@ def get_latest_variant_for_media(
     return db.scalars(stmt).first()
 
 
+def get_latest_approved_enhanced_variant(
+    db: Session, media_asset_id: int
+) -> MediaAssetVariant | None:
+    """Вернуть самый свежий approved enhanced-вариант С готовым файлом (output_path).
+
+    Для публикации годится только одобренная улучшенная копия, у которой реально
+    есть сохранённый файл — поэтому фильтруем по ``status='approved'`` и
+    ``output_path IS NOT NULL`` и берём один свежий ряд (без загрузки всех вариантов).
+    """
+    stmt = (
+        select(MediaAssetVariant)
+        .where(MediaAssetVariant.media_asset_id == media_asset_id)
+        .where(MediaAssetVariant.variant_type == "enhanced")
+        .where(MediaAssetVariant.status == "approved")
+        .where(MediaAssetVariant.output_path.is_not(None))
+        .order_by(MediaAssetVariant.id.desc())
+        .limit(1)
+    )
+    return db.scalars(stmt).first()
+
+
 def create_variant(db: Session, data: MediaAssetVariantCreate) -> MediaAssetVariant:
     """Создать производный вариант медиа."""
     variant = MediaAssetVariant(**data.model_dump())

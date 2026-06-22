@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     vk_default_group_id: str | None = None
     instagram_access_token: str = ""
 
+    # Живая (РЕАЛЬНАЯ) публикация в соцсети. По умолчанию ОТКЛЮЧЕНА: без явного
+    # флага отправка в Telegram/VK невозможна (защита от случайной публикации).
+    telegram_live_publishing_enabled: bool = False
+    vk_live_publishing_enabled: bool = False
+
     # --- AI-провайдер ---
     ai_provider: str = "stub"
     ai_api_key: str = ""
@@ -88,6 +93,24 @@ class Settings(BaseSettings):
     def vk_configured(self) -> bool:
         """Готов ли VK к публикации (есть токен и группа по умолчанию)."""
         return bool(self.vk_access_token and self.vk_default_group_id)
+
+    @property
+    def telegram_live_publishing_configured(self) -> bool:
+        """Включена ли РЕАЛЬНАЯ публикация в Telegram (флаг + токен + канал)."""
+        return (
+            self.telegram_live_publishing_enabled
+            and bool(self.telegram_bot_token)
+            and bool(self.telegram_default_channel_id)
+        )
+
+    @property
+    def vk_live_publishing_configured(self) -> bool:
+        """Включена ли РЕАЛЬНАЯ публикация во VK (флаг + токен + группа)."""
+        return (
+            self.vk_live_publishing_enabled
+            and bool(self.vk_access_token)
+            and bool(self.vk_default_group_id)
+        )
 
     @property
     def yandex_disk_configured(self) -> bool:

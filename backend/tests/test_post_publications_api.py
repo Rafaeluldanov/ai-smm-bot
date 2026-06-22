@@ -77,6 +77,25 @@ def test_publish(client: TestClient, db_session: Session) -> None:
     assert body["post_status"] == "published"
 
 
+def test_preview_returns_items_without_publishing(client: TestClient, db_session: Session) -> None:
+    project_id = _project(db_session)
+    post_id = _post(db_session, project_id, "approved")
+    _use_fake_registry(success=True)
+
+    response = client.post(f"/post-publications/preview/{post_id}", json={})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["post_id"] == post_id
+    assert {item["platform"] for item in body["items"]} == {"telegram", "vk"}
+    # preview ничего не публикует
+    assert client.get("/post-publications", params={"post_id": post_id}).json() == []
+
+
+def test_preview_missing_post_404(client: TestClient) -> None:
+    _use_fake_registry(success=True)
+    assert client.post("/post-publications/preview/99999", json={}).status_code == 404
+
+
 def test_publish_due_route_ordering(client: TestClient, db_session: Session) -> None:
     project_id = _project(db_session)
     post_id = _post(db_session, project_id, "approved")

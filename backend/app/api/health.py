@@ -57,6 +57,15 @@ def readiness() -> ReadinessResponse:
         warnings.append(
             "Публичный режим Яндекс Диска включён, но YANDEX_DISK_PUBLIC_SMM_URL не задан"
         )
+    if (
+        settings.telegram_live_publishing_enabled
+        and not settings.telegram_live_publishing_configured
+    ):
+        warnings.append(
+            "Telegram live publishing включён, но не хватает токена/канала по умолчанию"
+        )
+    if settings.vk_live_publishing_enabled and not settings.vk_live_publishing_configured:
+        warnings.append("VK live publishing включён, но не хватает токена/группы по умолчанию")
     if settings.is_production:
         if settings.database_is_sqlite:
             warnings.append("В production используется SQLite — задайте PostgreSQL DATABASE_URL")

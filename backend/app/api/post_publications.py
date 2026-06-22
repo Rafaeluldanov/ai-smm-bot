@@ -20,6 +20,7 @@ from app.schemas.post_publication import (
     DuePublicationsResult,
     PostPublicationRead,
     PostPublicationUpdate,
+    PostPublishPreview,
     PostPublishRequest,
     PostPublishResult,
     PostScheduleRequest,
@@ -100,6 +101,21 @@ def publish_due(
     """Опубликовать все созревшие публикации (планировщик вручную)."""
     now = payload.now if payload is not None else None
     return service.publish_due_publications(db, now)
+
+
+@router.post("/preview/{post_id}", response_model=PostPublishPreview)
+def preview_publication(
+    post_id: int,
+    db: DbSession,
+    service: PublicationService,
+    payload: PostPublishRequest | None = None,
+) -> PostPublishPreview:
+    """Dry-run preview: показать payload публикации БЕЗ отправки. 404 — нет поста."""
+    request = payload or PostPublishRequest()
+    try:
+        return service.preview_publication(db, post_id, request)
+    except PostNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 # --- Операции над одной публикацией (динамический {publication_id} — последним) ---

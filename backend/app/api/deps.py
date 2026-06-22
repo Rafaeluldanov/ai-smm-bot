@@ -156,8 +156,10 @@ def get_post_review_service() -> PostReviewService:
 def get_publication_platform_registry() -> PublicationPlatformRegistry:
     """Построить реестр клиентов публикации (безопасные клиенты из настроек).
 
-    Реальные клиенты не делают сеть на Этапе 7: без токена/таргета они выдают
-    понятную ошибку. В тестах реестр подменяется на фейковый.
+    Реальная отправка включается ТОЛЬКО при включённых флагах
+    ``TELEGRAM_LIVE_PUBLISHING_ENABLED`` / ``VK_LIVE_PUBLISHING_ENABLED`` (по
+    умолчанию выключены — публикация невозможна). В тестах реестр подменяется на
+    фейковый.
     """
     settings = get_settings()
     return PublicationPlatformRegistry(
@@ -165,10 +167,12 @@ def get_publication_platform_registry() -> PublicationPlatformRegistry:
             "telegram": TelegramPublishingClient(
                 token=settings.telegram_bot_token or None,
                 default_target_id=settings.telegram_default_channel_id,
+                live_enabled=settings.telegram_live_publishing_enabled,
             ),
             "vk": VKPublishingClient(
                 token=settings.vk_access_token or None,
                 default_target_id=settings.vk_default_group_id,
+                live_enabled=settings.vk_live_publishing_enabled,
             ),
         }
     )
