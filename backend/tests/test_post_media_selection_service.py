@@ -27,21 +27,26 @@ def _asset(
     db: Session,
     project_id: int,
     *,
+    key: str = "",
     status: str = "approved",
     source_type: str = "internal",
     license_type: str | None = None,
     products: list[str] | None = None,
+    categories: list[str] | None = None,
 ) -> int:
+    tags: dict[str, list[str]] = {"products": products or ["футболка"]}
+    if categories is not None:
+        tags["categories"] = categories
     asset = media_repo.create_media_asset(
         db,
         MediaAssetCreate(
             project_id=project_id,
             file_name="img.jpg",
-            yandex_disk_path=f"disk:/{status}-{source_type}-{license_type}.jpg",
+            yandex_disk_path=f"disk:/{key}-{status}-{source_type}-{license_type}-{categories}.jpg",
             source_type=source_type,
             license_type=license_type,
             status=status,
-            tags={"products": products or ["футболка"]},
+            tags=tags,
         ),
     )
     return asset.id
@@ -102,3 +107,81 @@ def test_warning_when_no_media(db_session: Session) -> None:
     )
     assert selected is None
     assert warnings
+
+
+def test_internal_beats_external_stock_even_if_older(db_session: Session) -> None:
+    project_id = _project(db_session)
+    # Внешний сток создан РАНЬШЕ (меньший id), но всё равно не должен выигрывать.
+    external_id = _asset(
+        db_session,
+        project_id,
+        source_type="external_stock",
+        license_type="commercial_use_allowed",
+    )
+    internal_id = _asset(
+        db_session, project_id, source_type="internal", license_type="company_owned"
+    )
+    selected, _ = PostMediaSelectionService().select_media_for_topic(db_session, _topic(project_id))
+    assert selected is not None
+    assert selected.id == internal_id
+    assert selected.id != external_id
+
+
+def test_external_reference_not_selected_when_internal_present(db_session: Session) -> None:
+    project_id = _project(db_session)
+    reference_id = _asset(
+        db_session,
+        project_id,
+        source_type="internal",
+        license_type="company_owned",
+        categories=["external_reference"],
+    )
+    internal_id = _asset(
+        db_session, project_id, source_type="internal", license_type="company_owned"
+    )
+    selected, _ = PostMediaSelectionService().select_media_for_topic(db_session, _topic(project_id))
+    assert selected is not None
+    assert selected.id == internal_id
+    assert selected.id != reference_id
+
+
+def test_external_stock_used_as_fallback_when_no_internal(db_session: Session) -> None:
+    project_id = _project(db_session)
+    external_id = _asset(
+        db_session,
+        project_id,
+        source_type="external_stock",
+        license_type="commercial_use_allowed",
+    )
+    selected, warnings = PostMediaSelectionService().select_media_for_topic(
+        db_session, _topic(project_id)
+    )
+    assert selected is not None
+    assert selected.id == external_id
+    assert any("fallback" in w.lower() for w in warnings)
+
+
+def test_exclude_forces_other_media(db_session: Session) -> None:
+    project_id = _project(db_session)
+    first = _asset(
+        db_session, project_id, key="a", source_type="internal", license_type="company_owned"
+    )
+    second = _asset(
+        db_session, project_id, key="b", source_type="internal", license_type="company_owned"
+    )
+    selected, _ = PostMediaSelectionService().select_media_for_topic(
+        db_session, _topic(project_id), exclude_media_asset_ids={first}
+    )
+    assert selected is not None
+    assert selected.id == second
+
+
+def test_reuses_best_when_all_excluded(db_session: Session) -> None:
+    project_id = _project(db_session)
+    only = _asset(db_session, project_id, source_type="internal", license_type="company_owned")
+    selected, warnings = PostMediaSelectionService().select_media_for_topic(
+        db_session, _topic(project_id), exclude_media_asset_ids={only}
+    )
+    assert selected is not None
+    assert selected.id == only  # переиспользуем лучший, раз других нет
+    assert any("переиспольз" in w.lower() for w in warnings)

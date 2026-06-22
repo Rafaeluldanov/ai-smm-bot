@@ -120,6 +120,57 @@ def test_semi_auto_submits_for_review(db_session: Session) -> None:
     assert "needs_review" in statuses
 
 
+def test_semi_auto_prefers_internal_over_external_reference(db_session: Session) -> None:
+    project_id = _project(db_session)
+    # Старый external/reference asset: матчит тему и проходит usable, но НЕ свой.
+    media_asset_repository.create_media_asset(
+        db_session,
+        MediaAssetCreate(
+            project_id=project_id,
+            file_name="ext-ref.jpg",
+            yandex_disk_path="disk:/ext-ref.jpg",
+            source_type="external_stock",
+            license_type="commercial_use_allowed",
+            status="approved",
+            tags={
+                "products": ["футболка", "худи", "шоппер"],
+                "categories": ["external_reference"],
+            },
+        ),
+    )
+    # Свежие собственные internal/company_owned медиа.
+    for i in range(3):
+        media_asset_repository.create_media_asset(
+            db_session,
+            MediaAssetCreate(
+                project_id=project_id,
+                file_name=f"own{i}.jpg",
+                yandex_disk_path=f"disk:/own{i}.jpg",
+                source_type="internal",
+                license_type="company_owned",
+                status="approved",
+                tags={
+                    "products": ["футболка", "худи", "шоппер"],
+                    "technologies": ["шелкография", "dtf", "вышивка"],
+                },
+            ),
+        )
+
+    result = _pipeline().run_pipeline(db_session, _request("semi_auto"))
+
+    assert result.generated_posts == 3
+    posts = post_repository.list_posts(db_session, project_id=project_id)
+    assert "needs_review" in {p.status for p in posts}
+
+    posts_with_media = [p for p in posts if p.media_asset_id is not None]
+    assert posts_with_media
+    for post in posts_with_media:
+        media = media_asset_repository.get_media_asset_by_id(db_session, post.media_asset_id)
+        assert media is not None
+        assert media.source_type == "internal"
+        assert "external_reference" not in ((media.tags or {}).get("categories") or [])
+
+
 def test_needs_media_triggers_external_search(db_session: Session) -> None:
     _project(db_session)
     result = _pipeline().run_pipeline(db_session, _request("semi_auto"))

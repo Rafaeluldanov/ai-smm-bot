@@ -62,9 +62,17 @@ class PostGenerationService:
         return self.generate_post_from_topic_object(db, topic, recommended_format)
 
     def generate_post_from_topic_object(
-        self, db: Session, topic: Topic, recommended_format: str | None = None
+        self,
+        db: Session,
+        topic: Topic,
+        recommended_format: str | None = None,
+        exclude_media_asset_ids: set[int] | None = None,
     ) -> PostGenerationResult:
-        """Сгенерировать пост по объекту темы и сохранить его в БД."""
+        """Сгенерировать пост по объекту темы и сохранить его в БД.
+
+        ``exclude_media_asset_ids`` передаётся подбору медиа, чтобы в батче (неделя/
+        автономный прогон) разные посты получали разные активы при наличии выбора.
+        """
         project = project_repository.get_project_by_id(db, topic.project_id)
         if project is None:
             raise ProjectNotFoundError(topic.project_id)
@@ -73,7 +81,9 @@ class PostGenerationService:
         fmt = self._resolve_format(topic, recommended_format)
         notes.append(f"Формат поста: {fmt}")
 
-        media_asset, warnings = self._media.select_media_for_topic(db, topic)
+        media_asset, warnings = self._media.select_media_for_topic(
+            db, topic, exclude_media_asset_ids
+        )
 
         cta = build_cta(project.slug, fmt)
         texts = self.generate_platform_texts(project.slug, topic, fmt, cta)
@@ -150,10 +160,17 @@ class PostGenerationService:
             warnings.append("Рекомендованных тем меньше, чем требуется постов в плане")
 
         posts: list[PostRead] = []
+        # Распределяем разные медиа между постами недели: каждый следующий пост
+        # исключает уже выбранные активы (если есть из чего выбирать).
+        used_media_ids: set[int] = set()
         for topic in chosen:
-            result = self.generate_post_from_topic_object(db, topic)
+            result = self.generate_post_from_topic_object(
+                db, topic, exclude_media_asset_ids=used_media_ids
+            )
             posts.append(result.post)
             warnings.extend(result.warnings)
+            if result.selected_media_asset_id is not None:
+                used_media_ids.add(result.selected_media_asset_id)
 
         return WeeklyPostGenerationResult(
             project_id=project.id,

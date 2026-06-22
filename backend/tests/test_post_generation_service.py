@@ -90,3 +90,36 @@ def test_generate_weekly_creates_three(db_session: Session) -> None:
 
     assert result.generated_count == 3
     assert len(result.posts) == 3
+
+
+def _broad_internal_media(db: Session, project_id: int, count: int) -> None:
+    for i in range(count):
+        media_repo.create_media_asset(
+            db,
+            MediaAssetCreate(
+                project_id=project_id,
+                file_name=f"m{i}.jpg",
+                yandex_disk_path=f"disk:/m{i}.jpg",
+                source_type="internal",
+                license_type="company_owned",
+                status="approved",
+                tags={
+                    "products": ["футболка", "худи", "шоппер", "кружка", "бейсболка"],
+                    "technologies": ["шелкография", "dtf", "вышивка", "уф-печать"],
+                },
+            ),
+        )
+
+
+def test_generate_weekly_distributes_distinct_media(db_session: Session) -> None:
+    project_id = _project(db_session)
+    _broad_internal_media(db_session, project_id, 3)
+
+    request = WeeklyPostGenerationRequest(project_slug="teeon", weeks=1, posts_per_week=3)
+    result = get_post_generation_service().generate_weekly_posts(db_session, request)
+
+    assert result.generated_count == 3
+    media_ids = [p.media_asset_id for p in result.posts if p.media_asset_id is not None]
+    assert len(media_ids) == 3  # все три поста получили медиа
+    assert len(set(media_ids)) == 3  # и медиа разные (распределены)
+    assert all(p.telegram_text for p in result.posts)  # тексты не сломаны
