@@ -175,6 +175,8 @@ def get_publication_platform_registry() -> PublicationPlatformRegistry:
                 token=settings.vk_access_token or None,
                 default_target_id=settings.vk_default_group_id,
                 live_enabled=settings.vk_live_publishing_enabled,
+                # Загрузчик публичного медиа для фото-вложения (сеть — только на live-пути).
+                media_downloader=get_media_download_service(),
             ),
         }
     )

@@ -111,6 +111,10 @@ class PublicationPreviewItem(BaseModel):
     media_source: str = "none"
     # Предпочтительный путь к медиа (улучшенная копия, если есть approved-вариант).
     preferred_media_path: str | None = None
+    # Тип медиа: "image" | "video" | "none".
+    media_kind: str = "none"
+    # Будет ли прикреплено фото-вложение при живой публикации (VK).
+    would_attach_media: bool = False
     live_enabled: bool = False
     would_send: bool = False
 

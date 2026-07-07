@@ -41,6 +41,18 @@ logger = get_logger(__name__)
 # Платформы по умолчанию, если не заданы явно и нет существующих публикаций.
 _DEFAULT_PLATFORMS: tuple[str, ...] = ("telegram", "vk")
 
+# Расширения видео: на этом этапе видео не загружается как вложение.
+_VIDEO_EXTENSIONS: frozenset[str] = frozenset({"mov", "mp4", "m4v", "avi", "mkv", "webm"})
+
+
+def _media_kind(file_name: str | None) -> str:
+    """Определить тип медиа по имени файла: ``image`` | ``video`` | ``none``."""
+    if not file_name:
+        return "none"
+    ext = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+    return "video" if ext in _VIDEO_EXTENSIONS else "image"
+
+
 # Из каких статусов поста можно планировать / публиковать.
 _SCHEDULABLE_STATUSES: set[str] = {"approved", "scheduled"}
 _PUBLISHABLE_STATUSES: set[str] = {"approved", "scheduled", "published"}
@@ -179,6 +191,8 @@ class PostPublicationService:
             "media_asset_id": post.media_asset_id,
             "hashtags": hashtags,
             "media_source": "none",
+            "media_kind": "none",
+            "preferred_media_path": None,
         }
         media_path: str | None = None
         if post.media_asset_id is not None:
@@ -186,13 +200,16 @@ class PostPublicationService:
             if asset is not None:
                 media_path, media_source, variant_id = self._preferred_media(db, asset)
                 payload["media_source"] = media_source
+                # Тип медиа определяем по файлу, который реально пойдёт во вложение:
+                # улучшенная копия (media_path) или оригинал (asset.file_name).
+                payload["media_kind"] = _media_kind(media_path or asset.file_name)
+                payload["preferred_media_path"] = media_path
                 payload["attachment"] = {
                     "file_name": asset.file_name,
                     "yandex_disk_path": asset.yandex_disk_path,
                 }
                 if variant_id is not None:
                     payload["variant_id"] = variant_id
-                    payload["preferred_media_path"] = media_path
         return PublishRequest(
             platform=platform,
             target_id=target_id,
@@ -225,6 +242,15 @@ class PostPublicationService:
             publish_request = self.build_publish_request(db, post, platform, target_id)
             live_enabled = bool(getattr(self._registry.get_client(platform), "live_enabled", False))
             media_source = str(publish_request.payload.get("media_source", "none"))
+            media_kind = str(publish_request.payload.get("media_kind", "none"))
+            # Фото-вложение поддержано только для VK и только для изображений.
+            would_attach_media = platform == "vk" and media_kind == "image"
+            item_warnings = (
+                [f"Видео ({post.media_asset_id}) не прикрепляется — уйдёт только текст"]
+                if platform == "vk" and media_kind == "video"
+                else []
+            )
+            warnings.extend(item_warnings)
             items.append(
                 PublicationPreviewItem(
                     platform=platform,
@@ -234,6 +260,8 @@ class PostPublicationService:
                     media_asset_id=post.media_asset_id,
                     media_source=media_source,
                     preferred_media_path=publish_request.media_path,
+                    media_kind=media_kind,
+                    would_attach_media=would_attach_media,
                     live_enabled=live_enabled,
                     would_send=live_enabled and bool(target_id),
                 )

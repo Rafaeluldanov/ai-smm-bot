@@ -95,7 +95,7 @@ class MediaDownloadService:
         """Скачать байты медиа-актива. Бросает понятную ошибку для неподдержанных источников."""
         path = media_asset.yandex_disk_path or ""
         if path.startswith(_PUBLIC_PREFIX):
-            return self._download_public(media_asset, path)
+            return self.download_public_media(path, media_asset.file_name)
         if path.startswith(_EXTERNAL_PREFIX):
             raise MediaSourceNotSupportedError(
                 "Внешние изображения (external://) не скачиваются на этом этапе"
@@ -104,9 +104,16 @@ class MediaDownloadService:
             f"Источник медиа не поддержан загрузчиком: {path or '<пусто>'}"
         )
 
-    # --- Внутреннее ---
+    def download_public_media(self, disk_path: str, file_name: str) -> DownloadedMedia:
+        """Скачать байты по ``public://yandex/...`` пути без обращения к БД.
 
-    def _download_public(self, media_asset: MediaAsset, disk_path: str) -> DownloadedMedia:
+        Используется публикацией (VK), где нет ORM-объекта под рукой — только путь
+        и имя файла из payload. Источник должен быть публичной папкой Яндекс Диска.
+        """
+        if not disk_path.startswith(_PUBLIC_PREFIX):
+            raise MediaSourceNotSupportedError(
+                f"Источник медиа не поддержан загрузчиком: {disk_path or '<пусто>'}"
+            )
         if not self._public_key:
             raise MediaDownloadNotConfiguredError(
                 "Публичная ссылка Яндекс Диска не настроена (YANDEX_DISK_PUBLIC_SMM_URL)"
@@ -122,8 +129,8 @@ class MediaDownloadService:
 
         content = self._http_get_bytes(href)
         return DownloadedMedia(
-            file_name=media_asset.file_name,
-            content_type=self._content_type(media_asset.file_name),
+            file_name=file_name,
+            content_type=self._content_type(file_name),
             bytes=content,
             source_url=href,
         )

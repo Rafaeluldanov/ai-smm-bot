@@ -606,6 +606,8 @@ curl -X POST http://localhost:8000/post-reviews/1/comment \
 
 **Безопасная live-публикация.** Реальная отправка по умолчанию **выключена**: без флагов `TELEGRAM_LIVE_PUBLISHING_ENABLED` / `VK_LIVE_PUBLISHING_ENABLED` (`.env`, по умолчанию `false`) `publish` возвращает «Live publishing disabled by config» и ничего не отправляет. При включённом флаге Telegram использует `TELEGRAM_BOT_TOKEN` + `TELEGRAM_DEFAULT_CHANNEL_ID`, VK — `VK_ACCESS_TOKEN` + `VK_DEFAULT_GROUP_ID`. Текст берётся из `post.telegram_text` / `post.vk_text`; если у медиа есть **одобренная** улучшенная копия (`MediaAssetVariant`), в запрос кладётся путь к ней (`preferred_media_path`), иначе — метаданные оригинала. Посмотреть payload без отправки: `POST /post-publications/preview/{post_id}` или `python -m app.scripts.publish_post --post-id 1 --dry-run`.
 
+**Фото во VK и групповой токен (v0.1.12).** При живой публикации VK прикрепляет изображение (локальная улучшенная копия или скачивание оригинала из публичной папки Яндекс Диска → `photos.getWallUploadServer` → upload → `photos.saveWallPhoto` → `attachments`). **Групповой токен публикует текст** (`wall.post`), но методы `photos.*` с ним **недоступны** (`VK error 27: group auth`). В этом случае бот делает **text-only fallback**: постит текст без фото и помечает в `raw` `media_upload_skipped: true`, `media_upload_error_code: 27`, `media_warnings`. Видео пока не загружается (тоже text-only + warning). Полноценная загрузка фото через **user-token** — отдельный будущий этап. Токен нигде не логируется и не попадает в `raw`/ошибки.
+
 ### Команды
 
 ```bash
