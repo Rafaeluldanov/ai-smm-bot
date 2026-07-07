@@ -10,11 +10,13 @@
 ``auto_publish`` и живые публикации запрещены на этом этапе.
 """
 
+from collections import Counter
 from typing import Any
 
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
+from app.models.crm_bot_smm import CrmPromotionCategory, CrmSmmResource
 from app.repositories import crm_bot_smm_repository as repo
 from app.repositories import project_repository
 from app.schemas.crm_bot_smm import (
@@ -22,17 +24,23 @@ from app.schemas.crm_bot_smm import (
     CrmBotProjectConfigCreate,
     CrmBotProjectConfigUpdate,
     CrmContentSourceCreate,
+    CrmContentSourceUpdate,
     CrmKeywordCreate,
+    CrmKeywordUpdate,
     CrmOnboardingCategoryInput,
     CrmOnboardingPayload,
+    CrmOnboardingResourceInput,
     CrmPreviewCategory,
     CrmPreviewPlan,
     CrmPreviewProject,
     CrmPreviewResource,
     CrmPreviewResult,
     CrmPromotionCategoryCreate,
+    CrmPromotionCategoryUpdate,
     CrmPublishingPlanCreate,
+    CrmPublishingPlanUpdate,
     CrmSmmResourceCreate,
+    CrmSmmResourceUpdate,
     CrmValidationResult,
     FormFieldSchema,
     FormSectionSchema,
@@ -548,7 +556,10 @@ class CrmBotSmmFormService:
             required_review=site.required_review,
             status="active",
         )
+        # Идемпотентность: сначала по project_id, затем по crm_external_id.
         config = repo.get_config_by_project_id(db, project.id)
+        if config is None and model.project.crm_external_id:
+            config = repo.get_config_by_crm_external_id(db, model.project.crm_external_id)
         if config is None:
             config = repo.create_config(db, config_data)
         else:
@@ -558,16 +569,128 @@ class CrmBotSmmFormService:
                 CrmBotProjectConfigUpdate(**config_data.model_dump(exclude={"project_id"})),
             )
 
-        # 3. Ресурсы (live_enabled принудительно false).
+        # 3. Ресурсы (upsert по config_id+resource_type+title; live_enabled=false).
         resource_id_by_title: dict[str, int] = {}
         for res in model.resources:
-            created = repo.create_resource(
+            resource = self._upsert_resource(db, project.id, config.id, res)
+            resource_id_by_title.setdefault(resource.title, resource.id)
+
+        # 4. Ключи (upsert по config_id+query).
+        keyword_id_by_query: dict[str, int] = {}
+        for kw in model.keywords:
+            existing_kw = repo.get_keyword_by_key(db, config.id, kw.query)
+            if existing_kw is None:
+                keyword = repo.create_keyword(
+                    db,
+                    CrmKeywordCreate(
+                        project_id=project.id,
+                        config_id=config.id,
+                        query=kw.query,
+                        frequency=kw.frequency,
+                        cluster=kw.cluster,
+                        product=kw.product,
+                        technology=kw.technology,
+                        intent=kw.intent,
+                        priority=kw.priority,
+                    ),
+                )
+            else:
+                keyword = repo.update_keyword(
+                    db,
+                    existing_kw,
+                    CrmKeywordUpdate(
+                        frequency=kw.frequency,
+                        cluster=kw.cluster,
+                        product=kw.product,
+                        technology=kw.technology,
+                        intent=kw.intent,
+                        priority=kw.priority,
+                        is_active=True,
+                    ),
+                )
+            keyword_id_by_query.setdefault(kw.query, keyword.id)
+
+        # 5. Источники контента (upsert по config_id+source_type+title+url).
+        for source in model.content_sources:
+            title = source.title or source.source_type
+            existing_source = repo.get_content_source_by_key(
+                db, config.id, source.source_type, title, source.url
+            )
+            if existing_source is None:
+                repo.create_content_source(
+                    db,
+                    CrmContentSourceCreate(
+                        project_id=project.id,
+                        config_id=config.id,
+                        source_type=source.source_type,
+                        title=title,
+                        url=source.url,
+                        root_folder=source.root_folder,
+                        allowed_folders=source.allowed_folders,
+                        media_tags=source.media_tags,
+                    ),
+                )
+            else:
+                repo.update_content_source(
+                    db,
+                    existing_source,
+                    CrmContentSourceUpdate(
+                        root_folder=source.root_folder,
+                        allowed_folders=source.allowed_folders,
+                        media_tags=source.media_tags,
+                        is_active=True,
+                    ),
+                )
+
+        # 6. Категории (upsert по config_id+title; ключи/ресурсы связываются заново).
+        category_id_by_title: dict[str, int] = {}
+        for cat in model.promotion_categories:
+            category = self._upsert_category(
+                db,
+                project.id,
+                config.id,
+                cat,
+                keyword_id_by_query,
+                resource_id_by_title,
+                website_url,
+            )
+            category_id_by_title.setdefault(cat.title, category.id)
+
+        # 7. Планы публикаций (upsert; auto_publish уже отсеян валидацией).
+        self._upsert_plans(db, project.id, config.id, model, category_id_by_title)
+
+        preview = self.build_preview(db, config.id)
+        preview.warnings = [
+            "apply выполнен: записи синхронизированы (idempotent). Публикации НЕ выполнялись.",
+            *warnings,
+            *preview.warnings,
+        ]
+        return preview
+
+    # --- Идемпотентные upsert-хелперы apply ---
+
+    def _upsert_resource(
+        self,
+        db: Session,
+        project_id: int,
+        config_id: int,
+        res: CrmOnboardingResourceInput,
+    ) -> CrmSmmResource:
+        """Создать/обновить ресурс по ключу (config_id, resource_type, title).
+
+        ``live_enabled`` всегда false. Пустой ``api_key`` не затирает секрет:
+        репозиторий обновляет секрет только при непустом значении.
+        """
+        title = res.title or res.resource_type
+        existing = repo.get_resource_by_key(db, config_id, res.resource_type, title)
+        if existing is None:
+            return repo.create_resource(
                 db,
                 CrmSmmResourceCreate(
-                    project_id=project.id,
-                    config_id=config.id,
+                    project_id=project_id,
+                    config_id=config_id,
                     resource_type=res.resource_type,
-                    title=res.title or res.resource_type,
+                    title=title,
                     api_key=res.api_key,
                     external_id=res.external_id,
                     url=res.url,
@@ -579,57 +702,46 @@ class CrmBotSmmFormService:
                     is_active=True,
                 ),
             )
-            resource_id_by_title.setdefault(created.title, created.id)
+        return repo.update_resource(
+            db,
+            existing,
+            CrmSmmResourceUpdate(
+                api_key=res.api_key,  # None/"" не затирает существующий секрет
+                external_id=res.external_id,
+                url=res.url,
+                yandex_public_url=res.yandex_public_url,
+                yandex_root_folder=res.yandex_root_folder,
+                tags=res.tags,
+                keywords=res.keywords,
+                live_enabled=False,
+                is_active=True,
+            ),
+        )
 
-        # 4. Ключи.
-        keyword_id_by_query: dict[str, int] = {}
-        for kw in model.keywords:
-            created_kw = repo.create_keyword(
-                db,
-                CrmKeywordCreate(
-                    project_id=project.id,
-                    config_id=config.id,
-                    query=kw.query,
-                    frequency=kw.frequency,
-                    cluster=kw.cluster,
-                    product=kw.product,
-                    technology=kw.technology,
-                    intent=kw.intent,
-                    priority=kw.priority,
-                ),
-            )
-            keyword_id_by_query.setdefault(kw.query, created_kw.id)
-
-        # 5. Источники контента.
-        for source in model.content_sources:
-            repo.create_content_source(
-                db,
-                CrmContentSourceCreate(
-                    project_id=project.id,
-                    config_id=config.id,
-                    source_type=source.source_type,
-                    title=source.title or source.source_type,
-                    url=source.url,
-                    root_folder=source.root_folder,
-                    allowed_folders=source.allowed_folders,
-                    media_tags=source.media_tags,
-                ),
-            )
-
-        # 6. Категории (связать ключи/ресурсы по значениям).
-        category_id_by_title: dict[str, int] = {}
-        for cat in model.promotion_categories:
-            keyword_ids = [
-                keyword_id_by_query[q] for q in cat.keyword_queries if q in keyword_id_by_query
-            ]
-            resource_ids = [
-                resource_id_by_title[t] for t in cat.resource_titles if t in resource_id_by_title
-            ]
-            created_cat = repo.create_category(
+    def _upsert_category(
+        self,
+        db: Session,
+        project_id: int,
+        config_id: int,
+        cat: CrmOnboardingCategoryInput,
+        keyword_id_by_query: dict[str, int],
+        resource_id_by_title: dict[str, int],
+        website_url: str | None,
+    ) -> CrmPromotionCategory:
+        """Создать/обновить категорию по ключу (config_id, title)."""
+        keyword_ids = [
+            keyword_id_by_query[q] for q in cat.keyword_queries if q in keyword_id_by_query
+        ]
+        resource_ids = [
+            resource_id_by_title[t] for t in cat.resource_titles if t in resource_id_by_title
+        ]
+        existing = repo.get_category_by_key(db, config_id, cat.title)
+        if existing is None:
+            return repo.create_category(
                 db,
                 CrmPromotionCategoryCreate(
-                    project_id=project.id,
-                    config_id=config.id,
+                    project_id=project_id,
+                    config_id=config_id,
                     title=cat.title,
                     description=cat.description,
                     resource_ids=resource_ids,
@@ -644,40 +756,89 @@ class CrmBotSmmFormService:
                     status="active",
                 ),
             )
-            category_id_by_title.setdefault(cat.title, created_cat.id)
+        return repo.update_category(
+            db,
+            existing,
+            CrmPromotionCategoryUpdate(
+                description=cat.description,
+                resource_ids=resource_ids,
+                keyword_ids=keyword_ids,
+                product_priorities=cat.product_priorities,
+                technology_priorities=cat.technology_priorities,
+                media_tags=cat.media_tags,
+                default_site_url=cat.default_site_url or website_url,
+                cta=cat.cta,
+                tone=cat.tone,
+                require_review=cat.require_review,
+                status="active",
+            ),
+        )
 
-        # 7. Планы публикаций (auto_publish уже отсеян валидацией).
+    def _upsert_plans(
+        self,
+        db: Session,
+        project_id: int,
+        config_id: int,
+        model: CrmOnboardingPayload,
+        category_id_by_title: dict[str, int],
+    ) -> None:
+        """Создать/обновить планы публикаций идемпотентно.
+
+        Один план на категорию — upsert по (config_id, category_id). Несколько
+        планов на категорию — upsert по расписанию (платформы, дни, время).
+        """
+        resolved: list[tuple[Any, int]] = []
         for plan in model.publishing_plans:
             category_id = category_id_by_title.get(plan.category_title or "")
             if category_id is None and category_id_by_title:
                 category_id = next(iter(category_id_by_title.values()))
             if category_id is None:
                 continue
-            platforms = [p for p in plan.platforms if p in _ALLOWED_PLATFORMS]
-            repo.create_plan(
-                db,
-                CrmPublishingPlanCreate(
-                    project_id=project.id,
-                    config_id=config.id,
-                    category_id=category_id,
-                    weekdays=plan.weekdays,
-                    posts_per_day=plan.posts_per_day,
-                    publish_times=plan.publish_times,
-                    platforms=platforms,
-                    mode=plan.mode,
-                    start_date=plan.start_date,
-                    end_date=plan.end_date,
-                    timezone=plan.timezone,
-                ),
-            )
+            resolved.append((plan, category_id))
 
-        preview = self.build_preview(db, config.id)
-        preview.warnings = [
-            "apply выполнен: записи созданы. Публикации НЕ выполнялись.",
-            *warnings,
-            *preview.warnings,
-        ]
-        return preview
+        plans_per_category = Counter(category_id for _, category_id in resolved)
+
+        for plan, category_id in resolved:
+            platforms = [p for p in plan.platforms if p in _ALLOWED_PLATFORMS]
+            if plans_per_category[category_id] == 1:
+                existing = repo.get_first_plan_by_category(db, category_id)
+            else:
+                existing = repo.find_plan_by_schedule(
+                    db, category_id, platforms, plan.weekdays, plan.publish_times
+                )
+            if existing is None:
+                repo.create_plan(
+                    db,
+                    CrmPublishingPlanCreate(
+                        project_id=project_id,
+                        config_id=config_id,
+                        category_id=category_id,
+                        weekdays=plan.weekdays,
+                        posts_per_day=plan.posts_per_day,
+                        publish_times=plan.publish_times,
+                        platforms=platforms,
+                        mode=plan.mode,
+                        start_date=plan.start_date,
+                        end_date=plan.end_date,
+                        timezone=plan.timezone,
+                    ),
+                )
+            else:
+                repo.update_plan(
+                    db,
+                    existing,
+                    CrmPublishingPlanUpdate(
+                        weekdays=plan.weekdays,
+                        posts_per_day=plan.posts_per_day,
+                        publish_times=plan.publish_times,
+                        platforms=platforms,
+                        mode=plan.mode,
+                        start_date=plan.start_date,
+                        end_date=plan.end_date,
+                        timezone=plan.timezone,
+                        is_active=True,
+                    ),
+                )
 
     # ------------------------------------------------------------------ #
     # 4. Превью по сохранённой конфигурации                              #

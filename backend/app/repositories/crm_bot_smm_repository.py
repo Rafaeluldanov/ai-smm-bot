@@ -129,6 +129,18 @@ def get_resource_by_id(db: Session, resource_id: int) -> CrmSmmResource | None:
     return db.get(CrmSmmResource, resource_id)
 
 
+def get_resource_by_key(
+    db: Session, config_id: int, resource_type: str, title: str
+) -> CrmSmmResource | None:
+    """Найти ресурс по ключу идемпотентности (config_id, resource_type, title)."""
+    stmt = select(CrmSmmResource).where(
+        CrmSmmResource.config_id == config_id,
+        CrmSmmResource.resource_type == resource_type,
+        CrmSmmResource.title == title,
+    )
+    return db.scalars(stmt).first()
+
+
 def list_resources_by_config(db: Session, config_id: int) -> list[CrmSmmResource]:
     """Вернуть ресурсы конфигурации в порядке создания."""
     stmt = (
@@ -167,6 +179,12 @@ def get_keyword_by_id(db: Session, keyword_id: int) -> CrmKeyword | None:
     return db.get(CrmKeyword, keyword_id)
 
 
+def get_keyword_by_key(db: Session, config_id: int, query: str) -> CrmKeyword | None:
+    """Найти ключ по ключу идемпотентности (config_id, query)."""
+    stmt = select(CrmKeyword).where(CrmKeyword.config_id == config_id, CrmKeyword.query == query)
+    return db.scalars(stmt).first()
+
+
 def list_keywords_by_config(db: Session, config_id: int) -> list[CrmKeyword]:
     """Вернуть ключи конфигурации в порядке создания."""
     stmt = select(CrmKeyword).where(CrmKeyword.config_id == config_id).order_by(CrmKeyword.id)
@@ -201,6 +219,24 @@ def update_content_source(
 def get_content_source_by_id(db: Session, source_id: int) -> CrmContentSource | None:
     """Вернуть источник контента по id или None."""
     return db.get(CrmContentSource, source_id)
+
+
+def get_content_source_by_key(
+    db: Session, config_id: int, source_type: str, title: str, url: str | None
+) -> CrmContentSource | None:
+    """Найти источник по ключу (config_id, source_type, title, url).
+
+    ``url`` может быть None — сравнение выполняется в Python (устойчиво к NULL).
+    """
+    stmt = select(CrmContentSource).where(
+        CrmContentSource.config_id == config_id,
+        CrmContentSource.source_type == source_type,
+        CrmContentSource.title == title,
+    )
+    for source in db.scalars(stmt):
+        if (source.url or None) == (url or None):
+            return source
+    return None
 
 
 def list_content_sources_by_config(db: Session, config_id: int) -> list[CrmContentSource]:
@@ -243,6 +279,15 @@ def get_category_by_id(db: Session, category_id: int) -> CrmPromotionCategory | 
     return db.get(CrmPromotionCategory, category_id)
 
 
+def get_category_by_key(db: Session, config_id: int, title: str) -> CrmPromotionCategory | None:
+    """Найти категорию по ключу идемпотентности (config_id, title)."""
+    stmt = select(CrmPromotionCategory).where(
+        CrmPromotionCategory.config_id == config_id,
+        CrmPromotionCategory.title == title,
+    )
+    return db.scalars(stmt).first()
+
+
 def list_categories_by_config(db: Session, config_id: int) -> list[CrmPromotionCategory]:
     """Вернуть категории конфигурации в порядке создания."""
     stmt = (
@@ -281,6 +326,30 @@ def update_plan(
 def get_plan_by_id(db: Session, plan_id: int) -> CrmPublishingPlan | None:
     """Вернуть план по id или None."""
     return db.get(CrmPublishingPlan, plan_id)
+
+
+def get_first_plan_by_category(db: Session, category_id: int) -> CrmPublishingPlan | None:
+    """Первый план категории (для случая «один план на категорию»)."""
+    plans = list_plans_by_category(db, category_id)
+    return plans[0] if plans else None
+
+
+def find_plan_by_schedule(
+    db: Session,
+    category_id: int,
+    platforms: list[str],
+    weekdays: list[int],
+    publish_times: list[str],
+) -> CrmPublishingPlan | None:
+    """Найти план категории по расписанию (платформы, дни, время) — сравнение в Python."""
+    for plan in list_plans_by_category(db, category_id):
+        if (
+            list(plan.platforms or []) == list(platforms)
+            and list(plan.weekdays or []) == list(weekdays)
+            and list(plan.publish_times or []) == list(publish_times)
+        ):
+            return plan
+    return None
 
 
 def list_plans_by_category(db: Session, category_id: int) -> list[CrmPublishingPlan]:
