@@ -14,6 +14,7 @@ from app.db.session import get_sessionmaker
 from app.schemas.autonomous import AutonomousModeSettings, AutonomousRunRequest
 from app.scripts.select_topics import parse_business_priorities
 from app.services.autonomous_pipeline_service import AutonomousValidationError
+from app.services.seo_content_sources import UnknownSeoProjectError, get_default_publication_vector
 from app.services.yandex_disk_media_sync_service import ProjectNotFoundError
 
 
@@ -30,6 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--weeks", type=int, default=1)
     parser.add_argument("--posts-per-week", type=int, default=3)
     parser.add_argument("--business-priority", action="append", default=None)
+    parser.add_argument(
+        "--use-default-publication-vector",
+        action="store_true",
+        help="Взять бизнес-приоритеты из SEO-профиля проекта, если не заданы вручную",
+    )
     parser.add_argument("--allow-external-images", action="store_true")
     parser.add_argument("--allow-auto-schedule", action="store_true")
     parser.add_argument("--allow-auto-publish", action="store_true")
@@ -37,10 +43,28 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def resolve_business_priorities(args: argparse.Namespace) -> dict[str, int] | None:
+    """Приоритеты из CLI сильнее пресета SEO-профиля.
+
+    Если пользователь передал ``--business-priority`` — используем их. Иначе, при
+    ``--use-default-publication-vector`` и известном проекте, берём дефолтный
+    вектор публикаций из SEO-профиля.
+    """
+    manual = parse_business_priorities(args.business_priority) or None
+    if manual is not None:
+        return manual
+    if getattr(args, "use_default_publication_vector", False) and args.project_slug:
+        try:
+            return get_default_publication_vector(args.project_slug) or None
+        except UnknownSeoProjectError:
+            return None
+    return None
+
+
 def build_request(args: argparse.Namespace) -> AutonomousRunRequest:
     """Собрать запрос прогона из аргументов CLI."""
     settings = AutonomousModeSettings(
-        allow_external_images=True,
+        allow_external_images=args.allow_external_images,
         allow_auto_schedule=args.allow_auto_schedule,
         allow_auto_publish=args.allow_auto_publish,
         dry_run=args.dry_run,
@@ -52,7 +76,7 @@ def build_request(args: argparse.Namespace) -> AutonomousRunRequest:
         mode=mode,
         weeks=args.weeks,
         posts_per_week=args.posts_per_week,
-        business_priorities=parse_business_priorities(args.business_priority) or None,
+        business_priorities=resolve_business_priorities(args),
         settings=settings,
     )
 

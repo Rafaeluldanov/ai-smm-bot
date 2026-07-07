@@ -1,0 +1,139 @@
+{
+  "project": {
+    "slug": "teeon",
+    "name": "TEEON",
+    "display_name": "TEEON — корпоративный мерч",
+    "crm_external_id": "crm-teeon-001"
+  },
+  "site_or_topics": {
+    "has_website": true,
+    "website_url": "https://teeon.ru",
+    "manual_topics": [],
+    "reference_sites": [],
+    "business_description": "Производство корпоративного мерча и промо-одежды на заказ: футболки, худи, кепки с нанесением логотипа. Собственный швейный цех в Москве, работа с юрлицами, доставка по России.",
+    "geography": ["Москва", "Россия"],
+    "brand_tone": "B2B, экспертный, без хайпа",
+    "forbidden_phrases": [
+      "выдавать внешние картинки за свои кейсы",
+      "обещать невозможные сроки"
+    ],
+    "required_review": true
+  },
+  "resources": [
+    {
+      "resource_type": "vk",
+      "title": "VK: TEEON",
+      "api_key": "PASTE_IN_CRM_SECRET_FIELD",
+      "external_id": "240102732",
+      "url": "https://vk.com/teeon",
+      "tags": ["мерч", "b2b"],
+      "keywords": ["пошив футболок", "нанесение логотипа"],
+      "live_enabled": false
+    },
+    {
+      "resource_type": "telegram",
+      "title": "Telegram: TEEON",
+      "api_key": null,
+      "external_id": "@teeon_channel",
+      "live_enabled": false
+    },
+    {
+      "resource_type": "yandex_disk",
+      "title": "Яндекс Диск: медиа TEEON",
+      "api_key": null,
+      "yandex_public_url": "https://disk.yandex.ru/d/PUBLIC_SMM_FOLDER_PLACEHOLDER",
+      "yandex_root_folder": "SMM",
+      "media_tags": ["футболка", "худи", "нанесение"]
+    },
+    {
+      "resource_type": "website",
+      "title": "Сайт TEEON",
+      "url": "https://teeon.ru"
+    }
+  ],
+  "keywords": [
+    {
+      "query": "пошив футболок с логотипом на заказ",
+      "frequency": 5,
+      "cluster": "футболки / майки",
+      "product": "футболки",
+      "intent": "commercial",
+      "priority": 90
+    },
+    {
+      "query": "производство корпоративных футболок",
+      "frequency": 7,
+      "cluster": "футболки / майки",
+      "product": "футболки",
+      "intent": "process",
+      "priority": 85
+    },
+    {
+      "query": "нанесение логотипа DTF-печать",
+      "frequency": 0,
+      "cluster": "нанесение логотипа",
+      "technology": "DTF-печать",
+      "intent": "brand",
+      "priority": 80
+    },
+    {
+      "query": "заказать пошив худи",
+      "frequency": 6,
+      "cluster": "худи / толстовки / свитшоты",
+      "product": "худи",
+      "intent": "commercial",
+      "priority": 75
+    }
+  ],
+  "content_sources": [
+    {
+      "source_type": "yandex_disk",
+      "title": "Публичная папка SMM",
+      "url": "https://disk.yandex.ru/d/PUBLIC_SMM_FOLDER_PLACEHOLDER",
+      "root_folder": "SMM",
+      "allowed_folders": ["01_Одобрено", "02_На_согласовании"],
+      "media_tags": ["футболка", "худи", "нанесение", "цех"]
+    },
+    {
+      "source_type": "website",
+      "title": "Каталог сайта",
+      "url": "https://teeon.ru/catalog"
+    }
+  ],
+  "promotion_categories": [
+    {
+      "title": "TEEON / Футболки и нанесение",
+      "description": "Продвижение футболок с нанесением логотипа и технологий печати.",
+      "resource_titles": ["VK: TEEON", "Telegram: TEEON"],
+      "keyword_queries": [
+        "пошив футболок с логотипом на заказ",
+        "производство корпоративных футболок",
+        "нанесение логотипа DTF-печать"
+      ],
+      "product_priorities": {
+        "футболки": 100,
+        "худи": 80
+      },
+      "technology_priorities": {
+        "DTF-печать": 100,
+        "вышивка": 90
+      },
+      "media_tags": ["футболка", "худи", "dtf", "вышивка"],
+      "default_site_url": "https://teeon.ru/catalog/futbolki",
+      "cta": "Заявка и расчёт тиража — в сообщениях группы или на сайте.",
+      "tone": "B2B, экспертный",
+      "require_review": true
+    }
+  ],
+  "publishing_plans": [
+    {
+      "category_title": "TEEON / Футболки и нанесение",
+      "weekdays": [0, 2, 4],
+      "posts_per_day": 1,
+      "publish_times": ["11:00"],
+      "platforms": ["vk", "telegram"],
+      "mode": "semi_auto",
+      "timezone": "Europe/Moscow"
+    }
+  ]
+}

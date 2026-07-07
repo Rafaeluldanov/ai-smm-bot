@@ -3,6 +3,15 @@
 from app.db.base import Base
 from app.models.autonomous_run import AutonomousRun
 from app.models.autonomous_run_step import AutonomousRunStep
+from app.models.crm_bot_smm import (
+    CrmBotProjectConfig,
+    CrmContentSource,
+    CrmKeyword,
+    CrmOnboardingDraft,
+    CrmPromotionCategory,
+    CrmPublishingPlan,
+    CrmSmmResource,
+)
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.media_asset import MediaAsset
 from app.models.media_asset_variant import MediaAssetVariant
@@ -17,6 +26,13 @@ __all__ = [
     "AutonomousRun",
     "AutonomousRunStep",
     "Base",
+    "CrmBotProjectConfig",
+    "CrmContentSource",
+    "CrmKeyword",
+    "CrmOnboardingDraft",
+    "CrmPromotionCategory",
+    "CrmPublishingPlan",
+    "CrmSmmResource",
     "ExternalImageCandidate",
     "MediaAsset",
     "MediaAssetVariant",

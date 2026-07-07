@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     telegram_live_publishing_enabled: bool = False
     vk_live_publishing_enabled: bool = False
 
+    # --- SEO-заполнение VK-группы (SEO VK Group Setup) ---
+    # Реальные изменения оформления VK-группы (название/описание/статус/закреп/меню)
+    # по умолчанию ОТКЛЮЧЕНЫ: apply работает только в режиме preview/dry-run. Даже с
+    # флагом реальные вызовы VK API оформления на этом этапе не выполняются.
+    vk_group_setup_live_enabled: bool = False
+    # Проекты, которым разрешено SEO-заполнение группы (через запятую).
+    vk_group_setup_allowed_projects: str = "teeon,fabric-souvenirs"
+
     # --- AI-провайдер ---
     ai_provider: str = "stub"
     ai_api_key: str = ""
@@ -111,6 +119,13 @@ class Settings(BaseSettings):
             and bool(self.vk_access_token)
             and bool(self.vk_default_group_id)
         )
+
+    @property
+    def vk_group_setup_allowed_projects_list(self) -> list[str]:
+        """Список project_slug, которым разрешено SEO-заполнение VK-группы."""
+        return [
+            slug.strip() for slug in self.vk_group_setup_allowed_projects.split(",") if slug.strip()
+        ]
 
     @property
     def yandex_disk_configured(self) -> bool:

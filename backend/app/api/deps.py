@@ -15,6 +15,8 @@ from app.services.analytics_provider import FakeAnalyticsProvider
 from app.services.analytics_service import AnalyticsService
 from app.services.autonomous_pipeline_service import AutonomousPipelineService
 from app.services.autonomous_safety_service import AutonomousSafetyService
+from app.services.crm_bot_smm_application_service import CrmBotSmmApplicationService
+from app.services.crm_bot_smm_form_service import CrmBotSmmFormService
 from app.services.external_image_provider import FakeExternalImageProvider
 from app.services.external_image_provider_registry import ExternalImageProviderRegistry
 from app.services.external_image_search_service import ExternalImageSearchService
@@ -236,3 +238,13 @@ def get_autonomous_pipeline_service() -> AutonomousPipelineService:
         analytics_service=get_analytics_service(get_analytics_provider()),
         safety_service=get_autonomous_safety_service(),
     )
+
+
+def get_crm_bot_smm_form_service() -> CrmBotSmmFormService:
+    """Построить сервис формы «БОТ СММ» (схема, валидация, apply, превью)."""
+    return CrmBotSmmFormService()
+
+
+def get_crm_bot_smm_application_service() -> CrmBotSmmApplicationService:
+    """Построить сервис интеграции конфигурации CRM с SEO-модулями и pipeline."""
+    return CrmBotSmmApplicationService(pipeline_service=get_autonomous_pipeline_service())

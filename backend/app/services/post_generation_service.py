@@ -29,6 +29,7 @@ from app.services import topic_taxonomy
 from app.services.post_media_selection_service import PostMediaSelectionService
 from app.services.post_template_taxonomy import get_available_formats, infer_format_from_topic
 from app.services.post_text_helpers import build_cta, build_hashtags, get_brand_name, shorten_text
+from app.services.site_link_selection_service import SiteLink, select_site_link
 from app.services.topic_selection_service import TopicSelectionService
 from app.services.yandex_disk_media_sync_service import ProjectNotFoundError
 
@@ -191,7 +192,13 @@ class PostGenerationService:
             project_slug, topic.title, cluster, list(topic.seo_keywords or [])
         )
 
-        telegram_text = "\n\n".join([*blocks, cta])
+        # Одна релевантная ссылка на сайт в конце VK/Telegram-текста (Задача 3).
+        link_line = self._site_link_line(project_slug, topic)
+
+        telegram_blocks = [*blocks, cta]
+        if link_line:
+            telegram_blocks.append(link_line)
+        telegram_text = "\n\n".join(telegram_blocks)
 
         cluster_label = cluster.strip() or "наших изделий"
         bullets = [
@@ -200,7 +207,10 @@ class PostGenerationService:
             "— рассчитаем тираж, стоимость и сроки;",
             "— учтём задачу: мероприятие, мерч для команды или подарки клиентам.",
         ]
-        vk_text = "\n\n".join([blocks[0], "Чем поможем:\n" + "\n".join(bullets), cta])
+        vk_blocks = [blocks[0], "Чем поможем:\n" + "\n".join(bullets), cta]
+        if link_line:
+            vk_blocks.append(link_line)
+        vk_text = "\n\n".join(vk_blocks)
 
         instagram_hook = shorten_text(blocks[0], _INSTAGRAM_HOOK_LEN)
         instagram_text = "\n\n".join([instagram_hook, cta, " ".join(hashtags)])
@@ -211,7 +221,23 @@ class PostGenerationService:
             "instagram_text": instagram_text,
         }
 
+    def select_site_link_for_topic(self, project_slug: str, topic: Topic) -> SiteLink | None:
+        """Подобрать релевантную ссылку на сайт под тему (или None, если сайта нет)."""
+        return select_site_link(
+            project_slug,
+            title=topic.title,
+            cluster=topic.cluster or "",
+            seo_query=" ".join(topic.seo_keywords or []),
+        )
+
     # --- Внутренняя логика ---
+
+    def _site_link_line(self, project_slug: str, topic: Topic) -> str:
+        """Строка-CTA со ссылкой на сайт (пустая, если релевантной страницы нет)."""
+        link = self.select_site_link_for_topic(project_slug, topic)
+        if link is None:
+            return ""
+        return f"Подробнее и расчёт тиража: {link.url}"
 
     def _resolve_format(self, topic: Topic, recommended_format: str | None) -> str:
         """Определить формат: из запроса → из профиля кластера → по ключевым словам."""

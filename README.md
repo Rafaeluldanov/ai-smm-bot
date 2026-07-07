@@ -830,6 +830,120 @@ curl -X POST http://localhost:8000/autonomous-runs/run/slug/teeon \
 <!-- STAGE10_README_END -->
 
 
+<!-- SEO_VK_README_START -->
+
+## SEO VK-группа TEEON
+
+Системный модуль SEO для VK-группы **TEEON** (и архитектура под вторую группу
+«Фабрика сувениров»): SEO-профиль проекта на основе сайта [teeon.ru](https://teeon.ru)
+(каталог + нанесения), seed-ядро SEO-запросов Яндекса, выбор релевантной ссылки на
+сайт для каждого поста, контент-план и **preview** SEO-заполнения группы.
+
+> ⚠️ Реальные публикации и реальные изменения оформления VK-группы на этом этапе
+> **не выполняются**. `VK_LIVE_PUBLISHING_ENABLED` и `VK_GROUP_SETUP_LIVE_ENABLED`
+> по умолчанию `false` — всё работает как preview / dry-run.
+
+### Команды
+
+```bash
+# Превью SEO-заполнения группы (описание, статус, закреп, услуги, хэштеги, ссылки)
+make preview-vk-seo project_slug=teeon
+PYTHONPATH=backend .venv/bin/python -m app.scripts.preview_vk_group_seo_setup --project-slug teeon
+
+# SEO-контент-план на 30 дней (тема, SEO-запрос, ссылка на сайт, медиа-тег, CTA)
+make seo-content-plan project_slug=teeon days=30
+PYTHONPATH=backend .venv/bin/python -m app.scripts.generate_seo_content_plan --project-slug teeon --days 30
+
+# Автономный прогон с пресетом приоритетов из SEO-профиля
+PYTHONPATH=backend .venv/bin/python -m app.scripts.autonomous_run \
+    --project-slug teeon --use-default-publication-vector --dry-run
+```
+
+### API `/seo`
+
+```bash
+curl http://localhost:8000/seo/project/teeon/profile
+curl http://localhost:8000/seo/project/teeon/vk-group-preview
+curl "http://localhost:8000/seo/project/teeon/content-plan?days=30"
+
+# apply: dry_run=true по умолчанию; live → 403 без VK_GROUP_SETUP_LIVE_ENABLED
+curl -X POST http://localhost:8000/seo/project/teeon/vk-group-apply \
+  -H "Content-Type: application/json" -d '{"dry_run": true}'
+```
+
+Подробности — в [`Докс/20_SEO_VK_группа_TEEON.md`](./Докс/20_SEO_VK_группа_TEEON.md).
+
+<!-- SEO_VK_README_END -->
+
+
+<!-- CRM_BOT_SMM_README_START -->
+
+## CRM Bot SMM Configurator
+
+Слой конфигурации для **внешней CRM**: во вкладке «БОТ СММ» человек заполняет
+форму (проект, сайт/темы, ресурсы, ключи, источники контента, категории
+продвижения, план публикаций), а бэкенд отдаёт **JSON-схему формы** и REST-API,
+которые любая CRM отрисует и вызовет. По данным формы строятся SEO-профиль,
+контент-план и безопасный `semi_auto`/`dry-run`.
+
+> ⚠️ Безопасность: **реальные публикации не выполняются**, live VK/Telegram
+> выключены, режим `auto_publish` запрещён. Секрет ресурса (`api_key`) хранится
+> зашифрованно и **не возвращается** через API — только `api_key_present` и
+> `api_key_masked`.
+
+### Команды
+
+```bash
+# Схема формы «БОТ СММ» для CRM (без БД)
+make crm-form-schema
+
+# Валидация онбординг-пейлоада (без БД)
+make crm-onboarding-validate payload_path=backend/examples/crm_bot_smm_onboarding_teeon.json
+
+# Превью онбординга (dry-run, ничего не пишет)
+make crm-onboarding-preview payload_path=backend/examples/crm_bot_smm_onboarding_teeon.json
+
+# Применить онбординг (создаёт проект/конфиг/ресурсы/ключи/категории/план; требует БД)
+make crm-onboarding-apply payload_path=backend/examples/crm_bot_smm_onboarding_teeon.json
+
+# Контент-план категории на N дней (требует БД)
+make crm-category-plan category_id=1 days=30
+```
+
+Пример безопасного пейлоада (без реальных токенов):
+[`backend/examples/crm_bot_smm_onboarding_teeon.json`](./backend/examples/crm_bot_smm_onboarding_teeon.json).
+
+### API `/crm/bot-smm`
+
+```bash
+# Схема формы
+curl http://localhost:8000/crm/bot-smm/form-schema
+
+# Черновик онбординга: создать → валидировать → превью → применить
+curl -X POST http://localhost:8000/crm/bot-smm/onboarding-drafts \
+  -H "Content-Type: application/json" -d '{"payload": { ... }}'
+curl -X POST http://localhost:8000/crm/bot-smm/onboarding-drafts/1/validate
+curl -X POST http://localhost:8000/crm/bot-smm/onboarding-drafts/1/preview
+curl -X POST "http://localhost:8000/crm/bot-smm/onboarding-drafts/1/apply?dry_run=false"
+
+# Конфигурация проекта
+curl http://localhost:8000/crm/bot-smm/projects/1/config
+
+# Безопасная проверка ресурса (без сети, без печати секрета)
+curl -X POST http://localhost:8000/crm/bot-smm/resources/1/test-connection \
+  -H "Content-Type: application/json" -d '{"test_connection": true}'
+
+# Категория: контент-план и безопасные прогоны (публикаций нет)
+curl -X POST "http://localhost:8000/crm/bot-smm/categories/1/preview-plan?days=30"
+curl -X POST http://localhost:8000/crm/bot-smm/categories/1/run-dry
+curl -X POST http://localhost:8000/crm/bot-smm/categories/1/run-semi-auto
+```
+
+Подробности — в [`Докс/21_CRM_форма_БОТ_СММ.md`](./Докс/21_CRM_форма_БОТ_СММ.md).
+
+<!-- CRM_BOT_SMM_README_END -->
+
+
 <!-- MVP_RELEASE_START -->
 
 ## Production hardening / MVP-релиз

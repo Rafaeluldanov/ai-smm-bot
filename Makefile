@@ -13,6 +13,9 @@ BIN := $(VENV)/bin
         ingest-analytics analytics-report \
         search-external-images convert-external-image \
         autonomous-run autonomous-dry-run autonomous-report \
+        preview-vk-seo seo-content-plan \
+        crm-form-schema crm-onboarding-validate crm-onboarding-preview \
+        crm-onboarding-apply crm-category-plan \
         smoke
 
 help: ## Показать список команд
@@ -117,6 +120,27 @@ autonomous-dry-run: ## Сухой прогон: make autonomous-dry-run project_
 
 autonomous-report: ## Отчёт прогона: make autonomous-report run_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.autonomous_report --run-id "$(run_id)"
+
+preview-vk-seo: ## Превью SEO-заполнения VK-группы: make preview-vk-seo project_slug=teeon
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.preview_vk_group_seo_setup --project-slug "$(project_slug)"
+
+seo-content-plan: ## SEO-контент-план на N дней: make seo-content-plan project_slug=teeon days=30
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.generate_seo_content_plan --project-slug "$(project_slug)" --days "$(or $(days),30)"
+
+crm-form-schema: ## Схема формы «БОТ СММ» для CRM: make crm-form-schema
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.preview_crm_bot_smm_form
+
+crm-onboarding-validate: ## Валидация онбординга: make crm-onboarding-validate payload_path=...
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.validate_crm_onboarding_payload --payload-path "$(payload_path)"
+
+crm-onboarding-preview: ## Превью онбординга (dry-run): make crm-onboarding-preview payload_path=...
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.apply_crm_onboarding_payload --payload-path "$(payload_path)" --dry-run true
+
+crm-onboarding-apply: ## Применить онбординг (real): make crm-onboarding-apply payload_path=...
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.apply_crm_onboarding_payload --payload-path "$(payload_path)" --dry-run false
+
+crm-category-plan: ## Контент-план категории: make crm-category-plan category_id=1 days=30
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.preview_crm_category_plan --category-id "$(category_id)" --days "$(or $(days),30)"
 
 smoke: ## Смоук-проверка: приложение поднимается, health/readiness отвечают
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.smoke_check
