@@ -25,6 +25,7 @@ from app.services.market_signal_provider import StaticMarketSignalProvider
 from app.services.media_analysis_service import MediaAnalysisService
 from app.services.media_download_service import MediaDownloadService
 from app.services.media_enhancement_service import MediaEnhancementService
+from app.services.media_grouping_service import MediaGroupingService
 from app.services.media_status_service import MediaStatusService
 from app.services.media_tagging_service import MediaTaggingService
 from app.services.post_generation_service import PostGenerationService
@@ -134,6 +135,11 @@ def get_media_analysis_service() -> MediaAnalysisService:
     )
 
 
+def get_media_grouping_service() -> MediaGroupingService:
+    """Построить сервис группировки медиа и сборки поста по группе."""
+    return MediaGroupingService()
+
+
 def get_topic_selection_service() -> TopicSelectionService:
     """Построить сервис выбора тем и контент-плана."""
     return TopicSelectionService(
@@ -177,6 +183,9 @@ def get_publication_platform_registry() -> PublicationPlatformRegistry:
                 live_enabled=settings.vk_live_publishing_enabled,
                 # Загрузчик публичного медиа для фото-вложения (сеть — только на live-пути).
                 media_downloader=get_media_download_service(),
+                # Конвертер HEIC/HEIF → JPEG в памяти (оригинал не меняется).
+                image_processor=get_image_enhancement_processor(),
+                max_group_photos=settings.vk_media_group_max_photos,
             ),
         }
     )

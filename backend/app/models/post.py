@@ -1,6 +1,7 @@
 """Модель поста для публикации в соцсетях."""
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -32,6 +33,11 @@ class Post(Base, TimestampMixin):
 
     hashtags: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
     seo_keywords: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
+
+    # Технические заметки генерации (JSON). Для поста с группой медиа хранит
+    # media_group_key, media_group_tags, media_asset_ids, media_files, счётчики,
+    # флаг selected_for_vk_upload и предупреждения. Для обычного поста — {}.
+    generation_notes: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)
 
     # Статусы Этапа 5: "draft" | "needs_review" | "approved" | "scheduled" |
     # "published" | "rejected" | "needs_media".

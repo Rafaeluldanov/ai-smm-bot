@@ -42,6 +42,8 @@ class VkCapture:
         self.wall_attachments: list[str | None] = []
         self._error_on = error_on
         self._error_code = error_code
+        # Инкрементальные id фото: одиночная загрузка -> 4444, группа -> 4444,4445,...
+        self._next_photo_id = 4444
 
     def _maybe_error(self, path: str) -> httpx.Response | None:
         if self._error_on and self._error_on in path:
@@ -62,9 +64,12 @@ class VkCapture:
         if request.url.host == UPLOAD_HOST:
             return httpx.Response(200, json={"server": 1234, "photo": "[blob]", "hash": "h4sh"})
         if "photos.saveWallPhoto" in path:
-            return self._maybe_error(path) or httpx.Response(
-                200, json={"response": [{"id": 4444, "owner_id": -100}]}
-            )
+            error = self._maybe_error(path)
+            if error is not None:
+                return error
+            photo_id = self._next_photo_id
+            self._next_photo_id += 1
+            return httpx.Response(200, json={"response": [{"id": photo_id, "owner_id": -100}]})
         if "wall.post" in path:
             form = urllib.parse.parse_qs(request.content.decode())
             self.wall_attachments.append(form.get("attachments", [None])[0])
@@ -392,3 +397,243 @@ def test_preview_marks_video_not_attached(db_session: Session) -> None:
     assert vk_item.media_kind == "video"
     assert vk_item.would_attach_media is False
     assert any("Видео" in w for w in preview.warnings)
+
+
+# --------------------------------------------------------------------------- #
+# Группа медиа (v0.1.14): несколько фото одним постом, видео пропускается        #
+# --------------------------------------------------------------------------- #
+
+
+class FakeImageProcessor:
+    """Фейковый конвертер HEIC→JPEG: не открывает файл, отдаёт готовые байты."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[bytes, str]] = []
+
+    def enhance_image_bytes(
+        self, image_bytes: bytes, profile: str, operations: dict[str, bool] | None = None
+    ) -> SimpleNamespace:
+        self.calls.append((image_bytes, profile))
+        return SimpleNamespace(output_bytes=b"\xff\xd8\xff\xe0converted-jpeg")
+
+
+def _image_item(media_id: int, media_path: str) -> dict[str, object]:
+    return {
+        "id": media_id,
+        "file_name": Path(media_path).name,
+        "media_path": media_path,
+        "media_kind": "image",
+    }
+
+
+def _video_item(media_id: int, file_name: str) -> dict[str, object]:
+    return {
+        "id": media_id,
+        "file_name": file_name,
+        "yandex_disk_path": f"public://yandex/teeon/{file_name}",
+        "media_kind": "video",
+    }
+
+
+def test_image_group_uploads_all_photos(tmp_path: Path) -> None:
+    jpgs = [tmp_path / f"e{index}.jpg" for index in range(3)]
+    for jpg in jpgs:
+        jpg.write_bytes(b"\xff\xd8\xff\xe0jpeg")
+    capture = VkCapture()
+    client = _client(live_enabled=True, handler=capture.handler)
+
+    media_items = [_image_item(index + 1, str(jpgs[index])) for index in range(3)]
+    response = client.publish_post(_request(media_items=media_items, media_kind="image_group"))
+
+    assert response.external_post_id == "5"
+    attachments = capture.wall_attachments[0]
+    assert attachments is not None
+    assert attachments.split(",") == ["photo-100_4444", "photo-100_4445", "photo-100_4446"]
+    assert sum("photos.getWallUploadServer" in call for call in capture.calls) == 3
+    assert sum("photos.saveWallPhoto" in call for call in capture.calls) == 3
+    assert response.raw["attached_photos"] == [
+        "photo-100_4444",
+        "photo-100_4445",
+        "photo-100_4446",
+    ]
+    assert TOKEN not in json.dumps(response.raw)
+
+
+def test_mixed_group_uploads_image_and_skips_video(tmp_path: Path) -> None:
+    jpg = tmp_path / "e.jpg"
+    jpg.write_bytes(b"jpeg")
+    capture = VkCapture()
+    downloader = FakeDownloader()
+    client = _client(live_enabled=True, handler=capture.handler, downloader=downloader)
+
+    media_items = [_image_item(1, str(jpg)), _video_item(2, "clip.MOV")]
+    response = client.publish_post(_request(media_items=media_items, media_kind="mixed"))
+
+    # Только фото прикреплено; видео пропущено с предупреждением, скачивание видео не шло.
+    assert capture.wall_attachments == ["photo-100_4444"]
+    assert response.external_post_id == "5"
+    warnings = response.raw["media_warnings"]
+    assert any("VK video upload is not implemented; video skipped" in w for w in warnings)
+    assert downloader.calls == []
+
+
+def test_video_only_group_text_only_with_warning() -> None:
+    capture = VkCapture()
+    downloader = FakeDownloader()
+    client = _client(live_enabled=True, handler=capture.handler, downloader=downloader)
+
+    media_items = [_video_item(1, "clip.MOV")]
+    response = client.publish_post(_request(media_items=media_items, media_kind="video"))
+
+    assert capture.wall_attachments == [None]
+    assert response.external_post_id == "5"
+    assert any(
+        "VK video upload is not implemented; video skipped" in w
+        for w in response.raw["media_warnings"]
+    )
+    assert not any("getWallUploadServer" in call for call in capture.calls)
+    assert downloader.calls == []
+
+
+def test_group_error_27_falls_back_to_text_only(tmp_path: Path) -> None:
+    jpgs = [tmp_path / f"e{index}.jpg" for index in range(2)]
+    for jpg in jpgs:
+        jpg.write_bytes(b"jpeg")
+    capture = VkCapture(error_on="photos.getWallUploadServer", error_code=27)
+    client = _client(live_enabled=True, handler=capture.handler)
+
+    media_items = [_image_item(index + 1, str(jpgs[index])) for index in range(2)]
+    response = client.publish_post(_request(media_items=media_items, media_kind="image_group"))
+
+    assert response.external_post_id == "5"
+    assert capture.wall_attachments == [None]
+    assert response.raw["media_upload_skipped"] is True
+    assert response.raw["media_upload_error_code"] == 27
+    assert _GROUP_AUTH_WARNING in response.raw["media_warnings"]
+    assert TOKEN not in json.dumps(response.raw)
+
+
+def test_group_non_27_error_raises_publish_error(tmp_path: Path) -> None:
+    jpg = tmp_path / "e.jpg"
+    jpg.write_bytes(b"jpeg")
+    capture = VkCapture(error_on="photos.getWallUploadServer", error_code=15)
+    client = _client(live_enabled=True, handler=capture.handler)
+
+    media_items = [_image_item(1, str(jpg))]
+    with pytest.raises(PublishError) as exc_info:
+        client.publish_post(_request(media_items=media_items, media_kind="image"))
+    # wall.post не вызывался, токен не в тексте ошибки.
+    assert capture.wall_attachments == []
+    assert TOKEN not in str(exc_info.value)
+
+
+def test_group_respects_max_group_photos(tmp_path: Path) -> None:
+    jpgs = [tmp_path / f"e{index}.jpg" for index in range(4)]
+    for jpg in jpgs:
+        jpg.write_bytes(b"jpeg")
+    capture = VkCapture()
+    client = VKPublishingClient(
+        token=TOKEN,
+        default_target_id="-100",
+        live_enabled=True,
+        transport=httpx.MockTransport(capture.handler),
+        max_group_photos=2,
+    )
+
+    media_items = [_image_item(index + 1, str(jpgs[index])) for index in range(4)]
+    response = client.publish_post(_request(media_items=media_items, media_kind="image_group"))
+
+    attachments = capture.wall_attachments[0]
+    assert attachments is not None
+    assert len(attachments.split(",")) == 2
+    assert any("лимит вложений" in w.lower() for w in response.raw["media_warnings"])
+
+
+def test_heic_group_item_converted_in_memory_before_upload(tmp_path: Path) -> None:
+    heic = tmp_path / "orig.heic"
+    heic.write_bytes(b"fake-heic-bytes")
+    capture = VkCapture()
+    processor = FakeImageProcessor()
+    client = VKPublishingClient(
+        token=TOKEN,
+        default_target_id="-100",
+        live_enabled=True,
+        transport=httpx.MockTransport(capture.handler),
+        image_processor=processor,
+    )
+
+    media_items = [_image_item(1, str(heic))]
+    response = client.publish_post(_request(media_items=media_items, media_kind="image"))
+
+    assert response.external_post_id == "5"
+    assert capture.wall_attachments == ["photo-100_4444"]
+    # Конвертация вызвана на HEIC-байтах оригинала (оригинал не перезаписан).
+    assert processor.calls
+    assert processor.calls[0][0] == b"fake-heic-bytes"
+    assert heic.read_bytes() == b"fake-heic-bytes"
+
+
+# --------------------------------------------------------------------------- #
+# Dry-run preview группы медиа через сервис (без сети)                          #
+# --------------------------------------------------------------------------- #
+
+
+def _group_post(db: Session, project_id: int, file_names: list[str]) -> tuple[int, list[int]]:
+    ids: list[int] = []
+    for file_name in file_names:
+        is_video = file_name.lower().rsplit(".", 1)[-1] in {"mov", "mp4", "m4v"}
+        media_id = media_asset_repository.create_media_asset(
+            db,
+            MediaAssetCreate(
+                project_id=project_id,
+                file_name=file_name,
+                yandex_disk_path=f"public://yandex/teeon/teeon/{file_name}",
+                source_type="internal",
+                license_type="company_owned",
+                status="approved_video" if is_video else "approved",
+                tags={"products": ["футболка"]},
+            ),
+        ).id
+        ids.append(media_id)
+    post_id = post_repository.create_post(
+        db,
+        PostCreate(
+            project_id=project_id,
+            media_asset_id=ids[0],
+            title="T",
+            telegram_text="TG",
+            vk_text="VK",
+            instagram_text="IG",
+            hashtags=["#teeon"],
+            seo_keywords=["футболки"],
+            status="approved",
+            generation_notes={"media_asset_ids": ids},
+        ),
+    ).id
+    return post_id, ids
+
+
+def test_preview_image_group_without_network(db_session: Session) -> None:
+    project_id = _project(db_session)
+    post_id, ids = _group_post(db_session, project_id, ["a.jpg", "b.jpg", "c.jpg"])
+    service = _service(live_enabled=False)
+
+    preview = service.preview_publication(db_session, post_id, PostPublishRequest())
+    vk_item = next(i for i in preview.items if i.platform == "vk")
+    assert vk_item.media_kind == "image_group"
+    assert vk_item.media_count == 3
+    assert vk_item.would_attach_media is True
+    assert set(vk_item.media_asset_ids) == set(ids)
+
+
+def test_preview_mixed_group_marks_video_warning(db_session: Session) -> None:
+    project_id = _project(db_session)
+    post_id, _ids = _group_post(db_session, project_id, ["a.jpg", "clip.MOV"])
+    service = _service(live_enabled=False)
+
+    preview = service.preview_publication(db_session, post_id, PostPublishRequest())
+    vk_item = next(i for i in preview.items if i.platform == "vk")
+    assert vk_item.media_kind == "mixed"
+    assert vk_item.media_count == 2
+    assert vk_item.would_attach_media is True
+    assert any("video skipped" in w for w in preview.warnings)

@@ -1,6 +1,7 @@
 """Pydantic-схемы для Post и генерации постов."""
 
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,7 +23,14 @@ class PostBase(BaseModel):
 
 
 class PostCreate(PostBase):
-    """Данные для создания поста."""
+    """Данные для создания поста.
+
+    ``generation_notes`` не входит в :class:`PostBase`/``PostRead``, чтобы форма
+    ответов API не менялась; заполняется только при создании (например, постом
+    с группой медиа).
+    """
+
+    generation_notes: dict[str, Any] = Field(default_factory=dict)
 
 
 class PostUpdate(BaseModel):

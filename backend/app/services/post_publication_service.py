@@ -8,6 +8,7 @@
 """
 
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -192,6 +193,8 @@ class PostPublicationService:
             "hashtags": hashtags,
             "media_source": "none",
             "media_kind": "none",
+            "media_count": 0,
+            "media_asset_ids": [post.media_asset_id] if post.media_asset_id is not None else [],
             "preferred_media_path": None,
         }
         media_path: str | None = None
@@ -202,7 +205,9 @@ class PostPublicationService:
                 payload["media_source"] = media_source
                 # Тип медиа определяем по файлу, который реально пойдёт во вложение:
                 # улучшенная копия (media_path) или оригинал (asset.file_name).
-                payload["media_kind"] = _media_kind(media_path or asset.file_name)
+                single_kind = _media_kind(media_path or asset.file_name)
+                payload["media_kind"] = single_kind
+                payload["media_count"] = 0 if single_kind == "none" else 1
                 payload["preferred_media_path"] = media_path
                 payload["attachment"] = {
                     "file_name": asset.file_name,
@@ -210,6 +215,24 @@ class PostPublicationService:
                 }
                 if variant_id is not None:
                     payload["variant_id"] = variant_id
+
+        # Группа медиа (v0.1.14): если пост создан по группе, в generation_notes
+        # лежит media_asset_ids>1 — собираем несколько вложений (media_items).
+        # Одиночный media_asset_id продолжает работать по старому пути.
+        group_ids = self._group_media_asset_ids(post)
+        if len(group_ids) > 1:
+            media_items = self._build_media_items(db, group_ids)
+            if media_items:
+                payload["media_items"] = media_items
+                payload["media_asset_ids"] = [item["id"] for item in media_items]
+                payload["media_kind"] = self._group_media_kind(media_items)
+                payload["media_count"] = len(media_items)
+                first_image = next(
+                    (item for item in media_items if item.get("media_kind") == "image"), None
+                )
+                if first_image is not None:
+                    payload["media_source"] = first_image["media_source"]
+                    payload["preferred_media_path"] = first_image["media_path"]
         return PublishRequest(
             platform=platform,
             target_id=target_id,
@@ -241,15 +264,30 @@ class PostPublicationService:
             target_id = self._resolve_preview_target(db, post.id, platform)
             publish_request = self.build_publish_request(db, post, platform, target_id)
             live_enabled = bool(getattr(self._registry.get_client(platform), "live_enabled", False))
-            media_source = str(publish_request.payload.get("media_source", "none"))
-            media_kind = str(publish_request.payload.get("media_kind", "none"))
-            # Фото-вложение поддержано только для VK и только для изображений.
-            would_attach_media = platform == "vk" and media_kind == "image"
-            item_warnings = (
-                [f"Видео ({post.media_asset_id}) не прикрепляется — уйдёт только текст"]
-                if platform == "vk" and media_kind == "video"
-                else []
-            )
+            payload = publish_request.payload
+            media_source = str(payload.get("media_source", "none"))
+            media_kind = str(payload.get("media_kind", "none"))
+            media_count = int(payload.get("media_count", 0) or 0)
+            media_asset_ids = [
+                value for value in (payload.get("media_asset_ids") or []) if isinstance(value, int)
+            ]
+            # Фото-вложение поддержано только для VK: одиночное фото, группа фото
+            # или mixed (фото из группы; видео пропускается).
+            would_attach_media = platform == "vk" and media_kind in {
+                "image",
+                "image_group",
+                "mixed",
+            }
+            item_warnings: list[str] = []
+            if platform == "vk":
+                media_items = payload.get("media_items")
+                if isinstance(media_items, list) and media_items:
+                    if any(str(item.get("media_kind")) == "video" for item in media_items):
+                        item_warnings.append("VK video upload is not implemented; video skipped")
+                elif media_kind == "video":
+                    item_warnings.append(
+                        f"Видео ({post.media_asset_id}) не прикрепляется — уйдёт только текст"
+                    )
             warnings.extend(item_warnings)
             items.append(
                 PublicationPreviewItem(
@@ -261,6 +299,8 @@ class PostPublicationService:
                     media_source=media_source,
                     preferred_media_path=publish_request.media_path,
                     media_kind=media_kind,
+                    media_count=media_count,
+                    media_asset_ids=media_asset_ids,
                     would_attach_media=would_attach_media,
                     live_enabled=live_enabled,
                     would_send=live_enabled and bool(target_id),
@@ -281,6 +321,52 @@ class PostPublicationService:
         if variant is not None:
             return variant.output_path, "enhanced_variant", variant.id
         return None, "original", None
+
+    # --- Группа медиа (несколько вложений в одном посте) ---
+
+    @staticmethod
+    def _group_media_asset_ids(post: Post) -> list[int]:
+        """Идентификаторы медиа группы из generation_notes (пустой список, если нет)."""
+        raw = (post.generation_notes or {}).get("media_asset_ids")
+        if not isinstance(raw, list):
+            return []
+        return [value for value in raw if isinstance(value, int)]
+
+    def _build_media_items(self, db: Session, media_asset_ids: list[int]) -> list[dict[str, Any]]:
+        """Собрать описания медиа группы (с учётом enhanced-копии) для загрузки."""
+        items: list[dict[str, Any]] = []
+        for media_id in media_asset_ids:
+            asset = media_asset_repository.get_media_asset_by_id(db, media_id)
+            if asset is None:
+                continue
+            media_path, media_source, _variant_id = self._preferred_media(db, asset)
+            items.append(
+                {
+                    "id": asset.id,
+                    "file_name": asset.file_name,
+                    "yandex_disk_path": asset.yandex_disk_path,
+                    "media_path": media_path,
+                    "media_source": media_source,
+                    "media_kind": _media_kind(media_path or asset.file_name),
+                }
+            )
+        return items
+
+    @staticmethod
+    def _group_media_kind(media_items: list[dict[str, Any]]) -> str:
+        """Общий тип группы: image / image_group / video / mixed / none."""
+        kinds = [str(item.get("media_kind")) for item in media_items]
+        images = kinds.count("image")
+        videos = kinds.count("video")
+        if images and videos:
+            return "mixed"
+        if images >= 2:
+            return "image_group"
+        if images == 1:
+            return "image"
+        if videos:
+            return "video"
+        return "none"
 
     def _resolve_preview_target(self, db: Session, post_id: int, platform: str) -> str | None:
         existing = post_publication_repository.get_publication_by_post_and_platform(

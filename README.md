@@ -950,6 +950,59 @@ curl -X POST http://localhost:8000/crm/bot-smm/categories/1/run-semi-auto
 <!-- CRM_BOT_SMM_README_END -->
 
 
+<!-- MEDIA_GROUP_POSTS_START -->
+
+## Пост с группой медиа из Яндекс Диска (v0.1.14)
+
+Тестовый, но рабочий сценарий: **Яндекс Диск → синхронизация → теги →
+группировка похожих фото/видео → создание поста → dry-run → ручная публикация в
+VK**. Несколько фото уходят одним VK-постом (несколько вложений). Всё офлайн и
+детерминированно; живая публикация — только вручную и только под флагом.
+
+Приоритет группировки: **products → technologies → topics → categories →
+details** (примеры групп: футболка, худи, DTF, шелкография, вышивка, швейный цех).
+В группу берутся только собственные `internal` + `company_owned` активы со
+статусом `approved`/`approved_video`; исключаются `external_reference`,
+`external_stock`, `rejected`, `needs_reshoot`, `needs_license_review`.
+
+- **Фото поддерживаются.** Лимит по умолчанию — 5 фото на пост
+  (`VK_MEDIA_GROUP_MAX_PHOTOS`); размер группы ограничивается `--limit-media`.
+- **Видео пока пропускается** с предупреждением
+  `VK video upload is not implemented; video skipped` (кадры не извлекаются — TODO).
+- Если у актива есть approved enhanced variant — берётся его путь; `HEIC/HEIF` без
+  JPG-копии конвертируется в JPEG **в памяти** (оригинал не меняется).
+- Групповой токен без прав `photos.*` (VK `error_code=27`) → **text-only fallback**
+  (`raw.media_upload_skipped=true`, `raw.media_upload_error_code=27`,
+  `media_warnings`); другая ошибка VK API → `PublishError`.
+
+### Команды
+
+```bash
+# Превью групп медиа (ничего не создаёт)
+PYTHONPATH=backend .venv/bin/python -m app.scripts.preview_media_groups \
+  --project-slug teeon --tag футболка --max-groups 10 --limit-media 5 --include-videos
+make media-groups project_slug=teeon tag=футболка
+
+# Создать пост из группы (needs_review)
+PYTHONPATH=backend .venv/bin/python -m app.scripts.create_media_group_post \
+  --project-slug teeon --tag футболка --limit-media 5 --status needs_review
+make media-group-post project_slug=teeon tag=футболка
+
+# Dry-run превью публикации (без сети)
+python -m app.scripts.publish_post --post-id <ID> --dry-run
+
+# Ручная публикация ОДНОГО поста (только с VK_LIVE_PUBLISHING_ENABLED=true)
+python -m app.scripts.publish_post --post-id <ID> --platform vk
+```
+
+> Группа медиа хранится в `Post.generation_notes` (media_group_key,
+> media_asset_ids, media_files, счётчики, selected_for_vk_upload, warnings).
+> `publish-due` на этом этапе не использовать — публикуем по одному посту вручную.
+> Подробности — в [`Докс/22_Группировка_медиа_и_VK_посты.md`](./Докс/22_Группировка_медиа_и_VK_посты.md).
+
+<!-- MEDIA_GROUP_POSTS_END -->
+
+
 <!-- MVP_RELEASE_START -->
 
 ## Production hardening / MVP-релиз

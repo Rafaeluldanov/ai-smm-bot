@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     telegram_live_publishing_enabled: bool = False
     vk_live_publishing_enabled: bool = False
 
+    # Максимум фото в одном VK-посте с группой медиа (safety-cap загрузки вложений).
+    # По умолчанию 5; размер группы дополнительно ограничивается CLI-флагом
+    # ``--limit-media`` при создании поста.
+    vk_media_group_max_photos: int = 5
+
     # --- SEO-заполнение VK-группы (SEO VK Group Setup) ---
     # Реальные изменения оформления VK-группы (название/описание/статус/закреп/меню)
     # по умолчанию ОТКЛЮЧЕНЫ: apply работает только в режиме preview/dry-run. Даже с

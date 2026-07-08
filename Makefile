@@ -8,6 +8,7 @@ BIN := $(VENV)/bin
         retag-media media-summary select-topics content-plan \
         enhance-media enhance-project-media media-enhancement-summary \
         generate-post generate-weekly-posts \
+        media-groups media-group-post \
         review-post approve-post reject-post \
         schedule-post publish-post publish-due \
         ingest-analytics analytics-report \
@@ -81,6 +82,12 @@ generate-post: ## Сгенерировать пост по теме: make genera
 
 generate-weekly-posts: ## Посты на неделю: make generate-weekly-posts project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.generate_weekly_posts --project-slug "$(project_slug)"
+
+media-groups: ## Превью групп медиа: make media-groups project_slug=teeon tag=футболка
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.preview_media_groups --project-slug "$(project_slug)" $(if $(tag),--tag "$(tag)",)
+
+media-group-post: ## Пост из группы медиа: make media-group-post project_slug=teeon tag=футболка
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.create_media_group_post --project-slug "$(project_slug)" $(if $(tag),--tag "$(tag)",)
 
 review-post: ## Действие согласования: make review-post post_id=1 action=submit
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.review_post --post-id "$(post_id)" --action "$(action)"

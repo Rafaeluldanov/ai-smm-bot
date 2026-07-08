@@ -42,6 +42,14 @@ _GROUP_AUTH_WARNING = (
 
 # Видео пока не загружаем — только текст + предупреждение.
 _VIDEO_EXTENSIONS = {"mov", "mp4", "m4v", "avi", "mkv", "webm"}
+# Предупреждение о пропуске видео в группе медиа (стабильный текст для отчётов/тестов).
+_VIDEO_SKIP_WARNING = "VK video upload is not implemented; video skipped"
+
+# HEIC/HEIF: VK не принимает такой формат — конвертируем в JPEG в памяти (если
+# нет готовой enhanced-копии и доступен процессор). Оригинал не перезаписывается.
+_HEIC_EXTENSIONS = {"heic", "heif"}
+# Лимит фото по умолчанию в одном VK-посте с группой медиа.
+_DEFAULT_MAX_GROUP_PHOTOS = 5
 
 _CONTENT_TYPES = {
     "jpg": "image/jpeg",
@@ -86,6 +94,16 @@ class SupportsPublicMediaDownload(Protocol):
 
     def download_public_media(self, disk_path: str, file_name: str) -> Any:
         """Вернуть объект с полями ``bytes``, ``content_type``, ``file_name``."""
+        ...
+
+
+class SupportsImageConversion(Protocol):
+    """Контракт конвертера изображений (HEIC/HEIF → JPEG в памяти)."""
+
+    def enhance_image_bytes(
+        self, image_bytes: bytes, profile: str, operations: dict[str, bool] | None = None
+    ) -> Any:
+        """Вернуть объект с полем ``output_bytes`` (сконвертированные байты)."""
         ...
 
 
@@ -135,6 +153,8 @@ class VKPublishingClient:
         timeout: float = 20.0,
         transport: httpx.BaseTransport | None = None,
         media_downloader: SupportsPublicMediaDownload | None = None,
+        image_processor: SupportsImageConversion | None = None,
+        max_group_photos: int = _DEFAULT_MAX_GROUP_PHOTOS,
     ) -> None:
         self._token = token
         self._default_target_id = default_target_id
@@ -144,6 +164,8 @@ class VKPublishingClient:
         self._timeout = timeout
         self._transport = transport
         self._media_downloader = media_downloader
+        self._image_processor = image_processor
+        self._max_group_photos = max(1, int(max_group_photos))
 
     def publish_post(self, request: PublishRequest) -> PublishResponse:
         """Опубликовать запись (с фото, если есть). Без ``live_enabled`` — PublishError без сети."""
@@ -157,7 +179,11 @@ class VKPublishingClient:
 
         owner_id = self._normalize_owner(target)
         try:
-            attachment, raw_extra = self._prepare_photo_attachment(owner_id, request)
+            media_items = request.payload.get("media_items") if request.payload else None
+            if isinstance(media_items, list) and media_items:
+                attachment, raw_extra = self._prepare_group_attachments(owner_id, media_items)
+            else:
+                attachment, raw_extra = self._prepare_photo_attachment(owner_id, request)
             return self._wall_post(
                 owner_id, request.text, attachment=attachment, raw_extra=raw_extra
             )
@@ -198,10 +224,9 @@ class VKPublishingClient:
                 ]
             }
 
+        content, file_name, content_type = self._maybe_convert_heic(content, descriptor.file_name)
         try:
-            attachment = self._upload_photo(
-                owner_id, descriptor.file_name, content, _content_type(descriptor.file_name)
-            )
+            attachment = self._upload_photo(owner_id, file_name, content, content_type)
         except _VkApiError as exc:
             if exc.error_code == _GROUP_AUTH_ERROR_CODE:
                 return None, {
@@ -211,6 +236,106 @@ class VKPublishingClient:
                 }
             raise  # прочие коды — наверх, publish_post превратит в PublishError
         return attachment, {}
+
+    # --- Группа медиа (несколько фото одним постом) ---
+
+    def _prepare_group_attachments(
+        self, owner_id: str, media_items: list[dict[str, Any]]
+    ) -> tuple[str | None, dict[str, Any]]:
+        """Загрузить несколько фото и вернуть (attachments, raw_extra).
+
+        Видео пропускаются с предупреждением (VK video upload не реализован). Фото
+        загружаются до лимита ``max_group_photos``; результат — comma-separated
+        ``photo{owner}_{id}``. При VK error_code=27 весь пост уходит text-only
+        (безопасный фолбэк группового токена); прочие коды — наверх как PublishError.
+        """
+        warnings: list[str] = []
+        image_items: list[dict[str, Any]] = []
+        for item in media_items:
+            file_name = str(item.get("file_name") or "")
+            kind = str(item.get("media_kind") or ("video" if _is_video(file_name) else "image"))
+            if kind == "video":
+                label = file_name or "video"
+                warnings.append(f"{_VIDEO_SKIP_WARNING} ({label})")
+            else:
+                image_items.append(item)
+
+        if not image_items:
+            return None, ({"media_warnings": warnings} if warnings else {})
+
+        if len(image_items) > self._max_group_photos:
+            warnings.append(
+                f"VK лимит вложений: загружаем первые {self._max_group_photos} "
+                f"из {len(image_items)} фото"
+            )
+            image_items = image_items[: self._max_group_photos]
+
+        attachments: list[str] = []
+        try:
+            for item in image_items:
+                content, file_name = self._load_item_bytes(item)
+                if content is None:
+                    warnings.append(f"Медиа недоступно для загрузки ({file_name}) — пропущено")
+                    continue
+                content, file_name, content_type = self._maybe_convert_heic(content, file_name)
+                attachments.append(self._upload_photo(owner_id, file_name, content, content_type))
+        except _VkApiError as exc:
+            if exc.error_code == _GROUP_AUTH_ERROR_CODE:
+                return None, {
+                    "media_upload_skipped": True,
+                    "media_upload_error_code": exc.error_code,
+                    "media_warnings": [_GROUP_AUTH_WARNING, *warnings],
+                }
+            raise  # прочие коды — наверх, publish_post превратит в PublishError
+
+        if not attachments:
+            return None, ({"media_warnings": warnings} if warnings else {})
+
+        raw_extra: dict[str, Any] = {"attached_photos": attachments}
+        if warnings:
+            raw_extra["media_warnings"] = warnings
+        return ",".join(attachments), raw_extra
+
+    def _load_item_bytes(self, item: dict[str, Any]) -> tuple[bytes | None, str]:
+        """Прочитать байты одного медиа группы (локальная копия или Яндекс Диск)."""
+        media_path = item.get("media_path")
+        if isinstance(media_path, str) and media_path:
+            path = Path(media_path)
+            if not path.is_file():
+                return None, path.name
+            return path.read_bytes(), path.name
+
+        disk_path = item.get("yandex_disk_path")
+        file_name = str(
+            item.get("file_name")
+            or (Path(disk_path).name if isinstance(disk_path, str) else "")
+            or "photo.jpg"
+        )
+        if (
+            isinstance(disk_path, str)
+            and disk_path.startswith(_PUBLIC_PREFIX)
+            and self._media_downloader is not None
+        ):
+            downloaded = self._media_downloader.download_public_media(disk_path, file_name)
+            data: bytes = downloaded.bytes
+            return data, file_name
+        return None, file_name
+
+    def _maybe_convert_heic(self, content: bytes, file_name: str) -> tuple[bytes, str, str]:
+        """HEIC/HEIF → JPEG в памяти (best-effort). Оригинал не перезаписывается.
+
+        Если формат не HEIC/HEIF или процессор недоступен/не смог сконвертировать —
+        возвращаем исходные байты (публикацию не роняем).
+        """
+        if _extension(file_name) not in _HEIC_EXTENSIONS or self._image_processor is None:
+            return content, file_name, _content_type(file_name)
+        try:
+            result = self._image_processor.enhance_image_bytes(content, "minimal")
+            converted: bytes = result.output_bytes
+        except Exception:  # noqa: BLE001 — любая ошибка конвертации → грузим оригинал
+            return content, file_name, _content_type(file_name)
+        stem = file_name.rsplit(".", 1)[0] if "." in file_name else file_name
+        return converted, f"{stem}.jpg", "image/jpeg"
 
     @staticmethod
     def _media_descriptor(request: PublishRequest) -> _MediaDescriptor | None:
