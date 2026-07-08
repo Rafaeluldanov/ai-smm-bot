@@ -3,18 +3,26 @@
 from collections.abc import Iterator
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.core.security import parse_dev_token
 from app.db.session import get_session
+from app.integrations.instagram.client import InstagramPublishingClient
+from app.integrations.rutube.client import RuTubePublishingClient
 from app.integrations.telegram.client import TelegramPublishingClient
 from app.integrations.vk.client import VKPublishingClient
 from app.integrations.yandex_disk.client import YandexDiskClient, YandexDiskPublicClient
+from app.integrations.youtube.client import YouTubePublishingClient
+from app.models.user import User
+from app.repositories import user_repository
 from app.services.analytics_provider import FakeAnalyticsProvider
 from app.services.analytics_service import AnalyticsService
+from app.services.auth_service import AuthService
 from app.services.autonomous_pipeline_service import AutonomousPipelineService
 from app.services.autonomous_safety_service import AutonomousSafetyService
+from app.services.billing_service import BillingService
 from app.services.crm_bot_smm_application_service import CrmBotSmmApplicationService
 from app.services.crm_bot_smm_form_service import CrmBotSmmFormService
 from app.services.external_image_provider import FakeExternalImageProvider
@@ -36,6 +44,8 @@ from app.services.public_yandex_disk_media_sync_service import (
     PublicYandexDiskMediaSyncService,
 )
 from app.services.publication_platform_registry import PublicationPlatformRegistry
+from app.services.saas_bot_run_service import SaasBotRunService
+from app.services.saas_onboarding_service import SaasOnboardingService
 from app.services.topic_selection_service import TopicSelectionService
 from app.services.yandex_disk_media_sync_service import YandexDiskMediaSyncService
 
@@ -176,6 +186,11 @@ def get_publication_platform_registry() -> PublicationPlatformRegistry:
                 token=settings.telegram_bot_token or None,
                 default_target_id=settings.telegram_default_channel_id,
                 live_enabled=settings.telegram_live_publishing_enabled,
+                # Загрузчик публичного медиа для фотоальбома (сеть — только на live-пути).
+                media_downloader=get_media_download_service(),
+                # Конвертер HEIC/HEIF → JPEG в памяти (оригинал не меняется).
+                image_processor=get_image_enhancement_processor(),
+                max_media_group_photos=settings.telegram_media_group_max_photos,
             ),
             "vk": VKPublishingClient(
                 token=settings.vk_access_token or None,
@@ -186,6 +201,22 @@ def get_publication_platform_registry() -> PublicationPlatformRegistry:
                 # Конвертер HEIC/HEIF → JPEG в памяти (оригинал не меняется).
                 image_processor=get_image_enhancement_processor(),
                 max_group_photos=settings.vk_media_group_max_photos,
+            ),
+            # Adapter-скелеты: preview/dry-run работает, live пока не реализован.
+            "instagram": InstagramPublishingClient(
+                token=settings.instagram_access_token or None,
+                default_target_id=settings.instagram_business_account_id,
+                live_enabled=settings.instagram_live_publishing_enabled,
+            ),
+            "youtube": YouTubePublishingClient(
+                token=settings.youtube_access_token or None,
+                default_target_id=settings.youtube_channel_id,
+                live_enabled=settings.youtube_live_publishing_enabled,
+            ),
+            "rutube": RuTubePublishingClient(
+                token=settings.rutube_access_token or None,
+                default_target_id=settings.rutube_channel_id,
+                live_enabled=settings.rutube_live_publishing_enabled,
             ),
         }
     )
@@ -201,6 +232,9 @@ def get_post_publication_service(
         default_targets={
             "telegram": settings.telegram_default_channel_id,
             "vk": settings.vk_default_group_id,
+            "instagram": settings.instagram_business_account_id,
+            "youtube": settings.youtube_channel_id,
+            "rutube": settings.rutube_channel_id,
         },
     )
 
@@ -259,3 +293,55 @@ def get_crm_bot_smm_form_service() -> CrmBotSmmFormService:
 def get_crm_bot_smm_application_service() -> CrmBotSmmApplicationService:
     """Построить сервис интеграции конфигурации CRM с SEO-модулями и pipeline."""
     return CrmBotSmmApplicationService(pipeline_service=get_autonomous_pipeline_service())
+
+
+# --- SaaS: auth / billing / onboarding / прогон ---
+
+
+def get_auth_service() -> AuthService:
+    """Построить сервис аутентификации и провижининга аккаунтов."""
+    return AuthService()
+
+
+def get_billing_service() -> BillingService:
+    """Построить сервис биллинга (депозит в units, списания, usage)."""
+    return BillingService()
+
+
+def get_saas_onboarding_service() -> SaasOnboardingService:
+    """Построить сервис SaaS-онбординга (переиспользует CRM-конфигуратор)."""
+    return SaasOnboardingService(
+        crm_form_service=get_crm_bot_smm_form_service(),
+        billing_service=get_billing_service(),
+    )
+
+
+def get_saas_bot_run_service() -> SaasBotRunService:
+    """Построить сервис безопасного прогона проекта с биллингом."""
+    return SaasBotRunService(
+        billing_service=get_billing_service(),
+        crm_application_service=get_crm_bot_smm_application_service(),
+    )
+
+
+def get_current_user(
+    db: Annotated[Session, Depends(get_db)],
+    authorization: Annotated[str | None, Header()] = None,
+) -> User:
+    """Извлечь текущего пользователя из dev-токена (Authorization). 401 — если нет.
+
+    Это dev-заглушка авторизации (не продакшн-JWT): токен подписан, но реальная
+    сессионная система появится позже.
+    """
+    user_id = parse_dev_token(authorization or "")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Требуется авторизация (dev-токен в заголовке Authorization)",
+        )
+    user = user_repository.get_user_by_id(db, user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден или неактивен"
+        )
+    return user

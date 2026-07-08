@@ -71,6 +71,35 @@ def test_live_publishing_flags_default_off() -> None:
     assert settings.vk_live_publishing_configured is False
 
 
+def test_new_platform_flags_and_tokens_default() -> None:
+    settings = Settings()
+    # Live-флаги новых платформ выключены по умолчанию.
+    assert settings.instagram_live_publishing_enabled is False
+    assert settings.youtube_live_publishing_enabled is False
+    assert settings.rutube_live_publishing_enabled is False
+    # Токены/каналы по умолчанию пустые/None.
+    assert settings.instagram_business_account_id is None
+    assert settings.youtube_access_token == ""
+    assert settings.youtube_channel_id is None
+    assert settings.rutube_access_token == ""
+    assert settings.rutube_channel_id is None
+    # Configured-хелперы требуют флаг + токен + аккаунт/канал.
+    assert settings.instagram_live_publishing_configured is False
+    assert settings.youtube_live_publishing_configured is False
+    assert settings.rutube_live_publishing_configured is False
+
+
+def test_new_platform_configured_requires_flag_and_credentials() -> None:
+    partial = Settings(youtube_live_publishing_enabled=True, youtube_access_token="Y")
+    assert partial.youtube_live_publishing_configured is False  # нет channel_id
+    full = Settings(
+        youtube_live_publishing_enabled=True,
+        youtube_access_token="Y",
+        youtube_channel_id="ch",
+    )
+    assert full.youtube_live_publishing_configured is True
+
+
 def test_live_publishing_configured_requires_flag_and_credentials() -> None:
     # Флаг включён, но нет токена/канала -> не configured.
     partial = Settings(

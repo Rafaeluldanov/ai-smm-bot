@@ -38,12 +38,28 @@ def _print_preview(post_id: int, request: PostPublishRequest) -> None:
             return
     print(f"DRY-RUN: пост {preview.post_id} | статус {preview.post_status} (ничего не отправлено)")
     for item in preview.items:
-        print(f"  [{item.platform}] target={item.target_id} live_enabled={item.live_enabled}")
-        print(f"    media_source={item.media_source}")
+        print(
+            f"  [{item.platform}] target={item.target_id} "
+            f"live_enabled={item.live_enabled} would_send={item.would_send}"
+        )
+        print(
+            f"    media_kind={item.media_kind} media_count={item.media_count} "
+            f"would_attach_media={item.would_attach_media}"
+        )
+        print(f"    media_asset_ids={item.media_asset_ids} media_source={item.media_source}")
         print(f"    preferred_media_path={item.preferred_media_path}")
+        caps = item.platform_capabilities
+        if caps is not None:
+            print(
+                f"    capabilities: text={caps.supports_text} image={caps.supports_image} "
+                f"image_group={caps.supports_image_group} video={caps.supports_video} "
+                f"max_images={caps.max_images} live_implemented={caps.live_implemented}"
+            )
+        if item.unsupported_media_reason:
+            print(f"    unsupported_media_reason: {item.unsupported_media_reason}")
+        for warning in item.media_warnings:
+            print(f"    ! {warning}")
         print(f"    text={item.text[:120]!r}")
-    for warning in preview.warnings:
-        print(f"  ! {warning}")
 
 
 def main() -> None:

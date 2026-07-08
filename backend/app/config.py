@@ -47,11 +47,25 @@ class Settings(BaseSettings):
     vk_access_token: str = ""
     vk_default_group_id: str | None = None
     instagram_access_token: str = ""
+    instagram_business_account_id: str | None = None
+    # Видео-платформы (adapter-скелеты; live пока не реализован).
+    youtube_access_token: str = ""
+    youtube_channel_id: str | None = None
+    rutube_access_token: str = ""
+    rutube_channel_id: str | None = None
 
     # Живая (РЕАЛЬНАЯ) публикация в соцсети. По умолчанию ОТКЛЮЧЕНА: без явного
-    # флага отправка в Telegram/VK невозможна (защита от случайной публикации).
+    # флага отправка невозможна (защита от случайной публикации). Для
+    # Instagram/YouTube/RuTube даже с флагом live пока не реализован (PublishError).
     telegram_live_publishing_enabled: bool = False
     vk_live_publishing_enabled: bool = False
+    instagram_live_publishing_enabled: bool = False
+    youtube_live_publishing_enabled: bool = False
+    rutube_live_publishing_enabled: bool = False
+
+    # Максимум фото в одном Telegram-посте с альбомом (sendMediaGroup). Telegram
+    # допускает до 10 медиа в одной группе.
+    telegram_media_group_max_photos: int = 10
 
     # Максимум фото в одном VK-посте с группой медиа (safety-cap загрузки вложений).
     # По умолчанию 5; размер группы дополнительно ограничивается CLI-флагом
@@ -123,6 +137,33 @@ class Settings(BaseSettings):
             self.vk_live_publishing_enabled
             and bool(self.vk_access_token)
             and bool(self.vk_default_group_id)
+        )
+
+    @property
+    def instagram_live_publishing_configured(self) -> bool:
+        """Заданы флаг+токен+аккаунт Instagram (сам live-клиент пока не реализован)."""
+        return (
+            self.instagram_live_publishing_enabled
+            and bool(self.instagram_access_token)
+            and bool(self.instagram_business_account_id)
+        )
+
+    @property
+    def youtube_live_publishing_configured(self) -> bool:
+        """Заданы флаг+токен+канал YouTube (сам live-клиент пока не реализован)."""
+        return (
+            self.youtube_live_publishing_enabled
+            and bool(self.youtube_access_token)
+            and bool(self.youtube_channel_id)
+        )
+
+    @property
+    def rutube_live_publishing_configured(self) -> bool:
+        """Заданы флаг+токен+канал RuTube (сам live-клиент пока не реализован)."""
+        return (
+            self.rutube_live_publishing_enabled
+            and bool(self.rutube_access_token)
+            and bool(self.rutube_channel_id)
         )
 
     @property

@@ -1,0 +1,45 @@
+{
+  "company": {
+    "company_name": "TEEON",
+    "business_description": "Корпоративная и промо-одежда, мерч под ключ.",
+    "has_website": true,
+    "website_url": "https://teeon.ru",
+    "geography": ["Россия"],
+    "brand_tone": "экспертный, дружелюбный"
+  },
+  "project": {
+    "project_slug": "teeon-saas",
+    "project_name": "TEEON — корпоративный мерч",
+    "default_site_url": "https://teeon.ru"
+  },
+  "keywords": [
+    {"query": "футболки с логотипом на заказ", "product": "футболка", "cluster": "футболки", "intent": "commercial", "priority": 10},
+    {"query": "худи с вышивкой оптом", "product": "худи", "technology": "вышивка", "cluster": "худи", "priority": 8}
+  ],
+  "media_sources": [
+    {"source_type": "yandex_disk", "title": "Медиа TEEON", "url": "https://disk.yandex.ru/d/example", "root_folder": "SMM", "media_tags": ["футболка", "худи"]}
+  ],
+  "platforms": [
+    {"platform_type": "telegram", "title": "TEEON канал", "external_id": "@teeon_merch", "api_key": "PUT_TELEGRAM_TOKEN_HERE", "tags": ["мерч"]},
+    {"platform_type": "vk", "title": "TEEON VK", "external_id": "240102732", "api_key": "PUT_VK_TOKEN_HERE"}
+  ],
+  "promotion_categories": [
+    {
+      "title": "Футболки",
+      "description": "Продвижение футболок с нанесением.",
+      "keyword_queries": ["футболки с логотипом на заказ"],
+      "product_priorities": {"футболка": 10},
+      "media_tags": ["футболка"],
+      "resource_titles": ["TEEON канал", "TEEON VK"],
+      "cta": "Рассчитать тираж на teeon.ru"
+    }
+  ],
+  "publishing_plans": [
+    {"category_title": "Футболки", "platforms": ["telegram", "vk"], "weekdays": [0, 2, 4], "posts_per_day": 1, "publish_times": ["10:00"], "mode": "semi_auto"}
+  ],
+  "billing": {
+    "tariff_plan_slug": "starter",
+    "starting_topup_amount": 200,
+    "accept_terms": true
+  }
+}

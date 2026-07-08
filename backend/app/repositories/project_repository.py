@@ -38,6 +38,12 @@ def list_projects(db: Session, active_only: bool = True) -> list[Project]:
     return list(db.scalars(stmt).all())
 
 
+def list_projects_by_account(db: Session, account_id: int) -> list[Project]:
+    """Вернуть проекты, привязанные к аккаунту (SaaS)."""
+    stmt = select(Project).where(Project.account_id == account_id).order_by(Project.id)
+    return list(db.scalars(stmt).all())
+
+
 def create_project(db: Session, data: ProjectCreate) -> Project:
     """Создать проект. Бросает SlugAlreadyExistsError при дубле slug."""
     if get_project_by_slug(db, data.slug) is not None:

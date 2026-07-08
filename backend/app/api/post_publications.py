@@ -18,6 +18,7 @@ from app.repositories import post_publication_repository as repo
 from app.repositories.post_repository import PostNotFoundError
 from app.schemas.post_publication import (
     DuePublicationsResult,
+    PlatformCapabilitiesRead,
     PostPublicationRead,
     PostPublicationUpdate,
     PostPublishPreview,
@@ -101,6 +102,12 @@ def publish_due(
     """Опубликовать все созревшие публикации (планировщик вручную)."""
     now = payload.now if payload is not None else None
     return service.publish_due_publications(db, now)
+
+
+@router.get("/platform-capabilities", response_model=list[PlatformCapabilitiesRead])
+def platform_capabilities(service: PublicationService) -> list[PlatformCapabilitiesRead]:
+    """Возможности всех платформ публикации (текст/фото/видео, лимиты, live-флаги)."""
+    return service.list_platform_capabilities()
 
 
 @router.post("/preview/{post_id}", response_model=PostPublishPreview)

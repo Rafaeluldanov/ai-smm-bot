@@ -140,7 +140,16 @@ class CrmBotSmmFormService:
                         label="Тип ресурса",
                         type="select",
                         required=True,
-                        options=["vk", "telegram", "yandex_disk", "website", "other"],
+                        options=[
+                            "vk",
+                            "telegram",
+                            "instagram",
+                            "youtube",
+                            "rutube",
+                            "yandex_disk",
+                            "website",
+                            "other",
+                        ],
                     ),
                     FormFieldSchema(name="title", label="Название", type="text", required=True),
                     FormFieldSchema(

@@ -1000,7 +1000,95 @@ python -m app.scripts.publish_post --post-id <ID> --platform vk
 > `publish-due` на этом этапе не использовать — публикуем по одному посту вручную.
 > Подробности — в [`Докс/22_Группировка_медиа_и_VK_посты.md`](./Докс/22_Группировка_медиа_и_VK_посты.md).
 
+### Telegram-пост с фотоальбомом (v0.1.15)
+
+Та же группа медиа публикуется в Telegram-канал одним фотоальбомом:
+
+- **2–10 фото → `sendMediaGroup`** (caption только в первом элементе), **одно фото
+  → `sendPhoto`**; лимит `TELEGRAM_MEDIA_GROUP_MAX_PHOTOS` (по умолчанию 10).
+- HEIC/HEIF → JPEG **в памяти** (оригинал не меняется); **видео пропускается** с
+  предупреждением `Telegram video upload is not implemented; video skipped`.
+- Если фото недоступны — text-only `sendMessage` + `raw.media_upload_skipped=true`.
+- Токен не логируется и не попадает в `raw`/ошибки. Загрузка/конвертация медиа —
+  в общем модуле `app/integrations/media_attachments.py` (используется VK и Telegram).
+
+```bash
+export POST_ID=<new_id>
+python -m app.scripts.review_post --post-id "$POST_ID" --action approve --comment "Telegram media test"
+python -m app.scripts.schedule_post --post-id "$POST_ID" --platform telegram
+# Dry-run превью (без сети)
+TELEGRAM_LIVE_PUBLISHING_ENABLED=true VK_LIVE_PUBLISHING_ENABLED=false \
+  python -m app.scripts.publish_post --post-id "$POST_ID" --platform telegram --dry-run
+# Только после dry-run — живая публикация ОДНОГО поста
+TELEGRAM_LIVE_PUBLISHING_ENABLED=true VK_LIVE_PUBLISHING_ENABLED=false \
+  python -m app.scripts.publish_post --post-id "$POST_ID" --platform telegram
+```
+
+> Подробности — в [`Докс/23_Telegram_media_group.md`](./Докс/23_Telegram_media_group.md).
+
+### Мультиплатформенная публикация медиа (v0.1.16)
+
+Единая архитектура «Яндекс Диск → capability-слой → platform adapter →
+publish/preview» для VK, Telegram, Instagram, YouTube, RuTube и будущих платформ.
+
+- **Live-ready:** VK (текст + фото-группа), Telegram (текст + фото-альбом).
+- **Skeleton / dry-run:** Instagram (фото/carousel/reels), YouTube (video/shorts),
+  RuTube (video). Live возвращает `Live publishing for <platform> is not
+  implemented yet`; preview показывает, что ушло бы. Все live-флаги — **false** по
+  умолчанию.
+- Возможности платформ вынесены в `app/integrations/platform_capabilities.py`;
+  `route_media` решает, что уйдёт на платформу (image_group / image / video / none),
+  и формирует предупреждения / `unsupported_media_reason`.
+
+```bash
+# Превью медиа по всем платформам (ничего не создаёт/не шлёт)
+make media-platform-preview project_slug=teeon tag=футболка \
+  platforms="telegram,vk,instagram,youtube,rutube"
+# Dry-run preview поста по платформам
+make publish-preview post_id=<ID>
+# Возможности платформ (API)
+curl http://localhost:8000/post-publications/platform-capabilities
+```
+
+> Подробности и матрица возможностей — в
+> [`Докс/24_Мультиплатформенная_публикация_медиа.md`](./Докс/24_Мультиплатформенная_публикация_медиа.md).
+
 <!-- MEDIA_GROUP_POSTS_END -->
+
+
+<!-- SAAS_START -->
+
+## SaaS: регистрация, проекты, биллинг (v0.2.0)
+
+CRM-конфигуратор превращён в SaaS-платформу с личным кабинетом. Пользователь
+регистрируется, создаёт аккаунт (workspace), заводит проекты через форму
+онбординга и пополняет депозит во внутренних **units**. CRM-интеграция сохранена
+(те же модели/сервисы; `projects.account_id` — nullable).
+
+- **Auth:** `POST /auth/register` (user + account + membership, PBKDF2-хеш пароля,
+  dev-токен), `POST /auth/login`, `GET /auth/me`.
+- **Онбординг:** `GET /saas/onboarding/form-schema`, `POST /saas/onboarding/preview`,
+  `POST /saas/onboarding/apply` — **переиспользуют** `CrmBotSmmFormService`
+  (валидация, идемпотентность, маскировка секретов, `live_enabled=false`).
+- **Проекты/дашборд:** `GET /saas/accounts/{id}/projects`,
+  `GET /saas/projects/{id}/dashboard`, `POST /saas/projects/{id}/run-dry|run-semi-auto`.
+- **Биллинг (fake/manual, без реальных платежей):**
+  `GET /billing/account/{id}/balance`, `POST …/manual-topup` (идемпотентно),
+  `GET …/ledger`, `GET …/usage-events`, `POST /billing/estimate`. При недостатке
+  баланса действие не выполняется.
+
+Безопасность: live-публикации выключены, `auto_publish` недоступен, секреты не
+возвращаются, платежи fake. Миграция `0013` добавляет таблицы users/accounts/
+memberships/billing и `projects.account_id` — примените `make migrate`.
+
+```bash
+make saas-form-schema
+make billing-topup account_id=1 units=500
+```
+
+> Подробности — в [`Докс/25_SaaS_регистрация_проекты_биллинг.md`](./Докс/25_SaaS_регистрация_проекты_биллинг.md).
+
+<!-- SAAS_END -->
 
 
 <!-- MVP_RELEASE_START -->

@@ -13,6 +13,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
+from app.integrations import platform_capabilities
+from app.integrations.platform_capabilities import PlatformCapabilities
 from app.integrations.publishing import PublishError, PublishRequest
 from app.models.media_asset import MediaAsset
 from app.models.post import Post
@@ -25,6 +27,7 @@ from app.repositories import (
 from app.repositories.post_repository import PostNotFoundError
 from app.schemas.post_publication import (
     DuePublicationsResult,
+    PlatformCapabilitiesRead,
     PostPublicationCreate,
     PostPublicationRead,
     PostPublicationUpdate,
@@ -185,7 +188,7 @@ class PostPublicationService:
         к улучшенной копии (``preferred_media_path``); иначе используем метаданные
         оригинала.
         """
-        text = post.telegram_text if platform == "telegram" else post.vk_text
+        text = self._platform_text(post, platform)
         hashtags = list(post.hashtags or [])
         payload: dict[str, object] = {
             "post_id": post.id,
@@ -263,7 +266,9 @@ class PostPublicationService:
                 continue
             target_id = self._resolve_preview_target(db, post.id, platform)
             publish_request = self.build_publish_request(db, post, platform, target_id)
-            live_enabled = bool(getattr(self._registry.get_client(platform), "live_enabled", False))
+            client = self._registry.get_client(platform)
+            live_enabled = bool(getattr(client, "live_enabled", False))
+            live_implemented = bool(getattr(client, "live_implemented", True))
             payload = publish_request.payload
             media_source = str(payload.get("media_source", "none"))
             media_kind = str(payload.get("media_kind", "none"))
@@ -271,23 +276,56 @@ class PostPublicationService:
             media_asset_ids = [
                 value for value in (payload.get("media_asset_ids") or []) if isinstance(value, int)
             ]
-            # Фото-вложение поддержано только для VK: одиночное фото, группа фото
-            # или mixed (фото из группы; видео пропускается).
-            would_attach_media = platform == "vk" and media_kind in {
-                "image",
-                "image_group",
-                "mixed",
-            }
+
+            caps = platform_capabilities.get_capabilities(platform)
+            effective = self._effective_media_items(payload)
+            route = platform_capabilities.route_media(caps, effective) if caps is not None else None
+
+            media_items = payload.get("media_items")
+            group_has_image = isinstance(media_items, list) and any(
+                str(item.get("media_kind")) == "image" for item in media_items
+            )
+            group_has_video = isinstance(media_items, list) and any(
+                str(item.get("media_kind")) == "video" for item in media_items
+            )
+
             item_warnings: list[str] = []
+            unsupported_media_reason = route.unsupported_media_reason if route is not None else None
+            # VK/Telegram — live-ready фото; сохраняем прежнее решение и точные тексты
+            # предупреждений. Остальные платформы — решение из capability-слоя.
             if platform == "vk":
-                media_items = payload.get("media_items")
-                if isinstance(media_items, list) and media_items:
-                    if any(str(item.get("media_kind")) == "video" for item in media_items):
-                        item_warnings.append("VK video upload is not implemented; video skipped")
+                would_attach_media = media_kind in {"image", "image_group", "mixed"}
+                if group_has_video:
+                    item_warnings.append("VK video upload is not implemented; video skipped")
                 elif media_kind == "video":
                     item_warnings.append(
                         f"Видео ({post.media_asset_id}) не прикрепляется — уйдёт только текст"
                     )
+                item_warnings.extend(self._limit_warnings(route, item_warnings))
+            elif platform == "telegram":
+                would_attach_media = group_has_image
+                if group_has_video:
+                    item_warnings.append("Telegram video upload is not implemented; video skipped")
+                elif media_kind == "image" and not group_has_image:
+                    # Одиночное фото (не медиа-группа) сейчас уходит text-only — honest dry-run.
+                    unsupported_media_reason = (
+                        "Telegram: одиночное фото прикрепляется только в составе медиа-группы "
+                        "— уйдёт только текст"
+                    )
+                    item_warnings.append(unsupported_media_reason)
+                item_warnings.extend(self._limit_warnings(route, item_warnings))
+            else:
+                would_attach_media = route.would_attach_media if route is not None else False
+                if route is not None:
+                    item_warnings.extend(route.media_warnings)
+
+            if not live_implemented:
+                item_warnings.append(
+                    f"Live publishing for {platform} is not implemented yet "
+                    "(только dry-run/preview)"
+                )
+            capabilities_read = self._capabilities_read(caps, live_implemented) if caps else None
+
             warnings.extend(item_warnings)
             items.append(
                 PublicationPreviewItem(
@@ -302,13 +340,30 @@ class PostPublicationService:
                     media_count=media_count,
                     media_asset_ids=media_asset_ids,
                     would_attach_media=would_attach_media,
+                    media_warnings=item_warnings,
+                    unsupported_media_reason=unsupported_media_reason,
+                    platform_capabilities=capabilities_read,
                     live_enabled=live_enabled,
-                    would_send=live_enabled and bool(target_id),
+                    would_send=live_enabled and bool(target_id) and live_implemented,
                 )
             )
         return PostPublishPreview(
             post_id=post_id, post_status=post.status, items=items, warnings=warnings
         )
+
+    def list_platform_capabilities(self) -> list[PlatformCapabilitiesRead]:
+        """Вернуть возможности всех платформ (для API/диагностики; без сети)."""
+        available = set(self._registry.get_available_platforms())
+        result: list[PlatformCapabilitiesRead] = []
+        for platform, caps in platform_capabilities.get_platform_capabilities().items():
+            if platform in available:
+                live_implemented = bool(
+                    getattr(self._registry.get_client(platform), "live_implemented", True)
+                )
+            else:
+                live_implemented = platform not in platform_capabilities.LIVE_NOT_IMPLEMENTED
+            result.append(self._capabilities_read(caps, live_implemented))
+        return result
 
     @staticmethod
     def _preferred_media(db: Session, asset: MediaAsset) -> tuple[str | None, str, int | None]:
@@ -367,6 +422,66 @@ class PostPublicationService:
         if videos:
             return "video"
         return "none"
+
+    # --- Мультиплатформенность (capability-слой) ---
+
+    @staticmethod
+    def _platform_text(post: Post, platform: str) -> str | None:
+        """Текст под платформу: telegram/instagram — свои; vk/youtube/rutube — vk_text."""
+        if platform == "telegram":
+            return post.telegram_text
+        if platform == "instagram":
+            return post.instagram_text or post.vk_text
+        return post.vk_text
+
+    @staticmethod
+    def _effective_media_items(payload: dict[str, object]) -> list[dict[str, object]]:
+        """Медиа для capability-роутинга: группа media_items или одиночное медиа."""
+        media_items = payload.get("media_items")
+        if isinstance(media_items, list) and media_items:
+            return [item for item in media_items if isinstance(item, dict)]
+        media_kind = str(payload.get("media_kind", "none"))
+        if media_kind in {"image", "video"}:
+            return [{"media_kind": media_kind}]
+        return []
+
+    @staticmethod
+    def _limit_warnings(
+        route: platform_capabilities.MediaRoutingDecision | None, existing: list[str]
+    ) -> list[str]:
+        """Предупреждения об усечении по лимиту из capability-слоя (без дублей).
+
+        Для VK/Telegram видео-предупреждения формируются отдельно (точные тексты),
+        а из роутера добираем только про лимит фото, чтобы dry-run честно показывал
+        усечение группы (например, 7 фото → первые 5).
+        """
+        if route is None:
+            return []
+        return [
+            warning
+            for warning in route.media_warnings
+            if "лимит" in warning and warning not in existing
+        ]
+
+    @staticmethod
+    def _capabilities_read(
+        caps: PlatformCapabilities, live_implemented: bool
+    ) -> PlatformCapabilitiesRead:
+        """Собрать представление возможностей платформы для preview/API."""
+        return PlatformCapabilitiesRead(
+            platform=caps.platform,
+            supports_text=caps.supports_text,
+            supports_image=caps.supports_image,
+            supports_image_group=caps.supports_image_group,
+            supports_video=caps.supports_video,
+            supports_video_group=caps.supports_video_group,
+            max_images=caps.max_images,
+            max_videos=caps.max_videos,
+            max_text_length=caps.max_text_length,
+            live_flag_name=caps.live_flag_name,
+            live_implemented=live_implemented,
+            notes=list(caps.notes),
+        )
 
     def _resolve_preview_target(self, db: Session, post_id: int, platform: str) -> str | None:
         existing = post_publication_repository.get_publication_by_post_and_platform(

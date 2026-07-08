@@ -19,16 +19,16 @@
 
 import re
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import httpx
 
+from app.integrations import media_attachments as ma
 from app.integrations.publishing import PublishError, PublishRequest, PublishResponse
 
 _STAGE = "Интеграция с VK запланирована на Этап 7"
 _DEFAULT_BASE_URL = "https://api.vk.com"
 _DEFAULT_API_VERSION = "5.131"
-_PUBLIC_PREFIX = "public://yandex/"
 # Целое число с одним необязательным знаком (для нормализации owner_id).
 _NUMERIC_RE = re.compile(r"^-?\d+$")
 
@@ -40,40 +40,10 @@ _GROUP_AUTH_WARNING = (
     "photos.getWallUploadServer/photos.saveWallPhoto"
 )
 
-# Видео пока не загружаем — только текст + предупреждение.
-_VIDEO_EXTENSIONS = {"mov", "mp4", "m4v", "avi", "mkv", "webm"}
 # Предупреждение о пропуске видео в группе медиа (стабильный текст для отчётов/тестов).
 _VIDEO_SKIP_WARNING = "VK video upload is not implemented; video skipped"
-
-# HEIC/HEIF: VK не принимает такой формат — конвертируем в JPEG в памяти (если
-# нет готовой enhanced-копии и доступен процессор). Оригинал не перезаписывается.
-_HEIC_EXTENSIONS = {"heic", "heif"}
 # Лимит фото по умолчанию в одном VK-посте с группой медиа.
 _DEFAULT_MAX_GROUP_PHOTOS = 5
-
-_CONTENT_TYPES = {
-    "jpg": "image/jpeg",
-    "jpeg": "image/jpeg",
-    "png": "image/png",
-    "webp": "image/webp",
-    "gif": "image/gif",
-    "heic": "image/heic",
-    "heif": "image/heif",
-    "bmp": "image/bmp",
-    "tiff": "image/tiff",
-}
-
-
-def _extension(name: str) -> str:
-    return name.rsplit(".", 1)[-1].lower() if "." in name else ""
-
-
-def _is_video(name: str) -> bool:
-    return _extension(name) in _VIDEO_EXTENSIONS
-
-
-def _content_type(name: str) -> str:
-    return _CONTENT_TYPES.get(_extension(name), "application/octet-stream")
 
 
 class _VkApiError(Exception):
@@ -87,24 +57,6 @@ class _VkApiError(Exception):
         self.error_code = error_code
         self.error_msg = error_msg
         super().__init__(f"API ошибка {error_code}: {error_msg}")
-
-
-class SupportsPublicMediaDownload(Protocol):
-    """Контракт загрузчика публичного медиа (структурный, для DI и тестов)."""
-
-    def download_public_media(self, disk_path: str, file_name: str) -> Any:
-        """Вернуть объект с полями ``bytes``, ``content_type``, ``file_name``."""
-        ...
-
-
-class SupportsImageConversion(Protocol):
-    """Контракт конвертера изображений (HEIC/HEIF → JPEG в памяти)."""
-
-    def enhance_image_bytes(
-        self, image_bytes: bytes, profile: str, operations: dict[str, bool] | None = None
-    ) -> Any:
-        """Вернуть объект с полем ``output_bytes`` (сконвертированные байты)."""
-        ...
 
 
 class _MediaDescriptor:
@@ -152,8 +104,8 @@ class VKPublishingClient:
         api_version: str = _DEFAULT_API_VERSION,
         timeout: float = 20.0,
         transport: httpx.BaseTransport | None = None,
-        media_downloader: SupportsPublicMediaDownload | None = None,
-        image_processor: SupportsImageConversion | None = None,
+        media_downloader: ma.SupportsPublicMediaDownload | None = None,
+        image_processor: ma.SupportsImageConversion | None = None,
         max_group_photos: int = _DEFAULT_MAX_GROUP_PHOTOS,
     ) -> None:
         self._token = token
@@ -253,7 +205,7 @@ class VKPublishingClient:
         image_items: list[dict[str, Any]] = []
         for item in media_items:
             file_name = str(item.get("file_name") or "")
-            kind = str(item.get("media_kind") or ("video" if _is_video(file_name) else "image"))
+            kind = str(item.get("media_kind") or ("video" if ma.is_video(file_name) else "image"))
             if kind == "video":
                 label = file_name or "video"
                 warnings.append(f"{_VIDEO_SKIP_WARNING} ({label})")
@@ -298,44 +250,11 @@ class VKPublishingClient:
 
     def _load_item_bytes(self, item: dict[str, Any]) -> tuple[bytes | None, str]:
         """Прочитать байты одного медиа группы (локальная копия или Яндекс Диск)."""
-        media_path = item.get("media_path")
-        if isinstance(media_path, str) and media_path:
-            path = Path(media_path)
-            if not path.is_file():
-                return None, path.name
-            return path.read_bytes(), path.name
-
-        disk_path = item.get("yandex_disk_path")
-        file_name = str(
-            item.get("file_name")
-            or (Path(disk_path).name if isinstance(disk_path, str) else "")
-            or "photo.jpg"
-        )
-        if (
-            isinstance(disk_path, str)
-            and disk_path.startswith(_PUBLIC_PREFIX)
-            and self._media_downloader is not None
-        ):
-            downloaded = self._media_downloader.download_public_media(disk_path, file_name)
-            data: bytes = downloaded.bytes
-            return data, file_name
-        return None, file_name
+        return ma.load_item_bytes(item, self._media_downloader)
 
     def _maybe_convert_heic(self, content: bytes, file_name: str) -> tuple[bytes, str, str]:
-        """HEIC/HEIF → JPEG в памяти (best-effort). Оригинал не перезаписывается.
-
-        Если формат не HEIC/HEIF или процессор недоступен/не смог сконвертировать —
-        возвращаем исходные байты (публикацию не роняем).
-        """
-        if _extension(file_name) not in _HEIC_EXTENSIONS or self._image_processor is None:
-            return content, file_name, _content_type(file_name)
-        try:
-            result = self._image_processor.enhance_image_bytes(content, "minimal")
-            converted: bytes = result.output_bytes
-        except Exception:  # noqa: BLE001 — любая ошибка конвертации → грузим оригинал
-            return content, file_name, _content_type(file_name)
-        stem = file_name.rsplit(".", 1)[0] if "." in file_name else file_name
-        return converted, f"{stem}.jpg", "image/jpeg"
+        """HEIC/HEIF → JPEG в памяти (best-effort). Оригинал не перезаписывается."""
+        return ma.maybe_convert_heic(content, file_name, self._image_processor)
 
     @staticmethod
     def _media_descriptor(request: PublishRequest) -> _MediaDescriptor | None:
@@ -346,14 +265,14 @@ class VKPublishingClient:
         # 1. Улучшенная копия — локальный файл (приоритет).
         if request.media_path:
             name = Path(request.media_path).name
-            kind = "video" if _is_video(name) else "image"
+            kind = "video" if ma.is_video(name) else "image"
             return _MediaDescriptor(kind, request.media_path, None, name)
 
         # 2. Оригинал в публичной папке Яндекс Диска.
         disk_path = attachment.get("yandex_disk_path")
-        if isinstance(disk_path, str) and disk_path.startswith(_PUBLIC_PREFIX):
+        if isinstance(disk_path, str) and disk_path.startswith(ma.PUBLIC_PREFIX):
             file_name = attachment.get("file_name") or Path(disk_path).name or "photo.jpg"
-            kind = "video" if _is_video(str(file_name)) else "image"
+            kind = "video" if ma.is_video(str(file_name)) else "image"
             return _MediaDescriptor(kind, None, disk_path, str(file_name))
 
         return None

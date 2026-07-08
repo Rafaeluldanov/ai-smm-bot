@@ -87,6 +87,14 @@ def test_preview_returns_items_without_publishing(client: TestClient, db_session
     body = response.json()
     assert body["post_id"] == post_id
     assert {item["platform"] for item in body["items"]} == {"telegram", "vk"}
+    # Расширенные поля preview присутствуют в ответе API.
+    vk_item = next(item for item in body["items"] if item["platform"] == "vk")
+    assert "media_kind" in vk_item
+    assert "media_count" in vk_item
+    assert "would_attach_media" in vk_item
+    assert "media_warnings" in vk_item
+    assert "unsupported_media_reason" in vk_item
+    assert vk_item["platform_capabilities"]["platform"] == "vk"
     # preview ничего не публикует
     assert client.get("/post-publications", params={"post_id": post_id}).json() == []
 
@@ -130,3 +138,16 @@ def test_old_endpoints_still_work(client: TestClient) -> None:
     assert client.get("/health").status_code == 200
     assert client.get("/posts").status_code == 200
     assert client.get("/post-reviews/99999/card").status_code == 404
+
+
+def test_platform_capabilities_endpoint(client: TestClient) -> None:
+    response = client.get("/post-publications/platform-capabilities")
+    assert response.status_code == 200
+    body = response.json()
+    by_platform = {item["platform"]: item for item in body}
+    assert {"vk", "telegram", "instagram", "youtube", "rutube"} <= set(by_platform)
+    assert by_platform["vk"]["supports_image_group"] is True
+    assert by_platform["vk"]["live_implemented"] is True
+    assert by_platform["youtube"]["supports_video"] is True
+    assert by_platform["youtube"]["live_implemented"] is False
+    assert by_platform["instagram"]["live_flag_name"] == "INSTAGRAM_LIVE_PUBLISHING_ENABLED"

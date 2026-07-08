@@ -99,6 +99,23 @@ class DuePublicationsResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class PlatformCapabilitiesRead(BaseModel):
+    """Возможности платформы публикации (для API и dry-run preview)."""
+
+    platform: str
+    supports_text: bool
+    supports_image: bool
+    supports_image_group: bool
+    supports_video: bool
+    supports_video_group: bool
+    max_images: int
+    max_videos: int
+    max_text_length: int | None = None
+    live_flag_name: str
+    live_implemented: bool = True
+    notes: list[str] = Field(default_factory=list)
+
+
 class PublicationPreviewItem(BaseModel):
     """Превью публикации для одной платформы (БЕЗ отправки)."""
 
@@ -117,8 +134,14 @@ class PublicationPreviewItem(BaseModel):
     media_count: int = 0
     # Идентификаторы всех медиа поста (для группы медиа — несколько).
     media_asset_ids: list[int] = Field(default_factory=list)
-    # Будет ли прикреплено фото-вложение при живой публикации (VK).
+    # Будет ли прикреплено медиа-вложение при живой публикации.
     would_attach_media: bool = False
+    # Предупреждения по медиа для этой платформы (усечение/пропуск/skip видео и т. п.).
+    media_warnings: list[str] = Field(default_factory=list)
+    # Почему медиа не будет прикреплено (если применимо), иначе None.
+    unsupported_media_reason: str | None = None
+    # Возможности платформы (capability-слой).
+    platform_capabilities: PlatformCapabilitiesRead | None = None
     live_enabled: bool = False
     would_send: bool = False
 

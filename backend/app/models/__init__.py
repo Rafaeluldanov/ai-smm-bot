@@ -1,8 +1,16 @@
 """SQLAlchemy-модели. Импорт здесь регистрирует их в общих метаданных Base."""
 
 from app.db.base import Base
+from app.models.account import Account
+from app.models.account_membership import AccountMembership
 from app.models.autonomous_run import AutonomousRun
 from app.models.autonomous_run_step import AutonomousRunStep
+from app.models.billing import (
+    BillingAccount,
+    BillingLedgerEntry,
+    TariffPlan,
+    UsageEvent,
+)
 from app.models.crm_bot_smm import (
     CrmBotProjectConfig,
     CrmContentSource,
@@ -21,11 +29,16 @@ from app.models.post_publication import PostPublication
 from app.models.post_review_action import PostReviewAction
 from app.models.project import Project
 from app.models.topic import Topic
+from app.models.user import User
 
 __all__ = [
+    "Account",
+    "AccountMembership",
     "AutonomousRun",
     "AutonomousRunStep",
     "Base",
+    "BillingAccount",
+    "BillingLedgerEntry",
     "CrmBotProjectConfig",
     "CrmContentSource",
     "CrmKeyword",
@@ -41,5 +54,8 @@ __all__ = [
     "PostPublication",
     "PostReviewAction",
     "Project",
+    "TariffPlan",
     "Topic",
+    "UsageEvent",
+    "User",
 ]

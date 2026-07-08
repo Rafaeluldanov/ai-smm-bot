@@ -8,7 +8,7 @@ BIN := $(VENV)/bin
         retag-media media-summary select-topics content-plan \
         enhance-media enhance-project-media media-enhancement-summary \
         generate-post generate-weekly-posts \
-        media-groups media-group-post \
+        media-groups media-group-post publish-preview media-platform-preview \
         review-post approve-post reject-post \
         schedule-post publish-post publish-due \
         ingest-analytics analytics-report \
@@ -17,6 +17,8 @@ BIN := $(VENV)/bin
         preview-vk-seo seo-content-plan \
         crm-form-schema crm-onboarding-validate crm-onboarding-preview \
         crm-onboarding-apply crm-category-plan \
+        saas-form-schema saas-onboarding-preview saas-onboarding-apply \
+        billing-balance billing-topup \
         smoke
 
 help: ## Показать список команд
@@ -89,6 +91,12 @@ media-groups: ## Превью групп медиа: make media-groups project_s
 media-group-post: ## Пост из группы медиа: make media-group-post project_slug=teeon tag=футболка
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.create_media_group_post --project-slug "$(project_slug)" $(if $(tag),--tag "$(tag)",)
 
+publish-preview: ## Dry-run preview поста по платформам: make publish-preview post_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.publish_post --post-id "$(post_id)" --dry-run
+
+media-platform-preview: ## Превью медиа по платформам: make media-platform-preview project_slug=teeon tag=футболка platforms="telegram,vk,instagram,youtube,rutube"
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.preview_media_platforms --project-slug "$(project_slug)" $(if $(tag),--tag "$(tag)",) $(if $(platforms),--platforms "$(platforms)",)
+
 review-post: ## Действие согласования: make review-post post_id=1 action=submit
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.review_post --post-id "$(post_id)" --action "$(action)"
 
@@ -148,6 +156,21 @@ crm-onboarding-apply: ## Применить онбординг (real): make crm-
 
 crm-category-plan: ## Контент-план категории: make crm-category-plan category_id=1 days=30
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.preview_crm_category_plan --category-id "$(category_id)" --days "$(or $(days),30)"
+
+saas-form-schema: ## Схема SaaS-формы онбординга: make saas-form-schema
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.preview_saas_onboarding_form
+
+saas-onboarding-preview: ## SaaS онбординг dry-run: make saas-onboarding-preview account_id=1 payload_path=...
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.apply_saas_onboarding_payload --account-id "$(account_id)" --payload-path "$(payload_path)" --dry-run true
+
+saas-onboarding-apply: ## SaaS онбординг apply: make saas-onboarding-apply account_id=1 payload_path=...
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.apply_saas_onboarding_payload --account-id "$(account_id)" --payload-path "$(payload_path)" --dry-run false
+
+billing-balance: ## Баланс аккаунта: make billing-balance account_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.billing_balance --account-id "$(account_id)"
+
+billing-topup: ## Пополнить депозит: make billing-topup account_id=1 units=500
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.billing_topup --account-id "$(account_id)" --units "$(units)"
 
 smoke: ## Смоук-проверка: приложение поднимается, health/readiness отвечают
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.smoke_check
