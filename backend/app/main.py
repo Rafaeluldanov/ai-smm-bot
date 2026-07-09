@@ -18,6 +18,7 @@ from app.api.projects import router as projects_router
 from app.api.saas_onboarding import router as saas_router
 from app.api.seo import router as seo_router
 from app.api.topics import router as topics_router
+from app.api.ui import router as ui_router
 from app.config import get_settings
 from app.core.logging import configure_logging, get_logger
 
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(billing_router)
     app.include_router(saas_router)
+    app.include_router(ui_router)
 
     logger.info("Приложение инициализировано (env=%s)", settings.app_env)
     return app

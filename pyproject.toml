@@ -52,6 +52,8 @@ known-first-party = ["app"]
 "backend/alembic/env.py" = ["E402"]
 # Автогенерируемые миграции могут содержать длинные строки и свой порядок импортов.
 "backend/alembic/versions/*" = ["E501", "I001"]
+# UI-модуль встраивает HTML/CSS/JS строками — длинные строки естественны.
+"backend/app/api/ui.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

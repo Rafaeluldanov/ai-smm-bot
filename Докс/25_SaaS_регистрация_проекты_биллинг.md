@@ -139,3 +139,48 @@ curl -s localhost:8000/billing/account/1/balance
 `users`, `accounts`, `account_memberships`, `tariff_plans`, `billing_accounts`,
 `billing_ledger_entries`, `usage_events` + колонка `projects.account_id` (nullable).
 Применить: `make migrate` (alembic upgrade head).
+
+## Личный кабинет / UI (v0.2.2)
+
+Минимальный веб-кабинет — server-rendered HTML-страницы `/ui/*`
+(`backend/app/api/ui.py`), без фронтенд-сборки и без новых зависимостей. Каждая
+страница отдаёт самодостаточный HTML со встроенными CSS и vanilla-JS, который
+обращается к тем же JSON-API (`/auth`, `/saas`, `/billing`).
+
+Страницы:
+
+| Путь | Назначение |
+|------|-----------|
+| `/ui/register` | Регистрация → сохраняет dev-токен и account_id в `localStorage` |
+| `/ui/login` | Вход |
+| `/ui/accounts` | `GET /auth/me`, выбор текущего аккаунта |
+| `/ui/projects` | Список проектов аккаунта |
+| `/ui/projects/new` | Форма онбординга: Preview / Apply |
+| `/ui/projects/{id}/dashboard` | Дашборд проекта |
+| `/ui/projects/{id}/settings` | Идемпотентное обновление конфигурации (повторный Apply) |
+| `/ui/billing` | Баланс + тест-пополнение (`manual-topup`) |
+
+Как работает авторизация: после `register`/`login` dev-токен кладётся в
+`localStorage`; все запросы к защищённым endpoint-ам уходят с заголовком
+`Authorization`. Ошибки показываются в отдельном блоке, ответы preview/apply —
+как читаемый JSON.
+
+Форма нового проекта повторяет разделы онбординга (company, project, keywords,
+media_sources, platforms, promotion_categories, publishing_plans, billing) с
+repeatable-секциями. Медиа-источники: `yandex_disk / google_drive / manual /
+upload / website / other` (**Google Drive пока только сохраняется как источник,
+без реальной интеграции**). Платформы: `vk / telegram / instagram / youtube /
+rutube / other`.
+
+Безопасность UI:
+
+- поле `api_key` — `<input type=password autocomplete=off>`, **очищается после
+  отправки** (секрет не показывается повторно; сервер возвращает только маску);
+- `live_enabled` на форме **выключен (disabled) и всегда уходит `false`**;
+- **автопубликация** не предлагается; режимы плана — `draft / semi_auto /
+  auto_schedule`; все прогоны — только preview/dry-run;
+- HTML статичен и **не содержит серверных секретов/токенов** (проверяется тестом);
+- `publish-due` из UI не вызывается.
+
+Запуск: `make run`, затем открыть `http://localhost:8000/ui/register`. Платежи —
+fake/manual (units), реальных списаний нет.

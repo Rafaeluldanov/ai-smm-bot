@@ -1088,6 +1088,33 @@ make billing-topup account_id=1 units=500
 
 > Подробности — в [`Докс/25_SaaS_регистрация_проекты_биллинг.md`](./Докс/25_SaaS_регистрация_проекты_биллинг.md).
 
+### SaaS UI MVP (v0.2.2)
+
+Минимальный личный кабинет — server-rendered HTML-страницы `/ui/*` (без сборки и
+без новых зависимостей). Каждая страница самодостаточна: встроенные CSS + vanilla-JS
+обращаются к JSON-API; dev-токен хранится в `localStorage` и уходит в заголовке
+`Authorization`.
+
+Страницы: `/ui/register`, `/ui/login`, `/ui/accounts`, `/ui/projects`,
+`/ui/projects/new`, `/ui/projects/{id}/dashboard`, `/ui/projects/{id}/settings`,
+`/ui/billing`. Форма нового проекта покрывает company / project / keywords /
+media_sources / platforms / promotion_categories / publishing_plans / billing с
+repeatable-секциями; кнопки **Preview** (`/saas/onboarding/preview`) и **Apply**
+(`/saas/onboarding/apply`); страница биллинга — баланс и тест-пополнение
+(`manual-topup`).
+
+Безопасность UI: `api_key` — поле `password`, очищается после отправки (секрет не
+показывается повторно; сервер отдаёт только маску); `live_enabled` на форме
+выключен и всегда уходит `false`; автопубликация не предлагается; все прогоны —
+preview/dry-run. HTML статичен и не содержит серверных секретов.
+
+```bash
+make run           # затем открыть http://localhost:8000/ui/register
+```
+
+> Google Drive как медиа-источник пока только сохраняется (без реальной интеграции).
+> Платежи fake/manual (units), live-публикации выключены.
+
 <!-- SAAS_END -->
 
 
