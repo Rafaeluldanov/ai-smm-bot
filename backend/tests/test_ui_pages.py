@@ -1,4 +1,4 @@
-"""Smoke-тесты SaaS UI-страниц (offline, TestClient; без сети/секретов)."""
+"""Smoke-тесты SaaS личного кабинета v0.2.3 (offline, TestClient; без сети/секретов)."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -15,7 +15,11 @@ PAGES = [
     "/ui/projects/new",
     "/ui/projects/1/dashboard",
     "/ui/projects/1/settings",
+    "/ui/projects/1/platforms/vk/schedule",
     "/ui/billing",
+    "/ui/tariffs",
+    "/ui/analytics",
+    "/ui/settings",
 ]
 
 
@@ -32,20 +36,52 @@ def test_auth_pages_have_forms(client: TestClient) -> None:
     assert "<form" in client.get("/ui/login").text
 
 
+def test_sidebar_labels_present(client: TestClient) -> None:
+    # Sidebar-разделы присутствуют на страницах кабинета.
+    for path in ("/ui/projects", "/ui/tariffs", "/ui/analytics", "/ui/billing"):
+        body = client.get(path).text
+        for label in ("Проекты", "Тарифы", "Аналитика", "Настройки"):
+            assert label in body, (path, label)
+
+
+def test_account_dropdown_labels_present(client: TestClient) -> None:
+    # Метки dropdown аккаунта рендерятся статически (JS лишь переключает видимость).
+    for path in ("/ui/projects", "/ui/billing", "/ui/"):
+        body = client.get(path).text
+        assert "Пополнить счёт" in body
+        assert "Выйти" in body
+    # Гостю доступны кнопки входа/регистрации.
+    login_page = client.get("/ui/login").text
+    assert "Войти" in login_page
+    assert "Регистрация" in login_page
+
+
 def test_new_project_form_has_all_sections(client: TestClient) -> None:
     body = client.get("/ui/projects/new").text
     for marker in (
         "company_name",
         "project_slug",
         "project_name",
-        "keywords",
+        "kwtable",
         "media_sources",
         "platforms",
         "promotion_categories",
         "publishing_plans",
         "accept_terms",
     ):
-        assert marker in body
+        assert marker in body, marker
+
+
+def test_new_project_bulk_keyword_import(client: TestClient) -> None:
+    body = client.get("/ui/projects/new").text
+    assert "Вставьте ключевые запросы списком" in body
+    assert "Разобрать ключи" in body
+    # Импорт файла читается в браузере (FileReader), без загрузки на сервер.
+    assert "FileReader" in body
+    assert "accept='.txt,.csv'" in body
+    # Эвристики продукта/технологии присутствуют.
+    assert "kwHeuristics" in body
+    assert "DTF-печать" in body
 
 
 def test_media_source_and_platform_options_present(client: TestClient) -> None:
@@ -62,35 +98,52 @@ def test_api_key_is_password_input(client: TestClient) -> None:
     assert "name='api_key' type='password' autocomplete='off'" in body
 
 
-def test_live_enabled_disabled_and_no_auto_publish(client: TestClient) -> None:
+def test_no_enabled_live_toggle_and_no_auto_publish(client: TestClient) -> None:
     body = client.get("/ui/projects/new").text
-    # auto_publish не предлагается в UI; режимы плана — без него.
+    # auto_publish не предлагается в UI.
     assert "auto_publish" not in body
-    # live-чекбокс присутствует, но выключен (disabled).
-    assert "live (выкл)" in body
-    assert "disabled" in body
+    # Нет включаемого чекбокса live: на форму всегда уходит live_enabled:false.
+    assert "live_enabled:false" in body
+    assert "live: выкл" in body
+    assert "Живая публикация включается отдельно после проверки" in body
+    # Нет активного (не-disabled) чекбокса live_enabled.
+    assert "name='live_enabled' type='checkbox'" not in body
+
+
+def test_schedule_planner_maps_to_publishing_plan(client: TestClient) -> None:
+    body = client.get("/ui/projects/1/platforms/telegram/schedule").text
+    # Планировщик собирает publishing_plans с нужными полями.
+    assert "publishing_plans" in body
+    assert "posts_per_day" in body
+    assert "Europe/Moscow" in body
+    assert "semi_auto" in body
+    assert "Без плана расписания бот ничего не публикует" in body
+    # Платформа безопасно прокинута как JSON-строка.
+    assert 'const PLATFORM="telegram"' in body
+
+
+def test_dashboard_renders_platform_cards_section(client: TestClient) -> None:
+    body = client.get("/ui/projects/1/dashboard").text
+    assert "Платформы" in body
+    assert "extra.platforms" in body  # карточки платформ из dashboard.extra
+    assert "Next actions" in body
 
 
 def test_dynamic_pages_escape_user_content(client: TestClient) -> None:
     # Пользовательские данные (имена/slug проектов и аккаунтов) экранируются перед
     # вставкой в innerHTML — защита от stored XSS.
     assert "function esc(" in client.get("/ui/projects").text
-    for path in ("/ui/accounts", "/ui/projects", "/ui/projects/1/dashboard"):
+    for path in ("/ui/accounts", "/ui/projects", "/ui/projects/1/dashboard", "/ui/settings"):
         body = client.get(path).text
         assert "esc(" in body
 
 
-def test_settings_page_seeds_form_rows(client: TestClient) -> None:
-    # Страница настроек добавляет стартовые строки секций — форма пригодна к вводу.
-    assert "forEach(addRow)" in client.get("/ui/projects/1/settings").text
-
-
-def test_buildpayload_filters_untouched_select_rows(client: TestClient) -> None:
-    # Незаполненные строки с select (media_sources/platforms/plans) не отправляются.
-    body = client.get("/ui/projects/new").text
-    assert "p.title||p.api_key||p.external_id" in body
-    assert "m.title||m.url||m.root_folder" in body
-    assert "p.category_title||p.platforms.length" in body
+def test_no_publish_due_in_ui(client: TestClient) -> None:
+    # В UI нет действия/маршрута публикации по расписанию (publish-due).
+    for path in PAGES:
+        body = client.get(path).text
+        assert "publish-due" not in body
+        assert "publish_due" not in body
 
 
 def test_ui_html_has_no_real_secrets(client: TestClient) -> None:
@@ -104,5 +157,4 @@ def test_ui_html_has_no_real_secrets(client: TestClient) -> None:
         text = client.get(path).text
         for secret in secrets:
             if secret:  # непустой реальный токен из окружения
-                leaked = secret in text
-                assert not leaked  # не печатаем секрет в сообщении об ошибке
+                assert secret not in text  # секрет не попадает в HTML

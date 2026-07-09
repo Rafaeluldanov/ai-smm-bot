@@ -377,9 +377,26 @@ class SaasOnboardingService:
             raise SaasOnboardingError(f"Проект id={project_id} не найден")
 
         platforms_count = media_sources_count = categories_count = active_plans_count = 0
+        platform_cards: list[dict[str, Any]] = []
         config = crm_repo.get_config_by_project_id(db, project.id)
         if config is not None:
-            platforms_count = len(crm_repo.list_resources_by_config(db, config.id))
+            resources = crm_repo.list_resources_by_config(db, config.id)
+            platforms_count = len(resources)
+            # Карточки платформ для дашборда — БЕЗ секрета: только маска-флаг наличия
+            # ключа, external_id/url и статус live (всегда выключен на этом этапе).
+            platform_cards = [
+                {
+                    "id": r.id,
+                    "platform_type": r.resource_type,
+                    "title": r.title,
+                    "external_id": r.external_id,
+                    "url": r.url,
+                    "has_api_key": bool(r.api_key_masked or r.api_key_encrypted),
+                    "live_enabled": r.live_enabled,
+                    "is_active": r.is_active,
+                }
+                for r in resources
+            ]
             media_sources_count = len(crm_repo.list_content_sources_by_config(db, config.id))
             categories = crm_repo.list_categories_by_config(db, config.id)
             categories_count = len(categories)
@@ -429,6 +446,7 @@ class SaasOnboardingService:
             posts_needing_review=posts_needing_review,
             billing_balance_units=balance,
             next_recommended_actions=actions,
+            extra={"platforms": platform_cards},
         )
 
     # ------------------------------------------------------------------ #
