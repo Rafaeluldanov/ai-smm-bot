@@ -26,6 +26,8 @@ _PROD_SETTINGS = Settings(
     auth_cookie_secure=True,
     auth_require_auth=True,
     auth_allow_dev_token=False,
+    csrf_protection_enabled=True,
+    rate_limit_enabled=True,
 )
 
 

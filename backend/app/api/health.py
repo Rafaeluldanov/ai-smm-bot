@@ -14,8 +14,7 @@ from pydantic import BaseModel, Field
 from app.config import (
     Settings,
     get_settings,
-    production_security_errors,
-    production_security_warnings,
+    security_checks,
 )
 
 # Имя сервиса фиксировано контрактом /health и не зависит от настроек.
@@ -91,12 +90,23 @@ def readiness() -> ReadinessResponse:
     )
 
 
+class SecurityCheckRead(BaseModel):
+    """Один пункт security-чек-листа."""
+
+    key: str
+    ok: bool
+    severity: str  # info | warning | error
+    message: str
+
+
 class SecurityReadinessResponse(BaseModel):
     """Security-готовность: строгий чек-лист безопасности перед публичным запуском."""
 
     status: str  # ok | warning | error
+    environment: str  # local | production
     app_env: str
-    checks: dict[str, bool] = Field(default_factory=dict)
+    production_ready: bool = False
+    checks: list[SecurityCheckRead] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
@@ -111,19 +121,9 @@ def security_readiness(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> SecurityReadinessResponse:
     """Security-чек-лист. В production при фатальных ошибках → 503; в local — 200."""
-    errors = production_security_errors(settings)
-    warnings = production_security_warnings(settings)
-    checks = {
-        "auth_token_secret_configured": settings.auth_token_secret_configured,
-        "auth_require_auth_effective": settings.auth_require_auth_effective,
-        "dev_token_allowed": settings.auth_allow_dev_token_effective,
-        "secure_cookies_effective": settings.secure_cookies_effective,
-        "csrf_enabled_effective": settings.csrf_enabled_effective,
-        "rate_limit_enabled_effective": settings.rate_limit_enabled_effective,
-        "security_headers_enabled": settings.security_headers_enabled,
-        "audit_log_enabled": settings.audit_log_enabled,
-        "payments_live_enabled": settings.payments_live_enabled,
-    }
+    checks = security_checks(settings)
+    errors = [c.message for c in checks if c.severity == "error"]
+    warnings = [c.message for c in checks if c.severity == "warning"]
     if errors:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         result_status = "error"
@@ -133,8 +133,13 @@ def security_readiness(
         result_status = "ok"
     return SecurityReadinessResponse(
         status=result_status,
+        environment="production" if settings.is_production else "local",
         app_env=settings.app_env,
-        checks=checks,
+        production_ready=not errors,
+        checks=[
+            SecurityCheckRead(key=c.key, ok=c.ok, severity=c.severity, message=c.message)
+            for c in checks
+        ],
         errors=errors,
         warnings=warnings,
     )

@@ -25,6 +25,8 @@ BIN := $(VENV)/bin
         vk-oauth-setup-info vk-api-photo-probe vk-api-photo-probe-upload \
         vk-browser-install vk-browser-publish-preview vk-browser-publish-live \
         billing-balance billing-topup \
+        prod-check security-readiness backup-db restore-db \
+        admin-create-user admin-grant-role audit-export \
         smoke
 
 help: ## Показать список команд
@@ -233,6 +235,29 @@ billing-topup: ## Пополнить депозит: make billing-topup account_
 
 smoke: ## Смоук-проверка: приложение поднимается, health/readiness отвечают
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.smoke_check
+
+# --- Production readiness / обслуживание (v0.3.3) ---
+
+prod-check: ## Production-readiness чек-лист (exit 2 при небезопасной конфигурации)
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.production_check
+
+security-readiness: ## Проверить /health/security-readiness запущенного сервиса
+	curl -s http://127.0.0.1:8000/health/security-readiness
+
+backup-db: ## Бэкап PostgreSQL (pg_dump): make backup-db [dry_run=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.backup_db --output-dir backups $(if $(dry_run),--dry-run,)
+
+restore-db: ## Восстановить БД: make restore-db backup_path=... confirm=RESTORE
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.restore_db --backup-path "$(backup_path)" --confirm "$(confirm)" --i-understand-data-loss "$(understand)"
+
+admin-create-user: ## Создать пользователя: make admin-create-user email=... password=... [account_name=...]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.admin_create_user --email "$(email)" --password "$(password)" --full-name "$(full_name)" $(if $(account_name),--account-name "$(account_name)",)
+
+admin-grant-role: ## Выдать роль: make admin-grant-role account_id=1 user_id=1 role=admin
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.admin_grant_role --account-id "$(account_id)" --user-id "$(user_id)" --role "$(role)"
+
+audit-export: ## Экспорт аудита: make audit-export account_id=1 output=audit.jsonl
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.audit_export --account-id "$(account_id)" --output "$(output)"
 
 test: ## Запустить тесты
 	$(BIN)/pytest

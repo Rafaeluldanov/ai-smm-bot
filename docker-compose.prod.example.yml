@@ -1,0 +1,87 @@
+# ============================================================================
+# Botfleet — ПРИМЕР production docker-compose (пример, не для прямого запуска).
+# ----------------------------------------------------------------------------
+# Скопируйте в docker-compose.prod.yml, создайте .env.production (из
+# .env.production.example) и заполните секреты ТОЛЬКО на сервере (не в Git).
+#
+#   docker compose -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.prod.yml exec app alembic upgrade head
+#
+# Здесь НЕТ реальных секретов — только плейсхолдеры и env_file-ссылки.
+# ============================================================================
+
+services:
+  app:
+    build: .
+    command:
+      [
+        "uvicorn", "app.main:app",
+        "--host", "0.0.0.0", "--port", "8000",
+        "--app-dir", "backend", "--proxy-headers"
+      ]
+    env_file:
+      - .env.production
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD", "python", "-c",
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    # Порт наружу не публикуется — трафик идёт через reverse-proxy (caddy).
+    expose:
+      - "8000"
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: botfleet
+      POSTGRES_PASSWORD: CHANGE_ME  # задать в secret manager / server env
+      POSTGRES_DB: botfleet
+    restart: unless-stopped
+    volumes:
+      - botfleet_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U botfleet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - botfleet_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Reverse-proxy с автоматическим HTTPS (Let's Encrypt). Проще, чем nginx.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile.example:/etc/caddy/Caddyfile:ro
+      - botfleet_caddydata:/data
+      - botfleet_caddyconfig:/config
+
+volumes:
+  botfleet_pgdata:
+  botfleet_redisdata:
+  botfleet_caddydata:
+  botfleet_caddyconfig:

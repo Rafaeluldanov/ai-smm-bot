@@ -1296,6 +1296,33 @@ Production-grade auth/session-слой (подробно —
 `RATE_LIMIT_*`, `SECURITY_HEADERS_ENABLED`. Live/payments off; токены не логируются;
 миграция 0016.
 
+### Production readiness / деплой (v0.3.3)
+
+Фундамент безопасного production-деплоя (подробно —
+[Докс/30](Докс/30_Botfleet_Public_Launch_Readiness.md)):
+
+- **Production env**: [`.env.production.example`](.env.production.example) — безопасные
+  значения (`AUTH_ALLOW_DEV_TOKEN=false`, `PAYMENTS_LIVE_ENABLED=false`, live off),
+  комментарии и плейсхолдеры (без реальных секретов).
+- **Docker/deploy**: [`docker-compose.prod.example.yml`](docker-compose.prod.example.yml)
+  (app + postgres + redis + caddy), `deploy/Caddyfile.example`, `deploy/nginx.conf.example`.
+- **Config-валидация**: усилены `production_security_errors` (нет secret / dev-токен /
+  CSRF/rate-limit/headers off / sqlite / live-платежи без секрета / live-публикации);
+  `security_checks()`, `production_ready()`, `validate_production_settings()`. В production
+  приложение **не стартует** при небезопасной конфигурации.
+- **`/health/security-readiness`**: расширенный ответ (`environment`, `production_ready`,
+  список `checks` с `key/ok/severity/message`); 503 в production при ошибках, 200 в local
+  с warnings.
+- **CLI**: `make prod-check` (exit 2 при ошибках), `make backup-db` / `restore-db`
+  (pg_dump/pg_restore, пароль не печатается, restore требует `confirm=RESTORE`),
+  `admin-create-user` / `admin-grant-role` / `audit-export`, `security-readiness`.
+- **Legal**: черновики `/ui/legal/{terms,privacy,offer,payments}` + footer/ссылки в
+  настройках («Черновик — требуется юридическая проверка»).
+- **Наблюдаемость**: middleware `X-Request-ID` (входящий сохраняется) + access-log
+  (method/path/status/duration/request_id, секреты редактируются). `LOG_LEVEL` из env.
+
+Без миграций (0016 — актуальный head). Live/payments off; секреты не печатаются.
+
 ### Личный кабинет v0.2.3
 
 Кабинет переработан в нормальную раскладку **header + sidebar** на всех страницах

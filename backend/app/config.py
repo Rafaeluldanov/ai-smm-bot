@@ -4,6 +4,7 @@
 Секреты и токены НИКОГДА не хранятся в коде — только в окружении.
 """
 
+from dataclasses import dataclass
 from functools import lru_cache
 from urllib.parse import urlparse
 
@@ -40,6 +41,9 @@ class Settings(BaseSettings):
     # --- Приложение ---
     app_name: str = "ai-smm-bot"
     app_env: str = "local"
+    # Публичный базовый URL и уровень логирования (для production-деплоя).
+    app_base_url: str = ""
+    log_level: str = "INFO"
 
     # --- Безопасность SaaS-платформы ---
     # AUTH_TOKEN_SECRET — секрет для будущей реальной auth (JWT/сессии). В production
@@ -412,43 +416,159 @@ class Settings(BaseSettings):
         return bool(self.media_enhancement_storage_dir.strip())
 
 
+@dataclass(frozen=True)
+class SecurityCheck:
+    """Один пункт security-чек-листа готовности к production."""
+
+    key: str
+    ok: bool
+    severity: str  # info (пройден) | warning | error
+    message: str
+
+
+def _payments_ok(settings: Settings) -> bool:
+    """Платежи безопасны: либо live выключен, либо задан секрет провайдера."""
+    if not settings.payments_live_enabled:
+        return True
+    return bool(
+        settings.yookassa_secret_key or settings.tbank_password or settings.cloudpayments_api_secret
+    )
+
+
+def _live_publishing_off(settings: Settings) -> bool:
+    """Все live-публикации выключены (allowlist пока не реализован)."""
+    return not (
+        settings.telegram_live_publishing_enabled
+        or settings.vk_live_publishing_enabled
+        or settings.instagram_live_publishing_enabled
+        or settings.youtube_live_publishing_enabled
+        or settings.rutube_live_publishing_enabled
+    )
+
+
+def _mk(key: str, ok: bool, prod_critical: bool, settings: Settings, message: str) -> SecurityCheck:
+    """Собрать check: провал критичного пункта в production → error, иначе warning."""
+    if ok:
+        severity = "info"
+    elif prod_critical and settings.is_production:
+        severity = "error"
+    else:
+        severity = "warning"
+    return SecurityCheck(key=key, ok=ok, severity=severity, message=message)
+
+
+def security_checks(settings: Settings) -> list[SecurityCheck]:
+    """Единый security-чек-лист (для /health/security-readiness и production_check CLI)."""
+    return [
+        _mk(
+            "auth_secret_configured",
+            settings.auth_token_secret_configured,
+            True,
+            settings,
+            "AUTH_TOKEN_SECRET задан и надёжен (≥16 символов, не дефолт)",
+        ),
+        _mk(
+            "dev_token_disabled",
+            not settings.auth_allow_dev_token,
+            True,
+            settings,
+            "AUTH_ALLOW_DEV_TOKEN=false (dev-токен запрещён)",
+        ),
+        _mk(
+            "auth_required",
+            settings.auth_require_auth,
+            True,
+            settings,
+            "AUTH_REQUIRE_AUTH=true (авторизация обязательна)",
+        ),
+        _mk(
+            "secure_cookies",
+            settings.auth_cookie_secure,
+            True,
+            settings,
+            "AUTH_COOKIE_SECURE=true (HTTPS-only cookie)",
+        ),
+        _mk(
+            "csrf_enabled",
+            settings.csrf_protection_enabled,
+            True,
+            settings,
+            "CSRF_PROTECTION_ENABLED=true",
+        ),
+        _mk(
+            "rate_limit_enabled",
+            settings.rate_limit_enabled,
+            True,
+            settings,
+            "RATE_LIMIT_ENABLED=true",
+        ),
+        _mk(
+            "security_headers_enabled",
+            settings.security_headers_enabled,
+            True,
+            settings,
+            "SECURITY_HEADERS_ENABLED=true (CSP/HSTS/nosniff)",
+        ),
+        _mk(
+            "database_not_sqlite",
+            not settings.database_is_sqlite,
+            True,
+            settings,
+            "DATABASE_URL — PostgreSQL (не SQLite)",
+        ),
+        _mk(
+            "payments_live_disabled_or_configured",
+            _payments_ok(settings),
+            True,
+            settings,
+            "PAYMENTS_LIVE_ENABLED=false или задан секрет провайдера",
+        ),
+        _mk(
+            "live_publishing_disabled",
+            _live_publishing_off(settings),
+            True,
+            settings,
+            "Live-публикации выключены (включаются только после отдельных тестов)",
+        ),
+        _mk(
+            "audit_enabled",
+            settings.audit_log_enabled,
+            False,
+            settings,
+            "AUDIT_LOG_ENABLED=true (аудит действий)",
+        ),
+        _mk(
+            "paid_actions_enforced",
+            settings.paid_actions_enforced,
+            False,
+            settings,
+            "PAID_ACTIONS_ENFORCED=true (платные действия требуют баланс)",
+        ),
+    ]
+
+
 def production_security_errors(settings: Settings) -> list[str]:
     """Фатальные ошибки безопасности для production (пусто вне production).
 
     Используется на старте приложения (падение) и в ``/health/security-readiness``
     (503). Вне production всегда пусто — локальная разработка не блокируется.
     """
-    if not settings.is_production:
-        return []
-    errors: list[str] = []
-    if not settings.auth_token_secret_configured:
-        errors.append("AUTH_TOKEN_SECRET не задан или слишком слабый для production")
-    if settings.auth_allow_dev_token:
-        errors.append("AUTH_ALLOW_DEV_TOKEN=true недопустим в production (только реальные токены)")
-    if not settings.auth_require_auth:
-        errors.append("AUTH_REQUIRE_AUTH должен быть true в production")
-    if not settings.auth_cookie_secure:
-        errors.append("AUTH_COOKIE_SECURE должен быть true в production (HTTPS-only cookie)")
-    if settings.payments_live_enabled and not (
-        settings.yookassa_secret_key or settings.tbank_password or settings.cloudpayments_api_secret
-    ):
-        errors.append(
-            "PAYMENTS_LIVE_ENABLED=true без настроенного секрета/подписи платёжного провайдера"
-        )
-    return errors
+    return [c.message for c in security_checks(settings) if c.severity == "error"]
 
 
 def production_security_warnings(settings: Settings) -> list[str]:
     """Некритичные предупреждения безопасности (для readiness в любом окружении)."""
-    warnings: list[str] = []
-    if not settings.is_production:
-        if not settings.auth_token_secret_configured:
-            warnings.append(
-                "AUTH_TOKEN_SECRET не задан — используется dev-фолбэк (только для local)"
-            )
-        if settings.auth_allow_dev_token:
-            warnings.append("AUTH_ALLOW_DEV_TOKEN включён (dev-токен) — отключите для production")
-    return warnings
+    return [c.message for c in security_checks(settings) if c.severity == "warning"]
+
+
+def validate_production_settings(settings: Settings | None = None) -> list[str]:
+    """Вернуть фатальные production-ошибки конфигурации (алиас для CLI/старта)."""
+    return production_security_errors(settings if settings is not None else get_settings())
+
+
+def production_ready(settings: Settings) -> bool:
+    """True, если нет фатальных production-ошибок конфигурации."""
+    return not production_security_errors(settings)
 
 
 @lru_cache

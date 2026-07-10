@@ -18,6 +18,8 @@ _PROD = Settings(
     auth_allow_dev_token=False,
     auth_require_auth=True,
     auth_cookie_secure=True,
+    csrf_protection_enabled=True,
+    rate_limit_enabled=True,
 )
 _PROD_COOKIE = Settings(
     _env_file=None,
@@ -27,6 +29,8 @@ _PROD_COOKIE = Settings(
     auth_require_auth=True,
     auth_cookie_secure=True,
     auth_cookie_auth_enabled=True,
+    csrf_protection_enabled=True,
+    rate_limit_enabled=True,
 )
 
 

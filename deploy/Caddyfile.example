@@ -1,0 +1,33 @@
+# Пример Caddyfile для Botfleet (автоматический HTTPS через Let's Encrypt).
+# Замените домен и email. Caddy сам получает и продлевает TLS-сертификаты.
+#
+# Использование (в docker-compose.prod.example.yml сервис caddy монтирует этот файл):
+#   volumes:
+#     - ./deploy/Caddyfile.example:/etc/caddy/Caddyfile:ro
+
+app.botfleet.ru {
+	encode gzip zstd
+
+	# Проксируем на app-контейнер (порт 8000 наружу не публикуется).
+	reverse_proxy app:8000
+
+	# Дополнительные security-заголовки (основные ставит само приложение).
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		# HSTS также включается приложением в production; дублирование безопасно.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Логи доступа Caddy (ротация — по умолчанию).
+	log {
+		output stdout
+		format console
+	}
+}
+
+# Email для Let's Encrypt (замените на реальный):
+# {
+#   email admin@botfleet.ru
+# }

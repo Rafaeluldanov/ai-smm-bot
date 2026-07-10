@@ -139,3 +139,14 @@ dev-токен запрещён, `AUTH_TOKEN_SECRET` обязателен, cooki
 обязательна — иначе приложение не стартует / `/health/security-readiness` → 503.
 logout/logout-all ревокируют сессии; аудит login/logout/refresh. Подробно —
 [29_Botfleet_Production_Auth_Sessions.md](29_Botfleet_Production_Auth_Sessions.md).
+
+## Обновление v0.3.3: production readiness / деплой
+
+Добавлен фундамент production-деплоя: `.env.production.example`,
+`docker-compose.prod.example.yml` + `deploy/Caddyfile.example`/`nginx.conf.example`,
+усиленная config-валидация (`security_checks`/`production_ready`/`validate_production_settings`),
+расширенный `/health/security-readiness` (список checks + `production_ready`), CLI
+`make prod-check`/`backup-db`/`restore-db`/`admin-*`/`audit-export`, legal-черновики
+`/ui/legal/*`, middleware X-Request-ID + access-log с редакцией секретов. В production
+приложение не стартует при небезопасной конфигурации. Подробно —
+[30_Botfleet_Public_Launch_Readiness.md](30_Botfleet_Public_Launch_Readiness.md).

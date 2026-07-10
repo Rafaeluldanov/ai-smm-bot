@@ -235,6 +235,8 @@ h2[id],h3[id]{scroll-margin-top:72px}
 .price-table th,.price-table td{border:1px solid var(--border);padding:8px 10px;text-align:left}
 .price-table th{background:var(--surface-soft);color:var(--muted);font-weight:600}
 .price-table td.u{font-weight:700;color:var(--accent);white-space:nowrap}
+.site-footer{padding:16px 26px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;text-align:center}
+.site-footer a{color:var(--muted)}.site-footer a:hover{color:var(--accent)}
 @media (max-width:760px){.layout{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--border)}.page-ctx{display:none}.an-cal{grid-template-columns:repeat(7,1fr)}}
 """
 )
@@ -456,11 +458,21 @@ def _page(
         "document.documentElement.setAttribute('data-theme',t);}catch(e){}})();"
         f"{active_pid_js}</script>"
     )
+    footer = (
+        "<footer class='site-footer'>"
+        "<span class='muted'>© Botfleet · черновики документов, требуется юридическая "
+        "проверка</span> "
+        "<a href='/ui/legal/terms'>Условия</a> · "
+        "<a href='/ui/legal/privacy'>Конфиденциальность</a> · "
+        "<a href='/ui/legal/offer'>Оферта</a> · "
+        "<a href='/ui/legal/payments'>Оплата</a>"
+        "</footer>"
+    )
     document = (
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         f"<title>{esc_title} — {BRAND_NAME}</title><style>{_CSS}</style>{theme_init}</head><body>"
-        f"{_header(title)}<div class='{layout_cls}'>{inner}</div>"
+        f"{_header(title)}<div class='{layout_cls}'>{inner}</div>{footer}"
         f"<script>{_SHARED_JS}</script><script>{script}</script></body></html>"
     )
     return HTMLResponse(document)
@@ -1948,6 +1960,15 @@ def ui_settings() -> HTMLResponse:
         "</ul>"
         "<p class='muted'>Проверка боевой готовности: "
         "<a href='/health/security-readiness'>/health/security-readiness</a></p></div>"
+        # Юридические документы (черновики).
+        "<div class='card'><h3>📄 Документы</h3><p class='muted'>Черновики — перед "
+        "публичным запуском требуется юридическая проверка:</p>"
+        "<ul class='muted'>"
+        "<li><a href='/ui/legal/terms'>Условия использования</a></li>"
+        "<li><a href='/ui/legal/privacy'>Политика конфиденциальности</a></li>"
+        "<li><a href='/ui/legal/offer'>Публичная оферта</a></li>"
+        "<li><a href='/ui/legal/payments'>Оплата и возвраты</a></li>"
+        "</ul></div>"
         "<div id='error' class='err'></div>"
     )
     script = (
@@ -1964,6 +1985,66 @@ def ui_settings() -> HTMLResponse:
         "}catch(x){err(eEl,x)}})();"
     )
     return _page("Настройки", body, script, active="settings")
+
+
+# --------------------------------------------------------------------------- #
+# Юридические страницы (черновики — не финальные, не юридическая консультация) #
+# --------------------------------------------------------------------------- #
+
+_LEGAL_DOCS: dict[str, dict[str, str]] = {
+    "terms": {
+        "title": "Условия использования",
+        "en": "Terms of Service",
+        "intro": "Условия использования сервиса Botfleet.",
+    },
+    "privacy": {
+        "title": "Политика конфиденциальности",
+        "en": "Privacy Policy",
+        "intro": "Политика обработки персональных данных.",
+    },
+    "offer": {
+        "title": "Публичная оферта",
+        "en": "Public Offer",
+        "intro": "Публичная оферта об оказании услуг.",
+    },
+    "payments": {
+        "title": "Оплата и возвраты",
+        "en": "Payment Policy",
+        "intro": "Условия оплаты, тарификации и возвратов.",
+    },
+}
+
+
+def _legal_body(doc: dict[str, str]) -> str:
+    return (
+        "<div class='callout warn'><b>Черновик</b>"
+        "<p>Перед публичным запуском требуется юридическая проверка. Тексты не являются "
+        "юридической консультацией.</p></div>"
+        f"<div class='card'><h2>{html.escape(doc['title'])} "
+        f"<span class='muted'>({html.escape(doc['en'])})</span></h2>"
+        f"<p class='muted'>{html.escape(doc['intro'])}</p>"
+        "<p class='muted'>Черновик документа. Финальная редакция будет опубликована перед "
+        "запуском. Разделы: предмет, права и обязанности, ограничение ответственности, "
+        "персональные данные, платежи и возвраты, применимое право.</p></div>"
+        "<div class='inline'>"
+        "<a href='/ui/legal/terms'><button class='mini ghost'>Условия</button></a>"
+        "<a href='/ui/legal/privacy'><button class='mini ghost'>Конфиденциальность</button></a>"
+        "<a href='/ui/legal/offer'><button class='mini ghost'>Оферта</button></a>"
+        "<a href='/ui/legal/payments'><button class='mini ghost'>Оплата</button></a></div>"
+    )
+
+
+@router.get("/legal/{doc}", response_class=HTMLResponse)
+def ui_legal(doc: str) -> HTMLResponse:
+    """Юридическая страница-черновик (terms/privacy/offer/payments)."""
+    meta = _LEGAL_DOCS.get(_safe_slug(doc))
+    if meta is None:
+        meta = {
+            "title": "Документ",
+            "en": "Document",
+            "intro": "Документ не найден.",
+        }
+    return _page(f"{meta['title']} · черновик", _legal_body(meta), "", sidebar=False)
 
 
 @router.get("/billing", response_class=HTMLResponse)

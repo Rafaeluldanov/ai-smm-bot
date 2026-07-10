@@ -1,5 +1,7 @@
 """Точка входа FastAPI-приложения."""
 
+import logging
+
 from fastapi import FastAPI
 
 from app.api.analytics import router as analytics_router
@@ -28,12 +30,14 @@ from app.api.topics import router as topics_router
 from app.api.ui import router as ui_router
 from app.config import get_settings, production_security_errors
 from app.core.logging import configure_logging, get_logger
+from app.middleware.request_logging import AccessLogMiddleware, RequestIDMiddleware
 
 
 def create_app() -> FastAPI:
     """Сконфигурировать и вернуть экземпляр FastAPI."""
-    configure_logging()
     settings = get_settings()
+    log_level = getattr(logging, settings.log_level.strip().upper(), logging.INFO)
+    configure_logging(log_level if isinstance(log_level, int) else logging.INFO)
     logger = get_logger(__name__)
 
     # Fail-fast: в production приложение не стартует с небезопасной auth-конфигурацией.
@@ -46,11 +50,13 @@ def create_app() -> FastAPI:
         version="0.1.0",
         summary="Автоматическое ведение соцсетей проектов компании",
     )
-    # Middleware безопасности (порядок: последний добавленный — внешний). Security
-    # headers — внешний слой, затем rate limit, затем CSRF ближе к обработчику.
+    # Middleware (порядок: последний добавленный — внешний). Наблюдаемость снаружи
+    # (request-id → access-log), затем security headers → rate limit → CSRF.
     app.add_middleware(CSRFMiddleware)
     app.add_middleware(RateLimitMiddleware)
     app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(AccessLogMiddleware)
+    app.add_middleware(RequestIDMiddleware)
 
     app.include_router(health_router)
     app.include_router(projects_router)
