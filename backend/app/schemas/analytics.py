@@ -44,6 +44,31 @@ class PostAnalyticsSnapshotInsert(PostAnalyticsSnapshotBase):
     engagement_rate: float = 0.0
 
 
+class ManualMetricsRequest(BaseModel):
+    """Ручной ввод метрик поста (source=manual, без списания units)."""
+
+    views: int = 0
+    reach: int = 0
+    impressions: int = 0
+    likes: int = 0
+    comments: int = 0
+    shares: int = 0
+    saves: int = 0
+    clicks: int = 0
+    followers_delta: int = 0
+    platform: str | None = None
+
+
+class AnalyticsRunRequest(BaseModel):
+    """Запуск/оценка отчёта аналитики по проекту."""
+
+    project_id: int
+    depth: str = "light"
+    platform: str | None = None
+    status: str | None = None
+    idempotency_key: str | None = None
+
+
 class PostAnalyticsSnapshotUpdate(BaseModel):
     """Частичное обновление снимка (ручная правка метрик)."""
 

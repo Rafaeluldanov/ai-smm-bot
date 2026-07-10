@@ -33,6 +33,7 @@ from app.schemas.saas_onboarding import (
 )
 from app.services.billing_service import BillingService
 from app.services.crm_bot_smm_form_service import CrmBotSmmFormService
+from app.services.unit_economics_service import UnitEconomicsService
 
 
 class SaasOnboardingError(Exception):
@@ -378,6 +379,7 @@ class SaasOnboardingService:
 
         platforms_count = media_sources_count = categories_count = active_plans_count = 0
         platform_cards: list[dict[str, Any]] = []
+        schedule_tasks: list[dict[str, Any]] = []
         config = crm_repo.get_config_by_project_id(db, project.id)
         if config is not None:
             resources = crm_repo.list_resources_by_config(db, config.id)
@@ -392,18 +394,46 @@ class SaasOnboardingService:
                     "external_id": r.external_id,
                     "url": r.url,
                     "has_api_key": bool(r.api_key_masked or r.api_key_encrypted),
+                    "api_key_masked": r.api_key_masked,
                     "live_enabled": r.live_enabled,
                     "is_active": r.is_active,
+                    "yandex_public_url": r.yandex_public_url,
+                    "yandex_root_folder": r.yandex_root_folder,
+                    "tags": r.tags,
                 }
                 for r in resources
             ]
             media_sources_count = len(crm_repo.list_content_sources_by_config(db, config.id))
             categories = crm_repo.list_categories_by_config(db, config.id)
             categories_count = len(categories)
+            # Планы публикаций как отдельные «задачи расписания» (для UI платформы).
+            # Стоимость одной публикации в units — из юнит-экономики (без списания).
+            economics = UnitEconomicsService()
             for cat in categories:
-                active_plans_count += sum(
-                    1 for plan in crm_repo.list_plans_by_category(db, cat.id) if plan.is_active
-                )
+                for plan in crm_repo.list_plans_by_category(db, cat.id):
+                    if plan.is_active:
+                        active_plans_count += 1
+                    first_platform = (plan.platforms or ["telegram"])[0]
+                    schedule_tasks.append(
+                        {
+                            "id": plan.id,
+                            "name": cat.title or "План публикаций",
+                            "category_title": cat.title,
+                            "platforms": plan.platforms or [],
+                            "weekdays": plan.weekdays or [],
+                            "publish_times": plan.publish_times or [],
+                            "posts_per_day": plan.posts_per_day,
+                            "mode": plan.mode,
+                            "is_active": plan.is_active,
+                            "start_date": plan.start_date,
+                            "end_date": plan.end_date,
+                            "timezone": plan.timezone,
+                            # Полная цена одной публикации: генерация текста + публикация.
+                            "cost_per_post_units": economics.estimate_publication_units(
+                                first_platform, media_count=1, has_ai_generation=True
+                            ),
+                        }
+                    )
 
         posts = post_repository.list_posts(db, project_id=project.id, limit=200)
         recent = [
@@ -446,7 +476,7 @@ class SaasOnboardingService:
             posts_needing_review=posts_needing_review,
             billing_balance_units=balance,
             next_recommended_actions=actions,
-            extra={"platforms": platform_cards},
+            extra={"platforms": platform_cards, "schedule_tasks": schedule_tasks},
         )
 
     # ------------------------------------------------------------------ #

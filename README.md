@@ -1115,6 +1115,131 @@ make run           # затем открыть http://localhost:8000/ui/register
 > Google Drive как медиа-источник пока только сохраняется (без реальной интеграции).
 > Платежи fake/manual (units), live-публикации выключены.
 
+### Botfleet UI: бренд, тема и гайд подключения (v0.2.10)
+
+SaaS-кабинет получил продуктовый вид (та же реализация `/ui/*`, `backend/app/api/ui.py`,
+без сборки/CDN):
+
+- **Бренд Botfleet** в левом верхнем углу (header) и вверху sidebar — с временным
+  **inline SVG-логотипом** (ядро + орбитальные узлы, «флот ботов» / нейро-орбита),
+  цвета через CSS-переменные, подпись «ИИ-флот для автопостинга».
+- **Светлая / тёмная тема**: переключатель в header (☀️/🌙, День/Ночь). Выбор
+  хранится в `localStorage['botfleet_theme']` (`light|dark`), применяется через
+  `data-theme` на `<html>`; при первом входе берётся `prefers-color-scheme`. Ранняя
+  установка темы в `<head>` — без мигания. Тёмная тема — clean dark (почти чёрный фон,
+  тёмно-серые карточки, читаемый текст, синий акцент). Все элементы (header, sidebar,
+  карточки, кнопки, инпуты, таблицы, dropdown, гайд) адаптируются через CSS-переменные
+  (`--bg`, `--surface`, `--surface-soft`, `--text`, `--muted`, `--border`, `--accent`,
+  `--accent-soft`, `--danger`, `--success`, `--shadow`, `--input-bg`, `--button-bg`).
+- **Sidebar**: Проекты (со списком + «+ Новый проект») / Тарифы / Аналитика / **Гайд** /
+  Настройки; активный пункт подсвечивается.
+- **Раздел «Гайд»** (`/ui/guide`, алиасы `/ui/help`, `/ui/onboarding-guide`): «Как
+  подключиться к Botfleet» — быстрый старт (8 шагов), что нужно для проекта, подключение
+  Telegram/VK/Яндекс Диска, как работают ключи/расписание, безопасность и FAQ. Гайд
+  честно поясняет, что **VK с картинками требует корректный user-token / публичный OAuth
+  позже** (community-token может публиковать только text-only), а **Telegram media group**
+  можно проверять отдельно в dry-run, если канал настроен. Подчёркнуто, что **live-
+  публикации не включаются автоматически**, а **секреты скрываются** после сохранения.
+
+Секреты в HTML не встраиваются; внешних CDN нет; live-флаги не включаются из UI.
+
+### Подключение платформ в Botfleet: карточка Instagram + расширенный гайд (v0.2.11)
+
+Дашборд и раздел «Гайд» дополнены подключением Instagram и подробным руководством по
+всем площадкам (та же реализация `/ui/*`, без сборки/CDN, dark/light):
+
+- **Карточка Instagram на дашборде** (`/ui/projects/{id}/dashboard`): статус (Не
+  подключено / Токен сохранён / **live выключен**), справочные поля **Instagram App ID**,
+  **Instagram App Secret**, **Redirect URI**, **Access Token**, **Instagram User ID** и
+  напоминание, что **публичный `image_url` обязателен**. App Secret и Access Token
+  **никогда** не выводятся значением — только «секрет сохранён (скрыт)» / «не задан»
+  (реальные значения из `.env` в HTML не попадают). Кнопки: «Проверить настройки»
+  (локальная проверка `IG_CFG` **без вызовов Meta API**), «Открыть гайд Instagram»,
+  «Скопировать Redirect URI». Кнопки живой публикации нет.
+- **Instagram dry-run preview**: для постов с изображениями `preview_publication`
+  проставляет `needs_public_image_url=true` и `would_prepare_media=true`, добавляет
+  предупреждение про публичный HTTPS `image_url` и «live не реализован». Сеть не
+  вызывается; live-клиент по-прежнему бросает `PublishError`.
+- **Расширенный гайд** (`/ui/guide`): общий принцип Botfleet, быстрый старт, выбор
+  платформы, подробные разделы с якорями и быстрыми ссылками — **Telegram** (BotFather,
+  проблемы «chat not found», неверный токен, live-флаг), **VK** (group_id, `user-token`,
+  `error 27`, стратегии wall/album, публичный HTTPS-домен для OAuth), **Instagram**
+  (Professional-аккаунт, Facebook Page → Meta App → Graph API, запасной путь «Instagram
+  API with Instagram Login», блокировки Meta Developer, App ID/Secret/Redirect/Token/User
+  ID, `POST /{ig-user-id}/media` + `media_publish`, публичный `image_url`), **Яндекс Диск
+  и медиа**, **Расписание**, **Будущие подключения** (YouTube, RuTube, Google Drive,
+  media-proxy, Аналитика — planned) и **Безопасность**.
+- **Конфиг**: добавлены плейсхолдеры `INSTAGRAM_APP_ID`, `INSTAGRAM_APP_SECRET`,
+  `INSTAGRAM_REDIRECT_URI`, `INSTAGRAM_USER_ID` (в `.env.example` и `config.py`); Redirect
+  URI выводится из `PUBLIC_APP_URL`, если не задан. Миграций нет.
+
+Никаких реальных публикаций и вызовов Meta/Instagram API; секреты в HTML не встраиваются;
+live-флаги из UI не включаются.
+
+### Botfleet SaaS UX: платформы, расписания, юнит-экономика, аналитика (v0.2.12)
+
+Личный кабинет приведён к продуктовой логике SaaS (подробно —
+[Докс/26](Докс/26_Botfleet_SaaS_UX_платформы_расписания_аналитика.md)):
+
+- **Рабочие области платформ** — `/ui/projects/{id}/platforms/{platform}` с вкладками
+  Обзор / Настройки / Гайд подключения / Расписание / Preview / Аналитика. VK OAuth и
+  карточка Instagram переехали с дашборда внутрь платформы.
+- **Чистый дашборд** — «Проект: {имя}», кнопки (Настройки / Создать платформу / Создать
+  расписание), горизонтальная сетка **кликабельных** карточек площадок (VK, Telegram,
+  Instagram, Яндекс Диск, Website, будущие YouTube/RuTube), компактная «Активность» ниже.
+  Длинные инструкции убраны в разделы платформ.
+- **Задачи расписания** — каждый план публикаций как отдельная карточка (дни/время/тег/
+  режим/статус/стоимость в units/следующая дата) с кнопками Изменить/Пауза/Preview/
+  Удалить (безопасные, без разрушительных действий). Несколько расписаний на платформу.
+- **Гайды по платформам** — общий `/ui/guide` стал обзорным + ссылки; подробные
+  инструкции Telegram/VK/Instagram/Яндекс Диск — на `/ui/guide/{platform}` и во вкладке
+  платформы.
+- **Юнит-экономика** — `unit_economics_service.py`: цена действий в units считается из
+  токенов провайдера × наценка, с минимальным порогом. Цены/наценка в `config.py` /
+  `.env` (`AI_PRICING_MODEL`, `AI_INPUT_USD_PER_1M`, `AI_OUTPUT_USD_PER_1M`,
+  `BILLING_MARKUP_MULTIPLIER`, `BILLING_USD_TO_UNIT_RATE`, `BILLING_MIN_POST_UNITS`,
+  `BILLING_MIN_ANALYTICS_UNITS`). Витрина — на `/ui/tariffs`. Правила: публикация
+  списывает только после успеха, dry-run бесплатно, идемпотентность защищает от двойного
+  списания, неуспех не списывает.
+- **Безопасность** — guard-функции tenant-изоляции (`saas_security_service.py`),
+  чек-лист в Докс/26 (секреты только маска, live off, rate-limit/audit — TODO).
+- **Аналитика (planned/deep)** — `/ui/analytics` с фильтрами (проект/платформа/период/
+  глубина), календарём, оценкой стоимости отчёта в units и списком метрик (ER, CTR,
+  reach, saves…). Офлайн-демо: реальные внешние API не вызываются
+  (`analytics_planning_service.py`).
+
+Live-публикации выключены; секреты в HTML не встраиваются; миграций нет.
+
+### Аналитика постов и платёжная архитектура (v0.2.13)
+
+Глубокая аналитика постов и фундамент платежей для России (подробно —
+[Докс/27](Докс/27_Botfleet_аналитика_и_платежи.md)). **Реальные платежи выключены**
+(`PAYMENTS_LIVE_ENABLED=false`), реальных денег нет — только mock/sandbox.
+
+- **Аналитика постов** (`post_analytics_service.py`): анализ контента (CTA/ссылка/медиа/
+  B2B/качество), estimated-оценка (engagement/quality/reach-level/risk-flags),
+  рекомендации, карточка поста (light/standard/deep), список постов, календарь по дням.
+  Источник метрик всегда указан: `internal | manual | estimated | api | demo`. Внешние API
+  не вызываются.
+- **Цены аналитики** (`unit_economics_service`): light **10** / standard **20** / deep
+  **40** units за пост (конфиг `ANALYTICS_*_UNITS`); ручной ввод и dry-run — 0 units.
+  Списание — `BillingService.reserve_or_debit` (идемпотентно, не в минус); 402 при нехватке.
+- **Ручной ввод метрик**: `POST /analytics/posts/{id}/manual-metrics` (source=manual, 0
+  units) + UI на `/ui/analytics`.
+- **Платежи (Россия)**: методы карта/СБП/QR/счёт для ИП-ООО; провайдеры **mock** (реально
+  создаёт счёт) + yookassa/tbank/cloudpayments (sandbox) + robokassa (planned). Модели
+  `BillingProfile`/`PaymentInvoice`/`PaymentTransaction`/`PaymentWebhookLog` (миграция
+  **0014**). Поток: preview → invoice (баланс не меняется) → mock-pay/webhook → пополнение
+  (один раз, идемпотентно). API `/billing/*` (invoices, mock-pay, webhooks, profile,
+  providers); UI `/ui/billing` (пресеты сумм, методы, провайдеры, реквизиты, история,
+  баннер выключенных боевых платежей).
+- **Безопасность**: вебхуки логируются санитизированно (без секретов), недоверенная подпись
+  не обрабатывается, дубликат идемпотентен; секреты провайдеров только в `.env` (в UI —
+  маска). Anti-free-use: платные действия проверяют баланс, стоимость видна до действия.
+
+Feature-flags: `PAYMENTS_LIVE_ENABLED=false`, `PAYMENTS_DEFAULT_PROVIDER=mock`. Миграция
+0014 (payments). Реальных денег нет — эквайринг не подключён.
+
 ### Личный кабинет v0.2.3
 
 Кабинет переработан в нормальную раскладку **header + sidebar** на всех страницах
@@ -1150,6 +1275,181 @@ make run           # затем открыть http://localhost:8000/ui/register
 значения экранируются `esc()`, path-параметр `platform` нормализуется в безопасный
 slug (защита от XSS); HTML не содержит серверных секретов (проверяется тестами
 `backend/tests/test_ui_pages.py`).
+
+### Подключение VK через OAuth (v0.2.5)
+
+**VK подключается кнопкой «Подключить VK», а не сервисным ключом сообщества.** На
+карточке VK в дашборде проекта кнопка ведёт на
+`GET /integrations/vk/oauth/start?account_id&project_id&resource_id`, который
+редиректит на авторизацию VK (scope `wall,photos,groups,offline`, `response_type=code`,
+подписанный `state`). После подтверждения VK возвращает на
+`GET /integrations/vk/oauth/callback?code&state`: backend меняет `code` на
+**пользовательский** access-token и кладёт его в **секрет ресурса** (наружу — только
+маска / `api_key_present`, сам токен не логируется и не возвращается).
+
+Затем выполняется safe-check без публикаций: `users.get`, `groups.get filter=admin`,
+`photos.getWallUploadServer`. В UI видно: токен подключён, аккаунт видит/не видит
+группу, загрузка фото ok/ошибка. При VK `error_code=27` — сообщение «Это не user
+token или аккаунт не имеет нужных прав». Повторная проверка — кнопкой «Проверить
+доступ» (`POST /integrations/vk/oauth/check`).
+
+Настройки (в `.env`, значения не в репозитории): `VK_APP_ID`, `VK_APP_SECRET`,
+`VK_OAUTH_REDIRECT_URI` (должен указывать на `/integrations/vk/oauth/callback`).
+Ключ сообщества для загрузки фото **не используется**; VK live-публикация остаётся
+выключенной. Сеть в тестах подменяется `httpx.MockTransport` (offline).
+
+### VK OAuth подключение через кабинет (v0.2.6)
+
+Готовый сценарий подключения VK-фото для проекта (приложение VK **AI SMM Bot**,
+`VK_APP_ID=54671660`):
+
+1. В VK ID приложении в «Доверенный Redirect URL» добавьте адрес:
+   `http://127.0.0.1:8000/integrations/vk/oauth/callback`.
+2. Локально запишите VK OAuth в `.env` (секрет спрашивается через `getpass`, **не
+   печатается**; `.env` не коммитится, live не включается):
+   ```bash
+   make vk-oauth-env
+   ```
+   Скрипт `app.scripts.setup_vk_oauth_env` ставит `VK_APP_ID`,
+   `VK_OAUTH_REDIRECT_URI`, `VK_APP_SECRET`, `VK_DEFAULT_GROUP_ID` (если пусто) и
+   принудительно `VK_LIVE_PUBLISHING_ENABLED=false`; `VK_ACCESS_TOKEN` не трогает.
+3. `make run` → откройте `http://127.0.0.1:8000/ui/projects` → проект TEEON. В
+   VK-секции карточки видны App ID, Group ID, Redirect URI, статус токена и подсказка,
+   если OAuth ещё не настроен.
+4. Нажмите **«Подключить VK»** → в VK «Разрешить» → вернитесь и нажмите **«Проверить
+   доступ»** (`users.get` / `groups.get filter=admin` / `photos.getWallUploadServer`).
+5. Если «Загрузка фото ✔» — подготовьте VK-пост с картинками (needs_review, без
+   публикации):
+   ```bash
+   make vk-photo-test-preview account_id=2 project_slug=teeon tag=футболка   # dry-run
+   make vk-photo-test-apply   account_id=2 project_slug=teeon tag=футболка   # создаёт черновик
+   ```
+6. Дальше только вручную: `review_post approve` → `schedule_post --platform vk` →
+   `publish_post --platform vk --dry-run`. **Реальный live VK — только отдельной
+   ручной командой после dry-run и подтверждения** (никогда не включать
+   `VK_LIVE_PUBLISHING_ENABLED=true` глобально).
+
+### Публичный HTTPS callback для VK user-token (v0.2.9, production)
+
+Для VK-фото нужен **пользовательский** VK-токен: community/group token даёт `error 27`
+на `photos.*` (`users.get → []`, `groups.get filter=admin → error 27`). Для полностью
+автоматической (календарной) публикации VK с картинками через API нужен **публичный
+HTTPS OAuth callback** (не туннель, не браузер).
+
+Настройка через `PUBLIC_APP_URL` — `VK_OAUTH_REDIRECT_URI` выводится из него
+автоматически, если не задан явно:
+
+```bash
+# .env
+PUBLIC_APP_URL=https://app.teeon.ru        # ваш публичный домен с HTTPS
+VK_APP_ID=54671660
+VK_APP_SECRET=…                             # секрет приложения VK (не коммитить)
+VK_OAUTH_REDIRECT_URI=                      # пусто ⇒ https://app.teeon.ru/integrations/vk/oauth/callback
+
+make vk-oauth-setup-info    # показывает что вставить в VK ID (без секретов)
+```
+
+В **VK ID → Приложение → Подключение авторизации**:
+- Базовый домен: `app.teeon.ru`
+- Доверенный Redirect URL: `https://app.teeon.ru/integrations/vk/oauth/callback`
+
+Затем в UI проекта (карточка VK) — App ID, Redirect URI и эта инструкция; кнопки
+**«Подключить VK»** (`/integrations/vk/oauth/start`) → авторизация VK → callback
+сохраняет user-token в секрет ресурса (наружу — только маска) → **«Проверить доступ»**
+(`/integrations/vk/oauth/check`): `users.get` / `groups.get filter=admin` (видит ли
+`240102732`) / `photos.getWallUploadServer` (или album). Если проверка не прошла — UI
+пишет: «Токен не пользовательский или аккаунт не имеет прав администратора/редактора
+группы.» При успехе `make vk-api-photo-probe-upload` вернёт `RECOMMENDED_STRATEGY=wall|album`,
+и календарь публикует VK с картинками через API. Токены нигде не печатаются.
+
+### Локальный HTTPS для VK OAuth (без туннелей)
+
+VK ID требует **HTTPS** redirect (`http://127.0.0.1` не принимается). Вместо
+cloudflared/ngrok можно поднять локальный HTTPS прямо на машине —
+`https://localhost:8443`:
+
+```bash
+make local-https-cert      # self-signed сертификат в tmp/certs (SAN: DNS:localhost, IP:127.0.0.1)
+make vk-oauth-local-https  # .env: VK_APP_ID, redirect https://localhost:8443/..., секрет через getpass
+make run-https-local       # UI по https://localhost:8443 (нужен сертификат)
+```
+
+В **VK ID → Приложение → Подключение авторизации** вставьте:
+- Базовый домен: `localhost`
+- Доверенный Redirect URL: `https://localhost:8443/integrations/vk/oauth/callback`
+- запасной вариант (если VK не примет `localhost`): `127.0.0.1` и
+  `https://127.0.0.1:8443/integrations/vk/oauth/callback`.
+
+Затем откройте `https://localhost:8443/ui/projects` (примите предупреждение браузера
+о self-signed сертификате) → проект **TEEON → VK → «Подключить VK» → «Разрешить» →
+«Проверить доступ»**. При «Загрузка фото ✔» — `make vk-photo-test-preview` (dry-run) →
+`-apply`. VK live publish **не запускать до dry-run** и без ручного подтверждения.
+
+`make vk-oauth-local-https` меняет в `.env` только `VK_APP_ID` /
+`VK_OAUTH_REDIRECT_URI` / `VK_APP_SECRET` / `VK_LIVE_PUBLISHING_ENABLED=false` (и
+`VK_DEFAULT_GROUP_ID`, если пусто); `VK_ACCESS_TOKEN` не трогается, секрет не
+печатается, отчёт — `tmp/vk_oauth_local_https_report.txt` (без секретов). `tmp/` — в
+`.gitignore`.
+
+### VK API photo upload strategies (v0.2.8)
+
+Полностью автоматическая (календарная) публикация VK-постов с картинками идёт **через
+VK API**, без OAuth-браузера. Поддержаны две стратегии загрузки фото:
+
+- **wall** — `photos.getWallUploadServer` → upload → `photos.saveWallPhoto`. У
+  **community-token** часто падает `error_code=27` (Group authorization failed).
+- **album** — `photos.getUploadServer` → upload → `photos.save` в альбом группы
+  (альбом ищется по названию `VK_PHOTO_ALBUM_TITLE` или создаётся; `owner_id=-group_id`,
+  `from_group=1`, `attachments=photo{owner}_{id}`).
+- **auto** (по умолчанию) — сначала wall, при `error 27` — album.
+
+Настройки (`.env`): `VK_PHOTO_UPLOAD_STRATEGY=auto|wall|album`, `VK_PHOTO_ALBUM_ID`,
+`VK_PHOTO_ALBUM_TITLE`, `VK_PHOTO_PROBE_ALLOW_UPLOAD`.
+
+**Probe** — какая стратегия работает с текущим `VK_ACCESS_TOKEN` (никогда не вызывает
+`wall.post`, токен не печатается):
+
+```bash
+make vk-api-photo-probe                 # read-only: groups.getById / getWallUploadServer / getAlbums
+make vk-api-photo-probe-upload          # реальная загрузка тестового 1x1 JPEG (wall + album), без wall.post
+# → WALL: ok/error 27 · ALBUM: ok · RECOMMENDED_STRATEGY=album
+```
+
+`make vk-photo-test-apply account_id=2 project_slug=teeon tag=футболка` теперь тоже
+использует probe: создаёт media-group пост `needs_review` **только если** probe
+рекомендует стратегию (иначе объясняет причину); в `generation_notes` пишет
+`vk_photo_upload_strategy=<wall|album>`. Для постов с `media_policy=media_group`
+неуспешная загрузка фото на live — это **PublishError** (календарь не публикует «пустой»
+пост без картинок); text-only фолбэк остаётся только для старых постов без media_policy.
+Dry-run сеть не вызывает и показывает `media_kind`, `media_count`, `would_attach_media`,
+`upload_strategy`. **Браузерная публикация — не основной способ календарной публикации;
+полная автоматика работает только через API-стратегию.**
+
+### VK browser publisher fallback (dev/local, без API-токена)
+
+Ключ **сообщества** VK не загружает фото (`photos.getWallUploadServer` → error 27), а
+официальный OAuth **user-token** для текущего VK ID приложения пока недоступен. Пока
+это не решено, можно опубликовать пост с картинками через **локальную автоматизацию
+браузера** (`app.scripts.vk_browser_publish_post`) — **без VK API-токенов**:
+
+- скрипт берёт существующий `Post` из БД и его `generation_notes.media_files`
+  (image-элементы), скачивает картинки (локальная enhanced-копия или публичная папка
+  Яндекс Диска), HEIC/HEIF → JPEG, кладёт в `tmp/vk_browser_uploads/post_{id}/`;
+- открывает VK в браузере (Playwright, persistent profile `tmp/vk_browser_profile`);
+  **вы логинитесь в VK вручную** — скрипт **не хранит логин/пароль**;
+- вставляет текст (`vk_text` → `telegram_text` → `title`) и прикрепляет файлы.
+
+```bash
+make vk-browser-install                                  # dev: Playwright + Chromium (не prod-зависимость)
+make vk-browser-publish-preview post_id=44               # dry-run: подготовит пост, НЕ публикует
+make vk-browser-publish-live    post_id=44               # публикует ТОЛЬКО с --confirm-live true
+```
+
+По умолчанию **dry-run**: публикация не нажимается, браузер остаётся открытым для
+ручной проверки. Реальная публикация — только `--dry-run false --confirm-live true`.
+Скрипт **не** использует VK API, **не** печатает токенов/секретов и **не** просит
+`VK_ACCESS_TOKEN`. Это dev/local инструмент владельца аккаунта — **для SaaS production
+не использовать** (там путь — официальный OAuth user-token). `tmp/` — в `.gitignore`.
 
 <!-- SAAS_END -->
 

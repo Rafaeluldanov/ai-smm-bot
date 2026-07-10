@@ -23,6 +23,12 @@ from app.models.crm_bot_smm import (
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.media_asset import MediaAsset
 from app.models.media_asset_variant import MediaAssetVariant
+from app.models.payment import (
+    BillingProfile,
+    PaymentInvoice,
+    PaymentTransaction,
+    PaymentWebhookLog,
+)
 from app.models.post import Post
 from app.models.post_analytics_snapshot import PostAnalyticsSnapshot
 from app.models.post_publication import PostPublication
@@ -47,8 +53,12 @@ __all__ = [
     "CrmPublishingPlan",
     "CrmSmmResource",
     "ExternalImageCandidate",
+    "BillingProfile",
     "MediaAsset",
     "MediaAssetVariant",
+    "PaymentInvoice",
+    "PaymentTransaction",
+    "PaymentWebhookLog",
     "Post",
     "PostAnalyticsSnapshot",
     "PostPublication",

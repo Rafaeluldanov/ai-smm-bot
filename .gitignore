@@ -28,6 +28,8 @@ credentials.json
 *.log
 # Производные улучшенные копии медиа (MEDIA_ENHANCEMENT_STORAGE_DIR)
 backend/data/
+# Локальные dev-артефакты (отчёт мастера VK OAuth туннеля и т. п.)
+tmp/
 
 # Tooling caches
 .pytest_cache/
@@ -41,3 +43,6 @@ htmlcov/
 .vscode/
 .DS_Store
 _backups/
+
+# Local personal SaaS onboarding payloads
+backend/examples/saas_onboarding_teeon_stanislav_full.json

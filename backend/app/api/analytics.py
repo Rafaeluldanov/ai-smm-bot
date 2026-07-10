@@ -6,18 +6,21 @@
 """
 
 from collections.abc import Callable
-from typing import Annotated, TypeVar
+from typing import Annotated, Any, TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_analytics_service, get_db
+from app.api.deps import get_analytics_service, get_db, get_post_analytics_service
 from app.models.post_analytics_snapshot import PostAnalyticsSnapshot
 from app.repositories import analytics_repository as repo
+from app.repositories import post_publication_repository
 from app.repositories.post_repository import PostNotFoundError
 from app.schemas.analytics import (
     AnalyticsFeedbackReport,
+    AnalyticsRunRequest,
     ClusterPerformanceReport,
+    ManualMetricsRequest,
     PostAnalyticsIngestRequest,
     PostAnalyticsIngestResult,
     PostAnalyticsSnapshotCreate,
@@ -31,23 +34,33 @@ from app.services.analytics_service import (
     AnalyticsService,
     PublicationNotFoundError,
 )
+from app.services.billing_service import InsufficientBalanceError
+from app.services.post_analytics_service import PostAnalyticsError, PostAnalyticsService
 from app.services.yandex_disk_media_sync_service import ProjectNotFoundError
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 DbSession = Annotated[Session, Depends(get_db)]
 Analytics = Annotated[AnalyticsService, Depends(get_analytics_service)]
+PostAnalytics = Annotated[PostAnalyticsService, Depends(get_post_analytics_service)]
 
 T = TypeVar("T")
 
 
 def _run(action: Callable[[], T]) -> T:
-    """Привести доменные ошибки аналитики к HTTP-кодам (404/422)."""
+    """Привести доменные ошибки аналитики к HTTP-кодам (404/422/402)."""
     try:
         return action()
-    except (PostNotFoundError, PublicationNotFoundError, ProjectNotFoundError) as exc:
+    except (
+        PostNotFoundError,
+        PublicationNotFoundError,
+        ProjectNotFoundError,
+        PostAnalyticsError,
+    ) as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except AnalyticsInputError as exc:
+    except InsufficientBalanceError as exc:
+        raise HTTPException(status_code=status.HTTP_402_PAYMENT_REQUIRED, detail=str(exc)) from exc
+    except (AnalyticsInputError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
@@ -153,6 +166,110 @@ def project_summary(project_id: int, db: DbSession, service: Analytics) -> Proje
 def project_feedback(project_id: int, db: DbSession, service: Analytics) -> AnalyticsFeedbackReport:
     """Feedback-сигналы проекта. 404 — проекта нет."""
     return _run(lambda: service.build_feedback_signals(db, project_id))
+
+
+# --- Аналитика постов v0.2.13: анализ контента, карточки, календарь, отчёты ---
+
+
+@router.post("/posts/{post_id}/manual-metrics", response_model=PostAnalyticsSnapshotRead)
+def save_manual_metrics(
+    post_id: int, payload: ManualMetricsRequest, db: DbSession, service: Analytics
+) -> PostAnalyticsSnapshotRead:
+    """Сохранить метрики поста вручную (source=manual). БЕСПЛАТНО (0 units)."""
+    platform = payload.platform
+    if not platform:
+        pubs = post_publication_repository.list_publications(db, post_id=post_id)
+        platform = pubs[0].platform if pubs else "manual"
+    create = PostAnalyticsSnapshotCreate(
+        post_id=post_id,
+        platform=platform,
+        source="manual",
+        views=payload.views,
+        reach=payload.reach,
+        impressions=payload.impressions,
+        likes=payload.likes,
+        comments=payload.comments,
+        shares=payload.shares,
+        saves=payload.saves,
+        clicks=payload.clicks,
+        raw_metrics={"followers_delta": payload.followers_delta},
+    )
+    return _run(lambda: service.ingest_snapshot(db, create))
+
+
+@router.get("/posts/{post_id}/card")
+def post_analytics_card(
+    post_id: int, db: DbSession, service: PostAnalytics, depth: str = "light"
+) -> dict[str, Any]:
+    """Карточка анализа поста (light|standard|deep). Не списывает units (просмотр)."""
+    return _run(lambda: service.build_post_analytics_card(db, post_id, depth))
+
+
+@router.get("/projects/{project_id}/posts")
+def project_posts_for_analytics(
+    project_id: int,
+    db: DbSession,
+    service: PostAnalytics,
+    platform: str | None = None,
+    post_status: str | None = None,
+) -> list[dict[str, Any]]:
+    """Список постов проекта для аналитики (с фильтрами платформы/статуса)."""
+    return service.list_project_posts_for_analytics(db, project_id, platform, post_status)
+
+
+@router.get("/projects/{project_id}/calendar")
+def project_calendar(
+    project_id: int,
+    db: DbSession,
+    service: PostAnalytics,
+    month: str | None = None,
+    platform: str | None = None,
+) -> dict[str, Any]:
+    """Календарь публикаций проекта по дням (счётчики статусов + посты)."""
+    return service.build_calendar(db, project_id, month, platform)
+
+
+@router.post("/accounts/{account_id}/preview")
+def analytics_cost_preview(
+    account_id: int, payload: AnalyticsRunRequest, db: DbSession, service: PostAnalytics
+) -> dict[str, Any]:
+    """Оценка стоимости отчёта (units) и доступность по балансу. Бесплатно."""
+    posts = service.list_project_posts_for_analytics(
+        db, payload.project_id, payload.platform, payload.status
+    )
+    return _run(
+        lambda: service.preview_analytics_cost(db, account_id, payload.depth, len(posts) or 1)
+    )
+
+
+@router.post("/accounts/{account_id}/run-dry")
+def analytics_run_dry(
+    account_id: int, payload: AnalyticsRunRequest, db: DbSession, service: PostAnalytics
+) -> dict[str, Any]:
+    """Dry-run отчёта: результат + estimated units, БЕЗ списания."""
+    return _run(
+        lambda: service.run_analytics_dry(
+            db, account_id, payload.project_id, payload.depth, payload.platform, payload.status
+        )
+    )
+
+
+@router.post("/accounts/{account_id}/run")
+def analytics_run(
+    account_id: int, payload: AnalyticsRunRequest, db: DbSession, service: PostAnalytics
+) -> dict[str, Any]:
+    """Платный запуск отчёта: списывает units (402 при нехватке баланса)."""
+    return _run(
+        lambda: service.run_analytics(
+            db,
+            account_id,
+            payload.project_id,
+            payload.depth,
+            payload.platform,
+            payload.status,
+            payload.idempotency_key,
+        )
+    )
 
 
 # --- Один снимок (динамический {snapshot_id} — последним) ---

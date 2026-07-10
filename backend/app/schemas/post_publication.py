@@ -136,10 +136,18 @@ class PublicationPreviewItem(BaseModel):
     media_asset_ids: list[int] = Field(default_factory=list)
     # Будет ли прикреплено медиа-вложение при живой публикации.
     would_attach_media: bool = False
+    # Instagram: медиа будет подготовлено к публикации (но требует публичного URL /
+    # live пока не реализован) — honest-флаг для preview.
+    would_prepare_media: bool = False
+    # Instagram: платформа публикует по публичному HTTPS image_url, а не по локальному
+    # файлу — dry-run сообщает, что нужен прямой публичный URL.
+    needs_public_image_url: bool = False
     # Предупреждения по медиа для этой платформы (усечение/пропуск/skip видео и т. п.).
     media_warnings: list[str] = Field(default_factory=list)
     # Почему медиа не будет прикреплено (если применимо), иначе None.
     unsupported_media_reason: str | None = None
+    # VK: стратегия загрузки фото (wall|album|auto), которая будет применена при live.
+    upload_strategy: str | None = None
     # Возможности платформы (capability-слой).
     platform_capabilities: PlatformCapabilitiesRead | None = None
     live_enabled: bool = False

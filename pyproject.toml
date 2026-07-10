@@ -64,8 +64,9 @@ plugins = ["pydantic.mypy"]
 warn_unused_configs = true
 
 [[tool.mypy.overrides]]
-# pillow-heif не поставляет py.typed-маркер — игнорируем отсутствие типов.
-module = ["pillow_heif.*"]
+# pillow-heif не поставляет py.typed-маркер; playwright — опциональная dev-зависимость
+# (не в prod requirements) — игнорируем отсутствие типов/модуля.
+module = ["pillow_heif.*", "playwright.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

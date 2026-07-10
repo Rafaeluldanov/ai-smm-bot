@@ -18,6 +18,12 @@ BIN := $(VENV)/bin
         crm-form-schema crm-onboarding-validate crm-onboarding-preview \
         crm-onboarding-apply crm-category-plan \
         saas-form-schema saas-onboarding-preview saas-onboarding-apply \
+        saas-teeon-stanislav-preview saas-teeon-stanislav-apply \
+        saas-today-calendar-preview saas-today-calendar-apply \
+        vk-oauth-env vk-oauth-tunnel-wizard vk-photo-test-preview vk-photo-test-apply \
+        local-https-cert vk-oauth-local-https run-https-local \
+        vk-oauth-setup-info vk-api-photo-probe vk-api-photo-probe-upload \
+        vk-browser-install vk-browser-publish-preview vk-browser-publish-live \
         billing-balance billing-topup \
         smoke
 
@@ -165,6 +171,59 @@ saas-onboarding-preview: ## SaaS онбординг dry-run: make saas-onboardin
 
 saas-onboarding-apply: ## SaaS онбординг apply: make saas-onboarding-apply account_id=1 payload_path=...
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.apply_saas_onboarding_payload --account-id "$(account_id)" --payload-path "$(payload_path)" --dry-run false
+
+saas-teeon-stanislav-preview: ## TEEON для Станислава (dry-run): make saas-teeon-stanislav-preview
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.setup_stanislav_teeon_project --dry-run true
+
+saas-teeon-stanislav-apply: ## TEEON для Станислава (apply): make saas-teeon-stanislav-apply
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.setup_stanislav_teeon_project --apply true
+
+saas-today-calendar-preview: ## Календарь на сегодня (dry-run): make saas-today-calendar-preview account_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.create_today_calendar_posts --account-id "$(account_id)" --project-slug teeon --date today --telegram-media-posts "$(or $(telegram),2)" --vk-text-posts "$(or $(vk),1)" --dry-run true
+
+saas-today-calendar-apply: ## Календарь на сегодня (needs_review): make saas-today-calendar-apply account_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.create_today_calendar_posts --account-id "$(account_id)" --project-slug teeon --date today --telegram-media-posts "$(or $(telegram),2)" --vk-text-posts "$(or $(vk),1)" --dry-run false
+
+vk-oauth-env: ## Локально записать VK OAuth в .env (секрет через getpass): make vk-oauth-env
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.setup_vk_oauth_env
+
+vk-oauth-tunnel-wizard: ## Dev: HTTPS-туннель (cloudflared) для VK OAuth callback + .env
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.dev_vk_oauth_tunnel_wizard
+
+local-https-cert: ## Сгенерировать локальный self-signed HTTPS-сертификат (tmp/certs)
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.setup_local_https
+
+vk-oauth-local-https: ## VK OAuth в .env для локального HTTPS (redirect https://localhost:8443)
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.setup_vk_oauth_local_https
+
+run-https-local: ## Поднять UI по https://localhost:8443 (нужен make local-https-cert)
+	@test -f tmp/certs/localhost-cert.pem || { echo "Нет сертификата — сначала: make local-https-cert"; exit 1; }
+	PYTHONPATH=backend $(BIN)/uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8443 --ssl-keyfile tmp/certs/localhost-key.pem --ssl-certfile tmp/certs/localhost-cert.pem
+
+vk-photo-test-preview: ## VK photo-тест dry-run: make vk-photo-test-preview account_id=2
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.prepare_vk_photo_test --account-id "$(account_id)" --project-slug "$(or $(project_slug),teeon)" --tag "$(or $(tag),футболка)" --dry-run true
+
+vk-photo-test-apply: ## VK photo-тест needs_review: make vk-photo-test-apply account_id=2
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.prepare_vk_photo_test --account-id "$(account_id)" --project-slug "$(or $(project_slug),teeon)" --tag "$(or $(tag),футболка)" --dry-run false
+
+vk-oauth-setup-info: ## Показать настройки VK OAuth callback (PUBLIC_APP_URL, VK ID), без секретов
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.show_vk_oauth_setup
+
+vk-api-photo-probe: ## VK API: какая стратегия загрузки фото работает (read-only, без wall.post)
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.vk_api_photo_probe --strategy "$(or $(strategy),auto)"
+
+vk-api-photo-probe-upload: ## VK API probe с реальной загрузкой тестового фото (без wall.post)
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.vk_api_photo_probe --strategy "$(or $(strategy),auto)" --allow-upload true
+
+vk-browser-install: ## Dev: установить Playwright + Chromium (не prod-зависимость)
+	$(BIN)/python -m pip install playwright
+	$(BIN)/python -m playwright install chromium
+
+vk-browser-publish-preview: ## VK через браузер (dry-run): make vk-browser-publish-preview post_id=44
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.vk_browser_publish_post --post-id "$(post_id)" --dry-run true
+
+vk-browser-publish-live: ## VK через браузер (live, ручное подтверждение): make vk-browser-publish-live post_id=44
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.vk_browser_publish_post --post-id "$(post_id)" --dry-run false --confirm-live true
 
 billing-balance: ## Баланс аккаунта: make billing-balance account_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.billing_balance --account-id "$(account_id)"

@@ -1,7 +1,11 @@
 """Зависимости FastAPI (dependency injection)."""
 
 from collections.abc import Iterator
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
+
+if TYPE_CHECKING:
+    from app.services.payments.payment_service import PaymentService
+    from app.services.post_analytics_service import PostAnalyticsService
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
@@ -47,6 +51,7 @@ from app.services.publication_platform_registry import PublicationPlatformRegist
 from app.services.saas_bot_run_service import SaasBotRunService
 from app.services.saas_onboarding_service import SaasOnboardingService
 from app.services.topic_selection_service import TopicSelectionService
+from app.services.vk_oauth_service import VkOAuthService
 from app.services.yandex_disk_media_sync_service import YandexDiskMediaSyncService
 
 
@@ -201,6 +206,10 @@ def get_publication_platform_registry() -> PublicationPlatformRegistry:
                 # Конвертер HEIC/HEIF → JPEG в памяти (оригинал не меняется).
                 image_processor=get_image_enhancement_processor(),
                 max_group_photos=settings.vk_media_group_max_photos,
+                # Стратегия загрузки фото: auto → wall, при error 27 → album.
+                photo_upload_strategy=settings.vk_photo_upload_strategy,
+                photo_album_id=settings.vk_photo_album_id,
+                photo_album_title=settings.vk_photo_album_title,
             ),
             # Adapter-скелеты: preview/dry-run работает, live пока не реализован.
             "instagram": InstagramPublishingClient(
@@ -308,6 +317,20 @@ def get_billing_service() -> BillingService:
     return BillingService()
 
 
+def get_post_analytics_service() -> "PostAnalyticsService":
+    """Построить сервис аналитики постов (офлайн: анализ, оценка, платный отчёт)."""
+    from app.services.post_analytics_service import PostAnalyticsService
+
+    return PostAnalyticsService(billing_service=get_billing_service())
+
+
+def get_payment_service() -> "PaymentService":
+    """Построить сервис платежей (mock/sandbox; реальные платежи выключены)."""
+    from app.services.payments.payment_service import PaymentService
+
+    return PaymentService(billing_service=get_billing_service())
+
+
 def get_saas_onboarding_service() -> SaasOnboardingService:
     """Построить сервис SaaS-онбординга (переиспользует CRM-конфигуратор)."""
     return SaasOnboardingService(
@@ -322,6 +345,11 @@ def get_saas_bot_run_service() -> SaasBotRunService:
         billing_service=get_billing_service(),
         crm_application_service=get_crm_bot_smm_application_service(),
     )
+
+
+def get_vk_oauth_service() -> VkOAuthService:
+    """Построить сервис VK OAuth connect flow (реальные HTTP — только к VK)."""
+    return VkOAuthService(settings=get_settings())
 
 
 def get_current_user(

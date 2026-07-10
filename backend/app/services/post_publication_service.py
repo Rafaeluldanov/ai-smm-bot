@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.core.logging import get_logger
 from app.integrations import platform_capabilities
 from app.integrations.platform_capabilities import PlatformCapabilities
@@ -190,6 +191,8 @@ class PostPublicationService:
         """
         text = self._platform_text(post, platform)
         hashtags = list(post.hashtags or [])
+        settings = get_settings()
+        notes = post.generation_notes or {}
         payload: dict[str, object] = {
             "post_id": post.id,
             "media_asset_id": post.media_asset_id,
@@ -199,6 +202,12 @@ class PostPublicationService:
             "media_count": 0,
             "media_asset_ids": [post.media_asset_id] if post.media_asset_id is not None else [],
             "preferred_media_path": None,
+            # VK API стратегия загрузки фото (из настроек; album_id — опционально).
+            "vk_photo_upload_strategy": settings.vk_photo_upload_strategy,
+            "vk_photo_album_id": settings.vk_photo_album_id,
+            "vk_photo_album_title": settings.vk_photo_album_title,
+            # media_policy=media_group ⇒ картинки обязательны (нет text-only фолбэка).
+            "media_policy": notes.get("media_policy"),
         }
         media_path: str | None = None
         if post.media_asset_id is not None:
@@ -291,15 +300,27 @@ class PostPublicationService:
 
             item_warnings: list[str] = []
             unsupported_media_reason = route.unsupported_media_reason if route is not None else None
+            upload_strategy: str | None = None
+            would_prepare_media = False
+            needs_public_image_url = False
             # VK/Telegram — live-ready фото; сохраняем прежнее решение и точные тексты
             # предупреждений. Остальные платформы — решение из capability-слоя.
             if platform == "vk":
                 would_attach_media = media_kind in {"image", "image_group", "mixed"}
+                # Стратегия загрузки фото VK — из payload (dry-run сеть не вызывает).
+                upload_strategy = str(payload.get("vk_photo_upload_strategy") or "auto")
                 if group_has_video:
                     item_warnings.append("VK video upload is not implemented; video skipped")
                 elif media_kind == "video":
                     item_warnings.append(
                         f"Видео ({post.media_asset_id}) не прикрепляется — уйдёт только текст"
+                    )
+                # would_attach_media только если есть image-медиа; иначе — причина text-only.
+                if would_attach_media:
+                    unsupported_media_reason = None
+                else:
+                    unsupported_media_reason = unsupported_media_reason or (
+                        "У поста нет image-медиа для VK — уйдёт только текст"
                     )
                 item_warnings.extend(self._limit_warnings(route, item_warnings))
             elif platform == "telegram":
@@ -314,6 +335,22 @@ class PostPublicationService:
                     )
                     item_warnings.append(unsupported_media_reason)
                 item_warnings.extend(self._limit_warnings(route, item_warnings))
+            elif platform == "instagram":
+                # Instagram Graph API публикует НЕ локальный файл, а публичный HTTPS
+                # image_url. Capability-слой решает would_attach_media (photo/carousel);
+                # добавляем honest-флаги: медиа будет подготовлено, но нужен публичный
+                # URL. Сеть/Meta API не вызываются — это dry-run.
+                would_attach_media = route.would_attach_media if route is not None else False
+                if route is not None:
+                    item_warnings.extend(route.media_warnings)
+                if media_kind in {"image", "image_group", "mixed"}:
+                    would_prepare_media = True
+                    needs_public_image_url = True
+                    item_warnings.append(
+                        "Instagram API публикует не локальный файл, а публичный HTTPS "
+                        "image_url — нужен прямой публичный URL (для Яндекс Диска — "
+                        "публичная ссылка или будущий media-proxy Botfleet)."
+                    )
             else:
                 would_attach_media = route.would_attach_media if route is not None else False
                 if route is not None:
@@ -340,8 +377,11 @@ class PostPublicationService:
                     media_count=media_count,
                     media_asset_ids=media_asset_ids,
                     would_attach_media=would_attach_media,
+                    would_prepare_media=would_prepare_media,
+                    needs_public_image_url=needs_public_image_url,
                     media_warnings=item_warnings,
                     unsupported_media_reason=unsupported_media_reason,
+                    upload_strategy=upload_strategy,
                     platform_capabilities=capabilities_read,
                     live_enabled=live_enabled,
                     would_send=live_enabled and bool(target_id) and live_implemented,

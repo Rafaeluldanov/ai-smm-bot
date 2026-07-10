@@ -142,6 +142,39 @@ def test_image_group_across_platforms(db_session: Session) -> None:
 # --------------------------------------------------------------------------- #
 
 
+def test_instagram_preview_needs_public_image_url(db_session: Session) -> None:
+    # Instagram dry-run: медиа готовится, но нужен публичный HTTPS image_url; live выкл.
+    project_id = _project(db_session)
+    post_id = _group_post(db_session, project_id, ["a.jpg", "b.jpg"])
+    ig = _preview_by_platform(db_session, post_id)["instagram"]
+
+    assert ig.needs_public_image_url is True
+    assert ig.would_prepare_media is True
+    assert ig.live_enabled is False
+    assert ig.would_send is False  # live не реализован
+    assert any("image_url" in w for w in ig.media_warnings)
+    assert any("not implemented" in w.lower() for w in ig.media_warnings)
+
+
+def test_instagram_text_only_no_public_image_flag(db_session: Session) -> None:
+    # Пост без изображений: флаг публичного image_url не выставляется.
+    project_id = _project(db_session)
+    post_id = post_repository.create_post(
+        db_session,
+        PostCreate(
+            project_id=project_id,
+            title="T",
+            telegram_text="TG",
+            vk_text="VK",
+            instagram_text="IG",
+            status="approved",
+        ),
+    ).id
+    ig = _preview_by_platform(db_session, post_id)["instagram"]
+    assert ig.needs_public_image_url is False
+    assert ig.would_prepare_media is False
+
+
 def test_video_across_platforms(db_session: Session) -> None:
     project_id = _project(db_session)
     post_id = _group_post(db_session, project_id, ["clip1.MOV", "clip2.MOV"])

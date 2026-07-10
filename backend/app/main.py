@@ -9,6 +9,7 @@ from app.api.billing import router as billing_router
 from app.api.crm_bot_smm import router as crm_bot_smm_router
 from app.api.external_images import router as external_images_router
 from app.api.health import router as health_router
+from app.api.integrations_vk import router as integrations_vk_router
 from app.api.media_assets import router as media_assets_router
 from app.api.media_enhancements import router as media_enhancements_router
 from app.api.post_publications import router as post_publications_router
@@ -50,6 +51,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(billing_router)
     app.include_router(saas_router)
+    app.include_router(integrations_vk_router)
     app.include_router(ui_router)
 
     logger.info("Приложение инициализировано (env=%s)", settings.app_env)
