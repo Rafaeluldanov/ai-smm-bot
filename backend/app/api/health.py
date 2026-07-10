@@ -6,10 +6,17 @@ readiness-чек: сообщает окружение, тип БД и какие
 не настроенных интеграциях и о SQLite вместо PostgreSQL.
 """
 
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field
 
-from app.config import get_settings
+from app.config import (
+    Settings,
+    get_settings,
+    production_security_errors,
+    production_security_warnings,
+)
 
 # Имя сервиса фиксировано контрактом /health и не зависит от настроек.
 SERVICE_NAME = "ai-smm-bot"
@@ -80,5 +87,54 @@ def readiness() -> ReadinessResponse:
         integrations=integrations,
         yandex_disk_public_mode=settings.yandex_disk_public_mode,
         media_enhancement_enabled=settings.media_enhancement_enabled,
+        warnings=warnings,
+    )
+
+
+class SecurityReadinessResponse(BaseModel):
+    """Security-готовность: строгий чек-лист безопасности перед публичным запуском."""
+
+    status: str  # ok | warning | error
+    app_env: str
+    checks: dict[str, bool] = Field(default_factory=dict)
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
+@router.get(
+    "/health/security-readiness",
+    response_model=SecurityReadinessResponse,
+    tags=["health"],
+)
+def security_readiness(
+    response: Response,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SecurityReadinessResponse:
+    """Security-чек-лист. В production при фатальных ошибках → 503; в local — 200."""
+    errors = production_security_errors(settings)
+    warnings = production_security_warnings(settings)
+    checks = {
+        "auth_token_secret_configured": settings.auth_token_secret_configured,
+        "auth_require_auth_effective": settings.auth_require_auth_effective,
+        "dev_token_allowed": settings.auth_allow_dev_token_effective,
+        "secure_cookies_effective": settings.secure_cookies_effective,
+        "csrf_enabled_effective": settings.csrf_enabled_effective,
+        "rate_limit_enabled_effective": settings.rate_limit_enabled_effective,
+        "security_headers_enabled": settings.security_headers_enabled,
+        "audit_log_enabled": settings.audit_log_enabled,
+        "payments_live_enabled": settings.payments_live_enabled,
+    }
+    if errors:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        result_status = "error"
+    elif warnings:
+        result_status = "warning"
+    else:
+        result_status = "ok"
+    return SecurityReadinessResponse(
+        status=result_status,
+        app_env=settings.app_env,
+        checks=checks,
+        errors=errors,
         warnings=warnings,
     )

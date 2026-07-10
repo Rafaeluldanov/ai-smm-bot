@@ -4,13 +4,15 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Annotated
 
 if TYPE_CHECKING:
+    from app.services.auth_session_service import AuthSessionService
+    from app.services.auth_token_service import AuthTokenService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.core.security import parse_dev_token
 from app.db.session import get_session
 from app.integrations.instagram.client import InstagramPublishingClient
@@ -352,43 +354,89 @@ def get_vk_oauth_service() -> VkOAuthService:
     return VkOAuthService(settings=get_settings())
 
 
+def _resolve_token_user(
+    db: Session, settings: Settings, authorization: str | None, cookie_token: str | None
+) -> User | None:
+    """Разрешить пользователя из access-токена (Bearer/cookie) или dev-токена.
+
+    Приоритет: 1) access-токен (HMAC) из Authorization Bearer или cookie; 2) dev-токен
+    — только если ``auth_allow_dev_token_effective`` (вне production). Некорректный/
+    просроченный токен → None. Существование пользователя по чужому токену не
+    раскрывается (всегда None).
+    """
+    from app.services.auth_token_service import AuthTokenService
+
+    raw: str | None = None
+    if authorization:
+        raw = (
+            authorization[7:].strip()
+            if authorization.lower().startswith("bearer ")
+            else authorization.strip()
+        )
+    candidate = raw or cookie_token
+    if candidate:
+        payload = AuthTokenService(settings).verify_access_token(candidate)
+        if payload is not None:
+            user = user_repository.get_user_by_id(db, payload.user_id)
+            if user is not None and user.is_active:
+                return user
+    # dev-токен — только вне production и при auth_allow_dev_token.
+    if settings.auth_allow_dev_token_effective and authorization:
+        dev_id = parse_dev_token(authorization)
+        if dev_id is not None:
+            user = user_repository.get_user_by_id(db, dev_id)
+            if user is not None and user.is_active:
+                return user
+    return None
+
+
 def get_current_user(
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> User:
-    """Извлечь текущего пользователя из dev-токена (Authorization). 401 — если нет.
+    """Текущий пользователь из access-токена (Bearer/cookie) или dev-токена. 401 — если нет.
 
-    Это dev-заглушка авторизации (не продакшн-JWT): токен подписан, но реальная
-    сессионная система появится позже.
+    В production dev-токен запрещён; отсутствие/просрочка/подделка токена → 401. Ответ
+    не раскрывает, существует ли пользователь.
     """
-    user_id = parse_dev_token(authorization or "")
-    if user_id is None:
+    cookie_token = request.cookies.get(settings.auth_session_cookie_name)
+    user = _resolve_token_user(db, settings, authorization, cookie_token)
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Требуется авторизация (dev-токен в заголовке Authorization)",
-        )
-    user = user_repository.get_user_by_id(db, user_id)
-    if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден или неактивен"
+            detail="Требуется авторизация",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return user
 
 
+def get_auth_token_service() -> "AuthTokenService":
+    """Построить сервис access/refresh-токенов."""
+    from app.services.auth_token_service import AuthTokenService
+
+    return AuthTokenService()
+
+
+def get_auth_session_service() -> "AuthSessionService":
+    """Построить сервис серверных сессий (login/refresh/logout)."""
+    from app.services.auth_session_service import AuthSessionService
+
+    return AuthSessionService()
+
+
 def get_optional_user(
+    request: Request,
     db: Annotated[Session, Depends(get_db)],
+    settings: Annotated[Settings, Depends(get_settings)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> User | None:
-    """Вернуть пользователя по dev-токену или None (без ошибки при отсутствии).
+    """Вернуть пользователя по access/dev-токену или None (без ошибки при отсутствии).
 
     Нужна tenant-guard'ам: если пользователь аутентифицирован — доступ строго
     проверяется; анонимные запросы допускаются только вне production (dev/local),
     где включён back-compat для существующих тестов и локальной разработки.
     """
-    user_id = parse_dev_token(authorization or "")
-    if user_id is None:
-        return None
-    user = user_repository.get_user_by_id(db, user_id)
-    if user is None or not user.is_active:
-        return None
-    return user
+    cookie_token = request.cookies.get(settings.auth_session_cookie_name)
+    return _resolve_token_user(db, settings, authorization, cookie_token)

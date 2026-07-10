@@ -129,3 +129,13 @@ analytics-run (IP/User-Agent — из запроса для auth).
 - [ ] Бэкапы БД, миграции применены (`alembic upgrade head`).
 - [ ] Отделённая админ-панель; мониторинг и алерты.
 - [ ] Юридическое: terms / privacy / оферта платежей.
+
+## Обновление v0.3.2: production auth / сессии / CSRF / rate limiting
+
+Dev-токен заменён на production-grade слой: access/refresh-токены (HMAC), серверные
+сессии (`AuthSession`, миграция 0016, в БД только хеш refresh), cookie-auth, CSRF
+(double-submit), rate limiting (in-memory), security headers (CSP/HSTS). В production
+dev-токен запрещён, `AUTH_TOKEN_SECRET` обязателен, cookies Secure, авторизация
+обязательна — иначе приложение не стартует / `/health/security-readiness` → 503.
+logout/logout-all ревокируют сессии; аудит login/logout/refresh. Подробно —
+[29_Botfleet_Production_Auth_Sessions.md](29_Botfleet_Production_Auth_Sessions.md).

@@ -10,6 +10,13 @@ from urllib.parse import urlparse
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Dev-фолбэк секрета подписи auth-токенов (используется, если AUTH_TOKEN_SECRET пуст).
+# В production считается «не настроенным» — приложение падает на старте/readiness.
+DEV_AUTH_SECRET_FALLBACK = "botfleet-dev-auth-secret-not-for-production"
+_KNOWN_WEAK_SECRETS = frozenset(
+    {"", "change-me", "changeme", "secret", "dev", "test", DEV_AUTH_SECRET_FALLBACK}
+)
+
 # Путь callback VK OAuth (добавляется к PUBLIC_APP_URL, если redirect не задан явно).
 VK_OAUTH_CALLBACK_PATH = "/integrations/vk/oauth/callback"
 # Путь callback Instagram OAuth (справочный Redirect URI для Meta App, если не задан).
@@ -46,6 +53,35 @@ class Settings(BaseSettings):
     security_hide_legacy_projects_in_prod: bool = True
     paid_actions_enforced: bool = True
     security_require_auth: bool = False
+
+    # --- Auth / session (v0.3.2 production hardening) ---
+    # Access/refresh-токены (HMAC-SHA256, формат header.payload.signature). В production
+    # AUTH_TOKEN_SECRET обязателен; dev-токен-заглушка запрещена (auth_allow_dev_token).
+    auth_access_token_expire_minutes: int = 30
+    auth_refresh_token_expire_days: int = 30
+    auth_session_cookie_name: str = "botfleet_session"
+    auth_refresh_cookie_name: str = "botfleet_refresh"
+    auth_cookie_secure: bool = False
+    auth_cookie_samesite: str = "lax"
+    auth_cookie_httponly: bool = True
+    # Ставить ли access-cookie при логине (cookie-auth). По умолчанию false: SPA/тесты
+    # используют Authorization-заголовок; refresh-cookie ставится всегда (для /auth/refresh).
+    auth_cookie_auth_enabled: bool = False
+    auth_allow_dev_token: bool = True
+    auth_require_auth: bool = False
+
+    # --- CSRF (для cookie-auth) ---
+    csrf_protection_enabled: bool = False
+    csrf_cookie_name: str = "botfleet_csrf"
+
+    # --- Rate limiting (in-memory MVP; для распределённого prod — Redis) ---
+    rate_limit_enabled: bool = False
+    rate_limit_auth_per_minute: int = 10
+    rate_limit_api_per_minute: int = 120
+    rate_limit_payment_per_minute: int = 30
+
+    # --- Security headers ---
+    security_headers_enabled: bool = True
 
     # --- Хранилища ---
     database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/ai_smm_bot"
@@ -209,6 +245,45 @@ class Settings(BaseSettings):
         """Локальное/тестовое окружение."""
         return self.app_env.strip().lower() in {"local", "dev", "development", "test"}
 
+    # --- Auth / session: производные (effective) свойства ---
+
+    @property
+    def auth_token_secret_effective(self) -> str:
+        """Секрет подписи auth-токенов: из конфига или dev-фолбэк (вне production)."""
+        configured = self.auth_token_secret.strip()
+        return configured or DEV_AUTH_SECRET_FALLBACK
+
+    @property
+    def auth_token_secret_configured(self) -> bool:
+        """Задан ли надёжный AUTH_TOKEN_SECRET (не пустой/не слабый дефолт, ≥16 симв.)."""
+        s = self.auth_token_secret.strip()
+        return bool(s) and s.lower() not in _KNOWN_WEAK_SECRETS and len(s) >= 16
+
+    @property
+    def auth_allow_dev_token_effective(self) -> bool:
+        """Разрешён ли dev-токен: только вне production и при auth_allow_dev_token."""
+        return self.auth_allow_dev_token and not self.is_production
+
+    @property
+    def auth_require_auth_effective(self) -> bool:
+        """Требовать ли авторизацию на защищённых роутах (prod — всегда)."""
+        return self.is_production or self.security_require_auth or self.auth_require_auth
+
+    @property
+    def csrf_enabled_effective(self) -> bool:
+        """Включена ли CSRF-защита (в production — всегда)."""
+        return self.csrf_protection_enabled or self.is_production
+
+    @property
+    def rate_limit_enabled_effective(self) -> bool:
+        """Включён ли rate limiting (в production — всегда)."""
+        return self.rate_limit_enabled or self.is_production
+
+    @property
+    def secure_cookies_effective(self) -> bool:
+        """Ставить ли Secure-флаг на cookie (в production — всегда)."""
+        return self.auth_cookie_secure or self.is_production
+
     @property
     def database_is_sqlite(self) -> bool:
         """Использует ли БД SQLite (для prod ожидается PostgreSQL)."""
@@ -335,6 +410,45 @@ class Settings(BaseSettings):
         Внешние ключи не нужны: обработка идёт локально через Pillow.
         """
         return bool(self.media_enhancement_storage_dir.strip())
+
+
+def production_security_errors(settings: Settings) -> list[str]:
+    """Фатальные ошибки безопасности для production (пусто вне production).
+
+    Используется на старте приложения (падение) и в ``/health/security-readiness``
+    (503). Вне production всегда пусто — локальная разработка не блокируется.
+    """
+    if not settings.is_production:
+        return []
+    errors: list[str] = []
+    if not settings.auth_token_secret_configured:
+        errors.append("AUTH_TOKEN_SECRET не задан или слишком слабый для production")
+    if settings.auth_allow_dev_token:
+        errors.append("AUTH_ALLOW_DEV_TOKEN=true недопустим в production (только реальные токены)")
+    if not settings.auth_require_auth:
+        errors.append("AUTH_REQUIRE_AUTH должен быть true в production")
+    if not settings.auth_cookie_secure:
+        errors.append("AUTH_COOKIE_SECURE должен быть true в production (HTTPS-only cookie)")
+    if settings.payments_live_enabled and not (
+        settings.yookassa_secret_key or settings.tbank_password or settings.cloudpayments_api_secret
+    ):
+        errors.append(
+            "PAYMENTS_LIVE_ENABLED=true без настроенного секрета/подписи платёжного провайдера"
+        )
+    return errors
+
+
+def production_security_warnings(settings: Settings) -> list[str]:
+    """Некритичные предупреждения безопасности (для readiness в любом окружении)."""
+    warnings: list[str] = []
+    if not settings.is_production:
+        if not settings.auth_token_secret_configured:
+            warnings.append(
+                "AUTH_TOKEN_SECRET не задан — используется dev-фолбэк (только для local)"
+            )
+        if settings.auth_allow_dev_token:
+            warnings.append("AUTH_ALLOW_DEV_TOKEN включён (dev-токен) — отключите для production")
+    return warnings
 
 
 @lru_cache

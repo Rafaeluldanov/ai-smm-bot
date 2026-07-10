@@ -1,5 +1,7 @@
 """Pydantic-схемы аутентификации и аккаунтов SaaS-платформы."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -44,12 +46,51 @@ class AccountRead(BaseModel):
 
 
 class AuthResult(BaseModel):
-    """Результат регистрации/входа: dev-токен + пользователь + его аккаунты."""
+    """Результат регистрации/входа: access-токен + пользователь + его аккаунты.
+
+    ``token`` == ``access_token`` (для обратной совместимости с прежним UI/тестами).
+    Refresh-токен ставится cookie'й; ``csrf_token`` — если CSRF включён.
+    """
 
     token: str
-    token_type: str = "dev"
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int = 0
+    csrf_token: str | None = None
     user: UserRead
     accounts: list[AccountRead] = Field(default_factory=list)
+
+
+class RefreshResult(BaseModel):
+    """Результат ротации: новый access-токен."""
+
+    token: str
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int = 0
+    csrf_token: str | None = None
+
+
+class LogoutResult(BaseModel):
+    """Результат logout / logout-all."""
+
+    status: str = "ok"
+    revoked_sessions: int = 0
+
+
+class AuthSessionRead(BaseModel):
+    """Активная сессия пользователя (без хеша refresh-токена)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    session_id: str
+    user_agent: str | None = None
+    ip_address: str | None = None
+    status: str
+    last_seen_at: datetime | None = None
+    expires_at: datetime
+    created_at: datetime
 
 
 class MeResponse(BaseModel):

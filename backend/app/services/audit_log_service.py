@@ -26,6 +26,10 @@ logger = logging.getLogger(__name__)
 # Действия аудита (стабильные строковые коды).
 ACTION_USER_REGISTERED = "user.registered"
 ACTION_USER_LOGIN = "user.login"
+ACTION_USER_LOGOUT = "user.logout"
+ACTION_USER_REFRESH = "user.refresh"
+ACTION_USER_SESSION_REVOKED = "user.session.revoked"
+ACTION_USER_LOGOUT_ALL = "user.logout_all"
 ACTION_PROJECT_CREATED = "project.created"
 ACTION_PROJECT_UPDATED = "project.updated"
 ACTION_PLATFORM_CONNECTED = "platform.connected"

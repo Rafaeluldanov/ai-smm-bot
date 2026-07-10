@@ -535,3 +535,11 @@ HTTP-гарды изолируют tenant'ы: аутентифицированн
 аккаунты/проекты (чужие → 404), в production анонимный доступ → 401. Billing-профиль и
 ручное пополнение — только owner/admin. Аудит-лог (`GET /audit/account/{id}`) и редакция
 секретов. Подробно — [28_Botfleet_SaaS_безопасность.md](28_Botfleet_SaaS_безопасность.md).
+
+## Production auth / сессии (v0.3.2)
+
+Регистрация/логин теперь создают серверную сессию и выдают access-токен (тело) +
+refresh-cookie (HttpOnly). Добавлены `/auth/refresh` (ротация), `/auth/logout`,
+`/auth/logout-all`, `/auth/sessions`. В production dev-токен запрещён, авторизация
+обязательна, cookies Secure. Подробно —
+[29_Botfleet_Production_Auth_Sessions.md](29_Botfleet_Production_Auth_Sessions.md).

@@ -16,6 +16,17 @@ from app.core.security import make_dev_token
 from app.main import app
 from app.repositories import account_repository, project_repository, user_repository
 from app.schemas.project import ProjectCreate
+from app.services.auth_token_service import AuthTokenService
+
+# Настройки production для теста prod-режима (реальный access-токен, dev-токен запрещён).
+_PROD_SETTINGS = Settings(
+    _env_file=None,
+    app_env="production",
+    auth_token_secret="prod-strong-secret-value-123456",
+    auth_cookie_secure=True,
+    auth_require_auth=True,
+    auth_allow_dev_token=False,
+)
 
 
 def _user(db: Session, email: str):  # noqa: ANN202 - тестовый помощник
@@ -121,12 +132,19 @@ def _prod_client(session_factory) -> Iterator[TestClient]:  # noqa: ANN001
             session.close()
 
     app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None, app_env="production")
+    app.dependency_overrides[get_settings] = lambda: _PROD_SETTINGS
     try:
         with TestClient(app) as tc:
             yield tc
     finally:
         app.dependency_overrides.clear()
+
+
+def _prod_access(user_id: int, account_ids: list[int]) -> dict[str, str]:
+    """Реальный access-токен под production-секретом (dev-токен в prod запрещён)."""
+    return {
+        "Authorization": AuthTokenService(_PROD_SETTINGS).issue_access_token(user_id, account_ids)
+    }
 
 
 def test_anonymous_blocked_in_production(session_factory, db_session, tenants) -> None:  # noqa: ANN001
@@ -136,13 +154,22 @@ def test_anonymous_blocked_in_production(session_factory, db_session, tenants) -
         assert r.status_code == 401
 
 
+def test_dev_token_rejected_in_production(session_factory, db_session, tenants) -> None:  # noqa: ANN001
+    # В production dev-токен не принимается → 401 (как анонимный).
+    a = tenants["a"]
+    for tc in _prod_client(session_factory):
+        r = tc.get(f"/saas/accounts/{a['account'].id}/projects", headers=_h(a["token"]))
+        assert r.status_code == 401
+
+
 def test_legacy_project_hidden_in_production(session_factory, db_session, tenants) -> None:  # noqa: ANN001
     a = tenants["a"]
     legacy = project_repository.create_project(
         db_session, ProjectCreate(name="Legacy", slug="legacy")
     )
     db_session.commit()
+    access = _prod_access(a["user"].id, [a["account"].id])
     for tc in _prod_client(session_factory):
-        # Аутентифицированный владелец, но legacy-проект скрыт в production.
-        r = tc.get(f"/saas/projects/{legacy.id}/dashboard", headers=_h(a["token"]))
+        # Аутентифицированный владелец (реальный access-токен), но legacy-проект скрыт.
+        r = tc.get(f"/saas/projects/{legacy.id}/dashboard", headers=access)
         assert r.status_code == 404

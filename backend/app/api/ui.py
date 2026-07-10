@@ -305,6 +305,7 @@ def _header(title: str) -> str:
         "<span class='caret'>▾</span></button>"
         "<div id='acctmenu' class='menu' style='display:none'>"
         "<a href='/ui/billing'>Пополнить счёт</a>"
+        "<a href='/ui/settings#sessions'>Сессии</a>"
         "<a href='#' onclick='logout();return false'>Выйти</a>"
         "</div></div></div></header>"
     )
@@ -314,14 +315,31 @@ def _header(title: str) -> str:
 # header+sidebar (initShell) на каждой странице кабинета.
 _SHARED_JS = r"""
 function tok(){return localStorage.getItem('smm_token')||''}
-function setTok(t){localStorage.setItem('smm_token',t)}
+function setTok(t){if(t)localStorage.setItem('smm_token',t)}
+function csrf(){return localStorage.getItem('smm_csrf')||''}
+function setCsrf(t){if(t)localStorage.setItem('smm_csrf',t)}
 function acc(){return localStorage.getItem('smm_account_id')||''}
 function setAcc(id){localStorage.setItem('smm_account_id',String(id))}
-function logout(){localStorage.removeItem('smm_token');localStorage.removeItem('smm_account_id');location.href='/ui/login'}
-async function api(method,path,body,auth){
+function saveSession(d){if(d){setTok(d.access_token||d.token); if(d.csrf_token)setCsrf(d.csrf_token);}}
+function clearSession(){localStorage.removeItem('smm_token');localStorage.removeItem('smm_account_id');localStorage.removeItem('smm_csrf');}
+async function logout(){try{await apiRaw('POST','/auth/logout');}catch(e){} clearSession();location.href='/ui/login'}
+async function logoutAll(){try{await api('POST','/auth/logout-all');}catch(e){} clearSession();location.href='/ui/login'}
+const _UNSAFE=['POST','PUT','PATCH','DELETE'];
+function apiRaw(method,path,body,auth){
   const h={'Content-Type':'application/json'};
   if(auth!==false && tok()) h['Authorization']=tok();
-  const r=await fetch(path,{method,headers:h,body:body?JSON.stringify(body):undefined});
+  if(_UNSAFE.indexOf(method)>=0 && csrf()) h['X-CSRF-Token']=csrf();
+  return fetch(path,{method,headers:h,body:body?JSON.stringify(body):undefined});
+}
+async function api(method,path,body,auth){
+  let r=await apiRaw(method,path,body,auth);
+  // 401 → одна попытка refresh (refresh-cookie httpOnly шлётся автоматически), затем повтор.
+  if(r.status===401 && auth!==false && path.indexOf('/auth/')!==0){
+    try{const rf=await fetch('/auth/refresh',{method:'POST',headers:{'Content-Type':'application/json'}});
+      if(rf.ok){const d=await rf.json();saveSession(d);r=await apiRaw(method,path,body,auth);}
+      else{clearSession();location.href='/ui/login';}
+    }catch(e){}
+  }
   let d=null; try{d=await r.json()}catch(e){}
   if(!r.ok){throw new Error((d&&(d.detail||JSON.stringify(d)))||('HTTP '+r.status))}
   return d;
@@ -490,7 +508,7 @@ def ui_register() -> HTMLResponse:
         "document.getElementById('f').addEventListener('submit',async e=>{e.preventDefault();"
         "try{const d=await api('POST','/auth/register',{email:gv('email'),password:gv('password'),"
         "full_name:gv('full_name')||null,account_name:gv('account_name')||null},false);"
-        "setTok(d.token); if(d.accounts&&d.accounts[0]) setAcc(d.accounts[0].id);"
+        "saveSession(d); if(d.accounts&&d.accounts[0]) setAcc(d.accounts[0].id);"
         "location.href='/ui/projects';}catch(x){err(eEl,x)}});"
     )
     return _page("Регистрация", body, script, sidebar=False)
@@ -510,7 +528,7 @@ def ui_login() -> HTMLResponse:
         "const eEl=document.getElementById('error');"
         "document.getElementById('f').addEventListener('submit',async e=>{e.preventDefault();"
         "try{const d=await api('POST','/auth/login',{email:gv('email'),password:gv('password')},false);"
-        "setTok(d.token); if(d.accounts&&d.accounts[0]) setAcc(d.accounts[0].id);"
+        "saveSession(d); if(d.accounts&&d.accounts[0]) setAcc(d.accounts[0].id);"
         "location.href='/ui/projects';}catch(x){err(eEl,x)}});"
     )
     return _page("Вход", body, script, sidebar=False)
@@ -1913,14 +1931,23 @@ def ui_settings() -> HTMLResponse:
         "<a href='/ui/accounts'>Аккаунты →</a></p>"
         "<p class='muted'>Биллинг и тестовое пополнение: <a href='/ui/billing'>Биллинг →</a></p>"
         "<p class='muted'>Живые публикации выключены на этом этапе.</p></div>"
-        # Индикаторы безопасности (Part 9 v0.3.1).
+        # Активные сессии (v0.3.2).
+        "<div class='card' id='sessions'><h3>🖥 Активные сессии</h3>"
+        "<div id='sess-list' class='muted'>Загрузка…</div>"
+        "<div style='margin-top:10px'><button class='mini sec' onclick='logoutAll()'>"
+        "Выйти со всех устройств</button></div></div>"
+        # Индикаторы безопасности.
         "<div class='card'><h3>🔒 Безопасность</h3><ul class='muted'>"
         "<li>Live-публикации выключены по умолчанию.</li>"
         "<li>Секреты показываются только маской (никогда полным значением).</li>"
         "<li>Платные действия требуют баланс.</li>"
         "<li>Preview / dry-run бесплатны.</li>"
         "<li>Вы видите только свои аккаунты и проекты (tenant-изоляция).</li>"
-        "</ul></div>"
+        "<li>Сессия защищена: access/refresh-токены, ротация, revoke, CSRF, rate limit.</li>"
+        "<li>В production dev-токен запрещён; cookies Secure; авторизация обязательна.</li>"
+        "</ul>"
+        "<p class='muted'>Проверка боевой готовности: "
+        "<a href='/health/security-readiness'>/health/security-readiness</a></p></div>"
         "<div id='error' class='err'></div>"
     )
     script = (
@@ -1929,6 +1956,11 @@ def ui_settings() -> HTMLResponse:
         "const me=await api('GET','/auth/me');"
         "document.getElementById('info').innerHTML=`<b>${esc(me.user.full_name||me.user.email)}</b> · `"
         "+`${esc(me.user.email)} · аккаунтов: ${me.accounts.length}`;"
+        "const sl=document.getElementById('sess-list');"
+        "try{const ss=await api('GET','/auth/sessions');"
+        "sl.innerHTML=ss.length?ss.map(s=>`<div style='margin:4px 0'>#${s.id} · ${esc(s.ip_address||'—')} · ${esc(s.user_agent||'—').slice(0,60)} · <span class='muted'>активна</span></div>`).join(''):'Активных сессий нет.';"
+        "}catch(e){sl.textContent='—';}"
+        "if(location.hash==='#sessions'){document.getElementById('sessions').scrollIntoView();}"
         "}catch(x){err(eEl,x)}})();"
     )
     return _page("Настройки", body, script, active="settings")

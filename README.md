@@ -1269,6 +1269,33 @@ Feature-flags: `AUTH_TOKEN_SECRET`, `AUDIT_LOG_ENABLED=true`,
 `SECURITY_HIDE_LEGACY_PROJECTS_IN_PROD=true`, `PAID_ACTIONS_ENFORCED=true`,
 `SECURITY_REQUIRE_AUTH=false`. Live/payments off; секреты не в HTML/API/логах; миграция 0015.
 
+### Production auth / сессии / CSRF / rate limiting (v0.3.2)
+
+Production-grade auth/session-слой (подробно —
+[Докс/29](Докс/29_Botfleet_Production_Auth_Sessions.md)):
+
+- **Access/refresh-токены** (HMAC-SHA256, `auth_token_service.py`) + **серверные сессии**
+  (`AuthSession`, миграция **0016**; в БД только хеш refresh-токена). Login/register
+  создают сессию и выдают access-токен (тело) + refresh-cookie (HttpOnly).
+- **`/auth/refresh`** (ротация + reuse-detection), **`/auth/logout`**, **`/auth/logout-all`**,
+  **`/auth/sessions`**; аудит login/logout/refresh/logout-all.
+- **deps auth**: access-токен из Bearer/cookie; **dev-токен только вне production**
+  (`AUTH_ALLOW_DEV_TOKEN`), в production dev-токен → 401.
+- **CSRF** (double-submit cookie) для cookie-auth; Bearer-клиенты/вебхуки/oauth-callback
+  освобождены. **Rate limiting** (in-memory, buckets auth/api/payment, 429 + Retry-After).
+  **Security headers** (CSP, X-Frame-Options, Referrer/Permissions-Policy; **HSTS** только в
+  production/secure).
+- **`/health/security-readiness`** — строгий чек-лист (503 в production при misconfig,
+  200+warnings в local); приложение **не стартует** в production без надёжного
+  `AUTH_TOKEN_SECRET`.
+- **UI**: `apiFetch` шлёт `X-CSRF-Token`, авто-refresh при 401; `/ui/settings` — активные
+  сессии + «Выйти со всех устройств» + security-блок.
+
+Новые флаги: `AUTH_ACCESS_TOKEN_EXPIRE_MINUTES`, `AUTH_REFRESH_TOKEN_EXPIRE_DAYS`,
+`AUTH_COOKIE_*`, `AUTH_ALLOW_DEV_TOKEN`, `AUTH_REQUIRE_AUTH`, `CSRF_PROTECTION_ENABLED`,
+`RATE_LIMIT_*`, `SECURITY_HEADERS_ENABLED`. Live/payments off; токены не логируются;
+миграция 0016.
+
 ### Личный кабинет v0.2.3
 
 Кабинет переработан в нормальную раскладку **header + sidebar** на всех страницах

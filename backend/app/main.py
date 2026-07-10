@@ -18,10 +18,15 @@ from app.api.post_reviews import router as post_reviews_router
 from app.api.posts import router as posts_router
 from app.api.projects import router as projects_router
 from app.api.saas_onboarding import router as saas_router
+from app.api.security_middleware import (
+    CSRFMiddleware,
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.api.seo import router as seo_router
 from app.api.topics import router as topics_router
 from app.api.ui import router as ui_router
-from app.config import get_settings
+from app.config import get_settings, production_security_errors
 from app.core.logging import configure_logging, get_logger
 
 
@@ -31,11 +36,22 @@ def create_app() -> FastAPI:
     settings = get_settings()
     logger = get_logger(__name__)
 
+    # Fail-fast: в production приложение не стартует с небезопасной auth-конфигурацией.
+    fatal = production_security_errors(settings)
+    if fatal:
+        raise RuntimeError("Небезопасная конфигурация для production: " + "; ".join(fatal))
+
     app = FastAPI(
         title="AI-SMM-бот",
         version="0.1.0",
         summary="Автоматическое ведение соцсетей проектов компании",
     )
+    # Middleware безопасности (порядок: последний добавленный — внешний). Security
+    # headers — внешний слой, затем rate limit, затем CSRF ближе к обработчику.
+    app.add_middleware(CSRFMiddleware)
+    app.add_middleware(RateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
+
     app.include_router(health_router)
     app.include_router(projects_router)
     app.include_router(media_assets_router)
