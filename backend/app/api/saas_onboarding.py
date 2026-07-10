@@ -11,6 +11,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_saas_bot_run_service, get_saas_onboarding_service
+from app.api.security_guards import (
+    OptionalUser,
+    SettingsDep,
+    guard_account_in_body,
+    require_account_member,
+    require_project_access,
+)
 from app.schemas.crm_bot_smm import BotSmmFormSchema
 from app.schemas.saas_onboarding import (
     ProjectDashboard,
@@ -40,9 +47,14 @@ def form_schema(service: OnboardingSvc) -> BotSmmFormSchema:
 
 @router.post("/onboarding/preview", response_model=SaasOnboardingResult)
 def preview(
-    payload: SaasOnboardingRequest, db: DbSession, service: OnboardingSvc
+    payload: SaasOnboardingRequest,
+    db: DbSession,
+    service: OnboardingSvc,
+    user: OptionalUser,
+    settings: SettingsDep,
 ) -> SaasOnboardingResult:
     """Dry-run: валидирует и показывает, что будет создано (без записи)."""
+    guard_account_in_body(db, settings, user, payload.account_id)
     try:
         return service.preview(db, payload.account_id, payload.payload, payload.allow_live)
     except CrmOnboardingValidationError as exc:
@@ -55,9 +67,14 @@ def preview(
 
 @router.post("/onboarding/apply", response_model=SaasOnboardingResult)
 def apply(
-    payload: SaasOnboardingRequest, db: DbSession, service: OnboardingSvc
+    payload: SaasOnboardingRequest,
+    db: DbSession,
+    service: OnboardingSvc,
+    user: OptionalUser,
+    settings: SettingsDep,
 ) -> SaasOnboardingResult:
     """Реальный apply: создаёт проект/конфиг под аккаунтом + провижининг биллинга."""
+    guard_account_in_body(db, settings, user, payload.account_id)
     try:
         return service.apply(db, payload.account_id, payload.payload, payload.allow_live)
     except CrmOnboardingValidationError as exc:
@@ -68,7 +85,11 @@ def apply(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.get("/accounts/{account_id}/projects", response_model=list[SaasProjectSummary])
+@router.get(
+    "/accounts/{account_id}/projects",
+    response_model=list[SaasProjectSummary],
+    dependencies=[Depends(require_account_member)],
+)
 def list_account_projects(
     account_id: int, db: DbSession, service: OnboardingSvc
 ) -> list[SaasProjectSummary]:
@@ -77,7 +98,11 @@ def list_account_projects(
     return [SaasProjectSummary.model_validate(p) for p in projects]
 
 
-@router.get("/projects/{project_id}/dashboard", response_model=ProjectDashboard)
+@router.get(
+    "/projects/{project_id}/dashboard",
+    response_model=ProjectDashboard,
+    dependencies=[Depends(require_project_access)],
+)
 def project_dashboard(project_id: int, db: DbSession, service: OnboardingSvc) -> ProjectDashboard:
     """Дашборд проекта (конфигурация, контент, ревью, биллинг, рекомендации)."""
     try:
@@ -86,11 +111,21 @@ def project_dashboard(project_id: int, db: DbSession, service: OnboardingSvc) ->
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.post("/projects/{project_id}/run-dry", response_model=SaasBotRunResult)
+@router.post(
+    "/projects/{project_id}/run-dry",
+    response_model=SaasBotRunResult,
+    dependencies=[Depends(require_project_access)],
+)
 def run_project_dry(
-    project_id: int, payload: SaasRunRequest, db: DbSession, service: RunSvc
+    project_id: int,
+    payload: SaasRunRequest,
+    db: DbSession,
+    service: RunSvc,
+    user: OptionalUser,
+    settings: SettingsDep,
 ) -> SaasBotRunResult:
     """Dry-run прогон проекта: только оценка units, без списания и без постов."""
+    guard_account_in_body(db, settings, user, payload.account_id)
     try:
         return service.run_project_dry_preview(
             db, payload.account_id, project_id, payload.category_id
@@ -99,11 +134,21 @@ def run_project_dry(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.post("/projects/{project_id}/run-semi-auto", response_model=SaasBotRunResult)
+@router.post(
+    "/projects/{project_id}/run-semi-auto",
+    response_model=SaasBotRunResult,
+    dependencies=[Depends(require_project_access)],
+)
 def run_project_semi_auto(
-    project_id: int, payload: SaasRunRequest, db: DbSession, service: RunSvc
+    project_id: int,
+    payload: SaasRunRequest,
+    db: DbSession,
+    service: RunSvc,
+    user: OptionalUser,
+    settings: SettingsDep,
 ) -> SaasBotRunResult:
     """Semi-auto прогон: проверка баланса → посты на ревью → списание units. Без публикаций."""
+    guard_account_in_body(db, settings, user, payload.account_id)
     try:
         return service.run_project_semi_auto(
             db, payload.account_id, project_id, payload.category_id

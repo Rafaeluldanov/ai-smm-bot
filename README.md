@@ -1240,6 +1240,35 @@ Live-публикации выключены; секреты в HTML не вст
 Feature-flags: `PAYMENTS_LIVE_ENABLED=false`, `PAYMENTS_DEFAULT_PROVIDER=mock`. Миграция
 0014 (payments). Реальных денег нет — эквайринг не подключён.
 
+### Безопасность SaaS: guards, tenant-изоляция, аудит (v0.3.1)
+
+Усиление безопасности публичной SaaS-платформы (подробно —
+[Докс/28](Докс/28_Botfleet_SaaS_безопасность.md)):
+
+- **HTTP-гарды tenant-изоляции** (`backend/app/api/security_guards.py`) на SaaS/billing/
+  analytics/audit/integrations роутах. Двухуровневая модель: **аутентифицированный**
+  пользователь строго изолирован (чужой аккаунт/проект/счёт/ресурс → **404**);
+  **анонимный** запрос допускается только в dev/local (back-compat), в production →
+  **401**. Legacy-проекты (`account_id=None`) в production скрыты.
+- **Роли**: owner/admin/member/viewer; billing-профиль и ручное пополнение — только
+  owner/admin.
+- **Редакция секретов** (`backend/app/core/redaction.py`): `redact_sensitive_text` и
+  `sanitize_metadata` замазывают токены/ключи/пароли (VK `vk1.`, Meta `EAAG…`, Telegram
+  bot-token, `Authorization: Bearer`, `access_token/api_key/secret/password`).
+- **Единый API платных действий** в `BillingService`: `ensure_balance`,
+  `debit_for_action`, `credit_payment`, `refund_or_compensate` — идемпотентно, не в
+  минус, dry-run бесплатно, недостаток баланса → 402.
+- **Аудит-лог** (`AuditLogEntry`, миграция **0015**): `GET /audit/account/{id}` (только
+  участнику), события register/login/invoice/analytics; метаданные санитизируются, аудит
+  не роняет основное действие.
+- **UI-индикаторы**: `/ui/settings` (live off, маска секретов, платные действия требуют
+  баланс, preview бесплатен), `/ui/billing` (`PAYMENTS_LIVE_ENABLED=false`, mock/sandbox),
+  `/ui/analytics` (estimated units, «Пополнить баланс» при нехватке).
+
+Feature-flags: `AUTH_TOKEN_SECRET`, `AUDIT_LOG_ENABLED=true`,
+`SECURITY_HIDE_LEGACY_PROJECTS_IN_PROD=true`, `PAID_ACTIONS_ENFORCED=true`,
+`SECURITY_REQUIRE_AUTH=false`. Live/payments off; секреты не в HTML/API/логах; миграция 0015.
+
 ### Личный кабинет v0.2.3
 
 Кабинет переработан в нормальную раскладку **header + sidebar** на всех страницах

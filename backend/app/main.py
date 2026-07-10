@@ -3,6 +3,7 @@
 from fastapi import FastAPI
 
 from app.api.analytics import router as analytics_router
+from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
 from app.api.autonomous_runs import router as autonomous_runs_router
 from app.api.billing import router as billing_router
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(billing_router)
     app.include_router(saas_router)
+    app.include_router(audit_router)
     app.include_router(integrations_vk_router)
     app.include_router(ui_router)
 

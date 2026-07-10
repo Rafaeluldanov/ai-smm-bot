@@ -6,13 +6,16 @@
 запускаются).
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.billing import BillingAccount, BillingLedgerEntry, UsageEvent
 from app.repositories import billing_repository
+
+if TYPE_CHECKING:
+    from app.config import Settings
 
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
@@ -44,6 +47,87 @@ class InsufficientBalanceError(BillingError):
 
 class BillingService:
     """Депозит, списания, возвраты и usage-учёт (без реальных платежей)."""
+
+    def __init__(self, settings: "Settings | None" = None) -> None:
+        # Настройки нужны для флага paid_actions_enforced (dev может отключать оплату).
+        self._settings = settings
+
+    def _paid_actions_enforced(self) -> bool:
+        settings = self._settings
+        if settings is None:
+            from app.config import get_settings
+
+            settings = get_settings()
+        return bool(settings.paid_actions_enforced)
+
+    # --- Единый API платных действий (Part 6 v0.3.1) --------------------- #
+
+    def ensure_balance(self, db: Session, account_id: int, units: int) -> None:
+        """Проверить, что на счёте достаточно units. Иначе InsufficientBalanceError."""
+        if units <= 0 or not self._paid_actions_enforced():
+            return
+        billing = self.get_or_create_billing_account(db, account_id)
+        if billing.balance_units < units:
+            raise InsufficientBalanceError(units, billing.balance_units)
+
+    def debit_for_action(
+        self,
+        db: Session,
+        account_id: int,
+        units: int,
+        usage_type: str,
+        idempotency_key: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        project_id: int | None = None,
+        post_id: int | None = None,
+    ) -> "BillingLedgerEntry | None":
+        """Списать units за платное действие (идемпотентно, не в минус).
+
+        Единая точка платных действий: проверяет баланс и списывает через
+        ``reserve_or_debit``. При ``paid_actions_enforced=false`` (dev) — бесплатно
+        (возвращает None, без списания). Успех списывает один раз; повтор с тем же
+        ключом не списывает второй раз; недостаток баланса не выполняет действие.
+        """
+        if units <= 0 or not self._paid_actions_enforced():
+            return None
+        return self.reserve_or_debit(
+            db,
+            account_id,
+            event_type=usage_type,
+            units=units,
+            metadata=metadata,
+            project_id=project_id,
+            post_id=post_id,
+            idempotency_key=idempotency_key,
+        )
+
+    def credit_payment(
+        self,
+        db: Session,
+        account_id: int,
+        units: int,
+        provider_payment_id: str | None = None,
+        idempotency_key: str | None = None,
+        description: str = "Пополнение по оплате",
+    ) -> BillingLedgerEntry:
+        """Зачислить units после подтверждённой оплаты (идемпотентно, один раз)."""
+        key = idempotency_key or (f"payment-{provider_payment_id}" if provider_payment_id else None)
+        return self.manual_topup(
+            db, account_id, units, idempotency_key=key, description=description
+        )
+
+    def refund_or_compensate(
+        self,
+        db: Session,
+        account_id: int,
+        units: int,
+        reason: str = "Компенсация неуспешного действия",
+        idempotency_key: str | None = None,
+    ) -> BillingLedgerEntry:
+        """Вернуть/компенсировать units (например, если платное действие упало)."""
+        return self.refund(
+            db, account_id, units, description=reason, idempotency_key=idempotency_key
+        )
 
     def get_or_create_billing_account(
         self, db: Session, account_id: int, tariff_plan_slug: str | None = None

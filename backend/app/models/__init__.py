@@ -3,6 +3,7 @@
 from app.db.base import Base
 from app.models.account import Account
 from app.models.account_membership import AccountMembership
+from app.models.audit_log import AuditLogEntry
 from app.models.autonomous_run import AutonomousRun
 from app.models.autonomous_run_step import AutonomousRunStep
 from app.models.billing import (
@@ -40,6 +41,7 @@ from app.models.user import User
 __all__ = [
     "Account",
     "AccountMembership",
+    "AuditLogEntry",
     "AutonomousRun",
     "AutonomousRunStep",
     "Base",

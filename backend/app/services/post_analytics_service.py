@@ -25,6 +25,7 @@ from app.repositories import (
     post_publication_repository,
     post_repository,
 )
+from app.services.audit_log_service import ACTION_ANALYTICS_RUN, AuditLogService
 from app.services.billing_service import BillingService
 from app.services.unit_economics_service import (
     ANALYTICS_DEPTHS,
@@ -125,9 +126,11 @@ class PostAnalyticsService:
         self,
         billing_service: BillingService | None = None,
         economics: UnitEconomicsService | None = None,
+        audit_service: AuditLogService | None = None,
     ) -> None:
         self._billing = billing_service or BillingService()
         self._economics = economics or UnitEconomicsService()
+        self._audit = audit_service or AuditLogService()
 
     # ------------------------------------------------------------------ #
     # 1. Анализ контента                                                 #
@@ -559,12 +562,13 @@ class PostAnalyticsService:
         posts = self.list_project_posts_for_analytics(db, project_id, platform, status)
         post_count = len(posts) or 1
         units = self._economics.estimate_analytics_units(depth_norm, post_count)
-        # Списание ДО построения отчёта: недостаток баланса прервёт действие.
-        self._billing.reserve_or_debit(
+        # Списание ДО построения отчёта через единый платный путь (идемпотентно, не в
+        # минус, уважает paid_actions_enforced). Недостаток баланса прервёт действие.
+        self._billing.debit_for_action(
             db,
             account_id,
-            event_type=USAGE_POST_ANALYTICS,
             units=units,
+            usage_type=USAGE_POST_ANALYTICS,
             project_id=project_id,
             idempotency_key=idempotency_key,
             metadata={"depth": depth_norm, "post_count": post_count},
@@ -572,6 +576,14 @@ class PostAnalyticsService:
         cards = [
             self.build_post_analytics_card(db, row["post_id"], depth_norm) for row in posts[:50]
         ]
+        self._audit.record(
+            db,
+            ACTION_ANALYTICS_RUN,
+            account_id=account_id,
+            project_id=project_id,
+            entity_type="analytics_report",
+            metadata={"depth": depth_norm, "post_count": post_count, "charged_units": units},
+        )
         return {
             "dry_run": False,
             "charged_units": units,

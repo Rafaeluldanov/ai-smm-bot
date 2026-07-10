@@ -1913,6 +1913,14 @@ def ui_settings() -> HTMLResponse:
         "<a href='/ui/accounts'>Аккаунты →</a></p>"
         "<p class='muted'>Биллинг и тестовое пополнение: <a href='/ui/billing'>Биллинг →</a></p>"
         "<p class='muted'>Живые публикации выключены на этом этапе.</p></div>"
+        # Индикаторы безопасности (Part 9 v0.3.1).
+        "<div class='card'><h3>🔒 Безопасность</h3><ul class='muted'>"
+        "<li>Live-публикации выключены по умолчанию.</li>"
+        "<li>Секреты показываются только маской (никогда полным значением).</li>"
+        "<li>Платные действия требуют баланс.</li>"
+        "<li>Preview / dry-run бесплатны.</li>"
+        "<li>Вы видите только свои аккаунты и проекты (tenant-изоляция).</li>"
+        "</ul></div>"
         "<div id='error' class='err'></div>"
     )
     script = (
@@ -1934,7 +1942,8 @@ def ui_billing() -> HTMLResponse:
         ""
         if pay_live
         else (
-            "<div class='callout warn'><b>Боевые платежи выключены</b>"
+            "<div class='callout warn'><b>Боевые платежи выключены</b> "
+            "<span class='pill off'>PAYMENTS_LIVE_ENABLED=false</span>"
             "<p>Сейчас создаётся mock/sandbox invoice. Баланс пополняется только после "
             "оплаты (mock-pay). Реальные деньги не списываются.</p></div>"
         )

@@ -373,3 +373,22 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден или неактивен"
         )
     return user
+
+
+def get_optional_user(
+    db: Annotated[Session, Depends(get_db)],
+    authorization: Annotated[str | None, Header()] = None,
+) -> User | None:
+    """Вернуть пользователя по dev-токену или None (без ошибки при отсутствии).
+
+    Нужна tenant-guard'ам: если пользователь аутентифицирован — доступ строго
+    проверяется; анонимные запросы допускаются только вне production (dev/local),
+    где включён back-compat для существующих тестов и локальной разработки.
+    """
+    user_id = parse_dev_token(authorization or "")
+    if user_id is None:
+        return None
+    user = user_repository.get_user_by_id(db, user_id)
+    if user is None or not user.is_active:
+        return None
+    return user

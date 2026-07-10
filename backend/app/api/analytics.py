@@ -12,6 +12,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_analytics_service, get_db, get_post_analytics_service
+from app.api.security_guards import (
+    OptionalUser,
+    SettingsDep,
+    guard_project_in_body,
+    require_account_member,
+    require_post_access,
+    require_project_access,
+)
 from app.models.post_analytics_snapshot import PostAnalyticsSnapshot
 from app.repositories import analytics_repository as repo
 from app.repositories import post_publication_repository
@@ -136,19 +144,31 @@ def fetch_publication(
 # --- Отчёты ---
 
 
-@router.get("/posts/{post_id}/performance", response_model=PostPerformanceReport)
+@router.get(
+    "/posts/{post_id}/performance",
+    response_model=PostPerformanceReport,
+    dependencies=[Depends(require_post_access)],
+)
 def post_performance(post_id: int, db: DbSession, service: Analytics) -> PostPerformanceReport:
     """Эффективность поста по всем снимкам. 404 — поста нет."""
     return _run(lambda: service.get_post_performance(db, post_id))
 
 
-@router.get("/projects/{project_id}/topics", response_model=TopicPerformanceReport)
+@router.get(
+    "/projects/{project_id}/topics",
+    response_model=TopicPerformanceReport,
+    dependencies=[Depends(require_project_access)],
+)
 def topic_performance(project_id: int, db: DbSession, service: Analytics) -> TopicPerformanceReport:
     """Эффективность тем проекта. 404 — проекта нет."""
     return _run(lambda: service.get_topic_performance(db, project_id))
 
 
-@router.get("/projects/{project_id}/clusters", response_model=ClusterPerformanceReport)
+@router.get(
+    "/projects/{project_id}/clusters",
+    response_model=ClusterPerformanceReport,
+    dependencies=[Depends(require_project_access)],
+)
 def cluster_performance(
     project_id: int, db: DbSession, service: Analytics
 ) -> ClusterPerformanceReport:
@@ -156,13 +176,21 @@ def cluster_performance(
     return _run(lambda: service.get_cluster_performance(db, project_id))
 
 
-@router.get("/projects/{project_id}/summary", response_model=ProjectAnalyticsSummary)
+@router.get(
+    "/projects/{project_id}/summary",
+    response_model=ProjectAnalyticsSummary,
+    dependencies=[Depends(require_project_access)],
+)
 def project_summary(project_id: int, db: DbSession, service: Analytics) -> ProjectAnalyticsSummary:
     """Сводная аналитика проекта. 404 — проекта нет."""
     return _run(lambda: service.get_project_summary(db, project_id))
 
 
-@router.get("/projects/{project_id}/feedback", response_model=AnalyticsFeedbackReport)
+@router.get(
+    "/projects/{project_id}/feedback",
+    response_model=AnalyticsFeedbackReport,
+    dependencies=[Depends(require_project_access)],
+)
 def project_feedback(project_id: int, db: DbSession, service: Analytics) -> AnalyticsFeedbackReport:
     """Feedback-сигналы проекта. 404 — проекта нет."""
     return _run(lambda: service.build_feedback_signals(db, project_id))
@@ -171,7 +199,11 @@ def project_feedback(project_id: int, db: DbSession, service: Analytics) -> Anal
 # --- Аналитика постов v0.2.13: анализ контента, карточки, календарь, отчёты ---
 
 
-@router.post("/posts/{post_id}/manual-metrics", response_model=PostAnalyticsSnapshotRead)
+@router.post(
+    "/posts/{post_id}/manual-metrics",
+    response_model=PostAnalyticsSnapshotRead,
+    dependencies=[Depends(require_post_access)],
+)
 def save_manual_metrics(
     post_id: int, payload: ManualMetricsRequest, db: DbSession, service: Analytics
 ) -> PostAnalyticsSnapshotRead:
@@ -197,7 +229,7 @@ def save_manual_metrics(
     return _run(lambda: service.ingest_snapshot(db, create))
 
 
-@router.get("/posts/{post_id}/card")
+@router.get("/posts/{post_id}/card", dependencies=[Depends(require_post_access)])
 def post_analytics_card(
     post_id: int, db: DbSession, service: PostAnalytics, depth: str = "light"
 ) -> dict[str, Any]:
@@ -205,7 +237,7 @@ def post_analytics_card(
     return _run(lambda: service.build_post_analytics_card(db, post_id, depth))
 
 
-@router.get("/projects/{project_id}/posts")
+@router.get("/projects/{project_id}/posts", dependencies=[Depends(require_project_access)])
 def project_posts_for_analytics(
     project_id: int,
     db: DbSession,
@@ -217,7 +249,7 @@ def project_posts_for_analytics(
     return service.list_project_posts_for_analytics(db, project_id, platform, post_status)
 
 
-@router.get("/projects/{project_id}/calendar")
+@router.get("/projects/{project_id}/calendar", dependencies=[Depends(require_project_access)])
 def project_calendar(
     project_id: int,
     db: DbSession,
@@ -229,11 +261,17 @@ def project_calendar(
     return service.build_calendar(db, project_id, month, platform)
 
 
-@router.post("/accounts/{account_id}/preview")
+@router.post("/accounts/{account_id}/preview", dependencies=[Depends(require_account_member)])
 def analytics_cost_preview(
-    account_id: int, payload: AnalyticsRunRequest, db: DbSession, service: PostAnalytics
+    account_id: int,
+    payload: AnalyticsRunRequest,
+    db: DbSession,
+    service: PostAnalytics,
+    user: OptionalUser,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
     """Оценка стоимости отчёта (units) и доступность по балансу. Бесплатно."""
+    guard_project_in_body(db, settings, user, payload.project_id)
     posts = service.list_project_posts_for_analytics(
         db, payload.project_id, payload.platform, payload.status
     )
@@ -242,11 +280,17 @@ def analytics_cost_preview(
     )
 
 
-@router.post("/accounts/{account_id}/run-dry")
+@router.post("/accounts/{account_id}/run-dry", dependencies=[Depends(require_account_member)])
 def analytics_run_dry(
-    account_id: int, payload: AnalyticsRunRequest, db: DbSession, service: PostAnalytics
+    account_id: int,
+    payload: AnalyticsRunRequest,
+    db: DbSession,
+    service: PostAnalytics,
+    user: OptionalUser,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
     """Dry-run отчёта: результат + estimated units, БЕЗ списания."""
+    guard_project_in_body(db, settings, user, payload.project_id)
     return _run(
         lambda: service.run_analytics_dry(
             db, account_id, payload.project_id, payload.depth, payload.platform, payload.status
@@ -254,11 +298,17 @@ def analytics_run_dry(
     )
 
 
-@router.post("/accounts/{account_id}/run")
+@router.post("/accounts/{account_id}/run", dependencies=[Depends(require_account_member)])
 def analytics_run(
-    account_id: int, payload: AnalyticsRunRequest, db: DbSession, service: PostAnalytics
+    account_id: int,
+    payload: AnalyticsRunRequest,
+    db: DbSession,
+    service: PostAnalytics,
+    user: OptionalUser,
+    settings: SettingsDep,
 ) -> dict[str, Any]:
     """Платный запуск отчёта: списывает units (402 при нехватке баланса)."""
+    guard_project_in_body(db, settings, user, payload.project_id)
     return _run(
         lambda: service.run_analytics(
             db,

@@ -34,6 +34,19 @@ class Settings(BaseSettings):
     app_name: str = "ai-smm-bot"
     app_env: str = "local"
 
+    # --- Безопасность SaaS-платформы ---
+    # AUTH_TOKEN_SECRET — секрет для будущей реальной auth (JWT/сессии). В production
+    # обязателен; dev-токен-заглушка недопустима. audit_log_enabled — вести ли аудит.
+    # security_hide_legacy_projects_in_prod — прятать проекты без account_id в prod.
+    # paid_actions_enforced — требовать баланс/списание для платных действий (dev может
+    # выключить). security_require_auth — форсировать авторизацию на защищённых роутах
+    # даже вне production (в production включено всегда).
+    auth_token_secret: str = ""
+    audit_log_enabled: bool = True
+    security_hide_legacy_projects_in_prod: bool = True
+    paid_actions_enforced: bool = True
+    security_require_auth: bool = False
+
     # --- Хранилища ---
     database_url: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/ai_smm_bot"
     redis_url: str = "redis://localhost:6379/0"

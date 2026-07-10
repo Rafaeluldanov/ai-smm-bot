@@ -20,7 +20,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
+from app.core.redaction import sanitize_metadata
 from app.repositories import payment_repository
+from app.services.audit_log_service import (
+    ACTION_INVOICE_CREATED,
+    ACTION_INVOICE_PAID,
+    AuditLogService,
+)
 from app.services.billing_service import BillingService
 from app.services.payments.cloudpayments_service import CloudPaymentsProvider
 from app.services.payments.mock_payment_service import MockPaymentProvider
@@ -56,10 +62,12 @@ class PaymentService:
         billing_service: BillingService | None = None,
         settings: Settings | None = None,
         registry: dict[str, PaymentProvider] | None = None,
+        audit_service: AuditLogService | None = None,
     ) -> None:
         self._billing = billing_service or BillingService()
         self._settings = settings or get_settings()
         self._registry = registry or _build_registry()
+        self._audit = audit_service or AuditLogService(self._settings)
 
     # --- Провайдеры ---------------------------------------------------- #
 
@@ -168,6 +176,14 @@ class PaymentService:
             idempotency_key=idempotency_key,
             invoice_metadata={"sandbox": result.sandbox, **(result.metadata or {})},
         )
+        self._audit.record(
+            db,
+            ACTION_INVOICE_CREATED,
+            account_id=account_id,
+            entity_type="invoice",
+            entity_id=invoice.id,
+            metadata={"provider": provider_name, "method": method, "amount_units": amount_units},
+        )
         return invoice
 
     def list_invoices(self, db: Session, account_id: int, limit: int = 100) -> list[Any]:
@@ -206,6 +222,18 @@ class PaymentService:
             raw_payload_sanitized={"source": source, "mock": invoice.provider == "mock"},
         )
         self._credit_once(db, invoice, source)
+        self._audit.record(
+            db,
+            ACTION_INVOICE_PAID,
+            account_id=invoice.account_id,
+            entity_type="invoice",
+            entity_id=invoice.id,
+            metadata={
+                "provider": invoice.provider,
+                "amount_units": invoice.amount_units,
+                "source": source,
+            },
+        )
         return invoice
 
     def mock_pay(self, db: Session, invoice_id: int) -> Any:
@@ -245,12 +273,14 @@ class PaymentService:
         provider_name = (provider or "").strip().lower()
         provider_impl = self._get_provider(provider_name)  # бросит на неизвестном
         result = provider_impl.handle_webhook(payload, headers)
+        # Defense-in-depth: чистим payload от секретов/подписей перед записью в БД.
+        safe_payload = sanitize_metadata(result.payload_sanitized)
         payment_repository.create_webhook_log(
             db,
             provider=provider_name,
             event_type=result.event_type,
             provider_payment_id=result.provider_payment_id,
-            payload_sanitized=result.payload_sanitized,
+            payload_sanitized=safe_payload,
             signature_valid=result.signature_valid,
             processed=False,
         )

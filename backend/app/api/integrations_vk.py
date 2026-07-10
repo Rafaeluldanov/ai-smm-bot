@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db, get_vk_oauth_service
+from app.api.security_guards import require_vk_resource_access
 from app.integrations.vk.oauth import VkOAuthError
 from app.schemas.vk_oauth import VkConnectionStatus, VkSafeCheckResult
 from app.services.vk_oauth_service import (
@@ -154,7 +155,11 @@ def oauth_callback(
     return _html_page("VK подключён", _result_body(result, project_id))
 
 
-@router.get("/status", response_model=VkConnectionStatus)
+@router.get(
+    "/status",
+    response_model=VkConnectionStatus,
+    dependencies=[Depends(require_vk_resource_access)],
+)
 def oauth_status(resource_id: int, db: DbSession, service: OAuthSvc) -> VkConnectionStatus:
     """Статус подключения VK-ресурса (без сети): наличие токена и маска."""
     try:
@@ -163,7 +168,11 @@ def oauth_status(resource_id: int, db: DbSession, service: OAuthSvc) -> VkConnec
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
-@router.post("/oauth/check", response_model=VkSafeCheckResult)
+@router.post(
+    "/oauth/check",
+    response_model=VkSafeCheckResult,
+    dependencies=[Depends(require_vk_resource_access)],
+)
 def oauth_check(resource_id: int, db: DbSession, service: OAuthSvc) -> VkSafeCheckResult:
     """Повторная безопасная проверка доступа VK по сохранённому токену (без публикаций)."""
     try:

@@ -11,6 +11,14 @@ from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_billing_service, get_db, get_payment_service
+from app.api.security_guards import (
+    OptionalUser,
+    SettingsDep,
+    guard_account_in_body,
+    require_account_member,
+    require_account_owner_or_admin,
+    require_invoice_access,
+)
 from app.repositories import payment_repository
 from app.schemas.billing import (
     BillingBalanceRead,
@@ -48,13 +56,21 @@ def _payments(action: Any) -> Any:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
-@router.get("/account/{account_id}/balance", response_model=BillingBalanceRead)
+@router.get(
+    "/account/{account_id}/balance",
+    response_model=BillingBalanceRead,
+    dependencies=[Depends(require_account_member)],
+)
 def get_balance(account_id: int, db: DbSession, service: BillingSvc) -> BillingBalanceRead:
     """Баланс биллинг-счёта аккаунта (создаётся при первом обращении)."""
     return BillingBalanceRead.model_validate(service.get_balance(db, account_id))
 
 
-@router.post("/account/{account_id}/manual-topup", response_model=LedgerEntryRead)
+@router.post(
+    "/account/{account_id}/manual-topup",
+    response_model=LedgerEntryRead,
+    dependencies=[Depends(require_account_owner_or_admin)],
+)
 def manual_topup(
     account_id: int, payload: TopupRequest, db: DbSession, service: BillingSvc
 ) -> LedgerEntryRead:
@@ -68,25 +84,41 @@ def manual_topup(
     return LedgerEntryRead.model_validate(entry)
 
 
-@router.get("/account/{account_id}/ledger", response_model=list[LedgerEntryRead])
+@router.get(
+    "/account/{account_id}/ledger",
+    response_model=list[LedgerEntryRead],
+    dependencies=[Depends(require_account_member)],
+)
 def get_ledger(account_id: int, db: DbSession, service: BillingSvc) -> list[LedgerEntryRead]:
     """Журнал операций счёта (свежие первыми)."""
     return [LedgerEntryRead.model_validate(e) for e in service.list_ledger(db, account_id)]
 
 
-@router.get("/account/{account_id}/usage-events", response_model=list[UsageEventRead])
+@router.get(
+    "/account/{account_id}/usage-events",
+    response_model=list[UsageEventRead],
+    dependencies=[Depends(require_account_member)],
+)
 def get_usage_events(account_id: int, db: DbSession, service: BillingSvc) -> list[UsageEventRead]:
     """Usage-события аккаунта (свежие первыми)."""
     return [UsageEventRead.model_validate(e) for e in service.list_usage(db, account_id)]
 
 
 @router.post("/estimate", response_model=EstimateResult)
-def estimate(payload: EstimateRequest, db: DbSession, service: BillingSvc) -> EstimateResult:
+def estimate(
+    payload: EstimateRequest,
+    db: DbSession,
+    service: BillingSvc,
+    user: OptionalUser,
+    settings: SettingsDep,
+) -> EstimateResult:
     """Оценить стоимость действия в units (и доступность при заданном account_id)."""
     units = service.estimate_action_cost(payload.action_type, payload.payload)
     balance: int | None = None
     affordable: bool | None = None
     if payload.account_id is not None:
+        # Баланс чужого аккаунта не раскрываем: гард по account_id из тела.
+        guard_account_in_body(db, settings, user, payload.account_id)
         billing = service.get_balance(db, payload.account_id)
         balance = billing.balance_units
         affordable = billing.balance_units >= units
@@ -109,7 +141,11 @@ def list_providers(payments: PaymentSvc) -> list[dict[str, Any]]:
     return payments.available_providers()
 
 
-@router.post("/account/{account_id}/topup/preview", response_model=TopupPreviewResult)
+@router.post(
+    "/account/{account_id}/topup/preview",
+    response_model=TopupPreviewResult,
+    dependencies=[Depends(require_account_member)],
+)
 def topup_preview(
     account_id: int, payload: TopupPreviewRequest, payments: PaymentSvc
 ) -> TopupPreviewResult:
@@ -120,7 +156,11 @@ def topup_preview(
     return TopupPreviewResult(**data)
 
 
-@router.post("/account/{account_id}/invoices", response_model=InvoiceRead)
+@router.post(
+    "/account/{account_id}/invoices",
+    response_model=InvoiceRead,
+    dependencies=[Depends(require_account_member)],
+)
 def create_invoice(
     account_id: int, payload: InvoiceCreateRequest, db: DbSession, payments: PaymentSvc
 ) -> InvoiceRead:
@@ -140,13 +180,21 @@ def create_invoice(
     return InvoiceRead.model_validate(invoice)
 
 
-@router.get("/account/{account_id}/invoices", response_model=list[InvoiceRead])
+@router.get(
+    "/account/{account_id}/invoices",
+    response_model=list[InvoiceRead],
+    dependencies=[Depends(require_account_member)],
+)
 def list_invoices(account_id: int, db: DbSession, payments: PaymentSvc) -> list[InvoiceRead]:
     """Счета аккаунта (свежие первыми)."""
     return [InvoiceRead.model_validate(i) for i in payments.list_invoices(db, account_id)]
 
 
-@router.get("/invoices/{invoice_id}", response_model=InvoiceRead)
+@router.get(
+    "/invoices/{invoice_id}",
+    response_model=InvoiceRead,
+    dependencies=[Depends(require_invoice_access)],
+)
 def get_invoice(invoice_id: int, db: DbSession, payments: PaymentSvc) -> InvoiceRead:
     """Получить счёт по id (404 — если нет)."""
     invoice = payments.get_invoice(db, invoice_id)
@@ -155,7 +203,11 @@ def get_invoice(invoice_id: int, db: DbSession, payments: PaymentSvc) -> Invoice
     return InvoiceRead.model_validate(invoice)
 
 
-@router.post("/invoices/{invoice_id}/mock-pay", response_model=InvoiceRead)
+@router.post(
+    "/invoices/{invoice_id}/mock-pay",
+    response_model=InvoiceRead,
+    dependencies=[Depends(require_invoice_access)],
+)
 def mock_pay(invoice_id: int, db: DbSession, payments: PaymentSvc) -> InvoiceRead:
     """Подтвердить mock-оплату счёта: paid + пополнение баланса (идемпотентно)."""
     invoice = _payments(lambda: payments.mock_pay(db, invoice_id))
@@ -174,14 +226,22 @@ def payment_webhook(
     return WebhookResult(**result)
 
 
-@router.get("/account/{account_id}/profile", response_model=BillingProfileRead | None)
+@router.get(
+    "/account/{account_id}/profile",
+    response_model=BillingProfileRead | None,
+    dependencies=[Depends(require_account_member)],
+)
 def get_billing_profile(account_id: int, db: DbSession) -> BillingProfileRead | None:
     """Реквизиты плательщика аккаунта (физлицо/ИП/ООО) или null."""
     profile = payment_repository.get_profile_by_account(db, account_id)
     return BillingProfileRead.model_validate(profile) if profile is not None else None
 
 
-@router.put("/account/{account_id}/profile", response_model=BillingProfileRead)
+@router.put(
+    "/account/{account_id}/profile",
+    response_model=BillingProfileRead,
+    dependencies=[Depends(require_account_owner_or_admin)],
+)
 def upsert_billing_profile(
     account_id: int, payload: BillingProfileUpsert, db: DbSession
 ) -> BillingProfileRead:

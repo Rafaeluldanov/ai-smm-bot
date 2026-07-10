@@ -117,3 +117,12 @@ cloudpayments (sandbox-скелеты), robokassa (planned). Интерфейс 
 
 Боевой эквайринг не подключён. Следующие шаги: договор с провайдером → sandbox-адаптер →
 webhooks с проверкой подписи → включение `PAYMENTS_LIVE_ENABLED=true` только после аудита.
+
+## Обновление v0.3.1: защита платных действий и безопасность
+
+Платные действия защищены единым API `BillingService` (`ensure_balance`,
+`debit_for_action`, `credit_payment`, `refund_or_compensate`): идемпотентно, не в минус,
+dry-run бесплатно, 402 при нехватке. Счета/вебхуки идемпотентны; payload санитизируется;
+аналитика/биллинг доступны только участнику аккаунта (HTTP-гарды). Аудит-лог фиксирует
+invoice.created/paid и analytics.run. См.
+[28_Botfleet_SaaS_безопасность.md](28_Botfleet_SaaS_безопасность.md).
