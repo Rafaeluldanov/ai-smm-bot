@@ -478,6 +478,8 @@ def _sidebar(active: str = "") -> str:
         "<a class='sb-add' href='/ui/projects/new' title='Новый проект'>+</a></div>"
         "<div id='sb-projects' class='sb-projects'><div class='muted sb-hint'>…</div></div></div>"
         f"<a class='sb-link{cls('tariffs')}' href='/ui/tariffs'>Тарифы</a>"
+        f"<a class='sb-link{cls('review')}' href='/ui/review'>Ревью</a>"
+        f"<a class='sb-link{cls('learning')}' href='/ui/learning'>Обучение</a>"
         f"<a class='sb-link{cls('analytics')}' href='/ui/analytics'>Аналитика</a>"
         f"<a class='sb-link{cls('scheduler')}' href='/ui/scheduler'>Автоматизация</a>"
         f"<a class='sb-link{cls('guide')}' href='/ui/guide'>Гайд</a>"
@@ -2729,3 +2731,239 @@ def ui_billing() -> HTMLResponse:
         "})();"
     )
     return _page("Биллинг", body, script, active="settings")
+
+
+# --------------------------------------------------------------------------- #
+# v0.4.0: Ревью / Обучение / Автоматизация                                     #
+# --------------------------------------------------------------------------- #
+
+
+@router.get("/review", response_class=HTMLResponse)
+def ui_review_index() -> HTMLResponse:
+    """Лендинг ревью: выбрать проект и открыть его очередь постов."""
+    body = (
+        "<h2>Очередь на ревью</h2>"
+        "<div class='callout warn'><b>Полуавтоматический режим.</b>"
+        "<p>Бот по расписанию создаёт черновики (draft/needs_review). Вы открываете пост, "
+        "редактируете текст и медиа, одобряете, отклоняете или запрашиваете правки и "
+        "нажимаете «Опубликовать». Бот запоминает ваши решения и учится. "
+        "<b>Живая публикация выключена</b> — реальная отправка возможна только при включённых "
+        "safety gates.</p></div>"
+        "<div class='card'><h3>Проекты</h3>"
+        "<div id='rv-projects' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "(async()=>{const a=needAccount(eEl);if(!a)return;try{"
+        "const ps=await api('GET','/saas/accounts/'+a+'/projects');"
+        "const host=document.getElementById('rv-projects');host.classList.remove('muted');"
+        "host.innerHTML=ps.length?ps.map(p=>`<div class='sched-task'><b>${esc(p.name)}</b> "
+        "<a href='/ui/projects/${p.id}/review'><button class='mini'>Открыть очередь</button></a> "
+        "<a href='/ui/projects/${p.id}/learning'><button class='mini sec'>Чему научился</button></a> "
+        "<a href='/ui/projects/${p.id}/automation'><button class='mini ghost'>Автоматизация</button></a>"
+        "</div>`).join(''):\"<div class='muted'>Нет проектов.</div>\";"
+        "}catch(x){err(eEl,x)}})();"
+    )
+    return _page("Ревью", body, script, active="review")
+
+
+@router.get("/projects/{project_id}/review", response_class=HTMLResponse)
+def ui_project_review(project_id: int) -> HTMLResponse:
+    """Очередь ревью проекта: карточки постов со скорингом и кнопками решений."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/learning'><button class='ghost mini'>Чему бот научился</button></a>"
+        f"<a href='/ui/projects/{project_id}/automation'><button class='ghost mini'>Автоматизация</button></a></div>"
+        "<h2>Очередь постов на ревью</h2>"
+        "<div class='callout warn'><b>Живая публикация выключена.</b> Кнопка «Опубликовать» "
+        "отправит пост только при включённых safety gates (подключение платформы, live-флаг, "
+        "баланс). Иначе — покажем причину и ничего не спишем.</div>"
+        # Легенда действий (строки нужны и как справка, и как якорь для тестов).
+        "<div class='card'><b>Действия по посту:</b> "
+        "<span class='badge'>Открыть</span> <span class='badge'>Одобрить</span> "
+        "<span class='badge'>Запросить правки</span> <span class='badge'>Отклонить</span> "
+        "<span class='badge'>Опубликовать</span></div>"
+        "<div class='card'><div class='an-filters'>"
+        "<div><label>Статус</label><select id='rv-status'>"
+        "<option value=''>В очереди</option><option value='needs_review'>needs_review</option>"
+        "<option value='changes_requested'>changes_requested</option>"
+        "<option value='draft'>draft</option><option value='approved'>approved</option></select></div>"
+        "<div><label>Платформа</label><select id='rv-platform'>"
+        "<option value=''>Все</option><option value='telegram'>Telegram</option>"
+        "<option value='vk'>VK</option><option value='instagram'>Instagram</option></select></div>"
+        "</div></div>"
+        "<div id='rv-list' class='muted'>Загрузка…</div>"
+        "<div id='rv-msg' class='muted'></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('rv-msg');"
+        "function scorePill(v){const ok=v>=70;const off=v<40;return `<span class='pill ${ok?'ok':(off?'off':'')}'>${v}</span>`;}"
+        "function card(it){"
+        "const reasons=(it.learning_reasons||[]).slice(0,3).map(esc).join(' · ');"
+        "const warns=(it.warnings||[]).slice(0,3).map(esc).join(' · ');"
+        "return `<div class='card' data-pid='${it.post_id}'>"
+        "<div class='inline'><b>#${it.post_id}</b> <span class='pill'>${esc(it.status)}</span> "
+        "<span class='muted'>${esc(it.platform||'—')}</span> <b>${esc(it.title||'')}</b></div>"
+        "<div class='muted'>${esc(it.text_preview||'')}</div>"
+        "<div class='kv'><div>Качество</div><div>${scorePill(it.quality_score)}</div>"
+        "<div>Прогноз вовлечения</div><div>${it.predicted_engagement_score}</div>"
+        "<div>Соответствие профилю</div><div>${it.fit_score}</div>"
+        "<div>Медиа</div><div>${it.media_count}</div></div>"
+        "${reasons?`<div class='muted'>Обучение: ${reasons}</div>`:''}"
+        "${warns?`<div class='muted'>⚠ ${warns}</div>`:''}"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='mini' onclick='rvApprove(${it.post_id})'>Одобрить</button>"
+        "<button class='mini sec' onclick='rvChanges(${it.post_id})'>Запросить правки</button>"
+        "<button class='mini sec' onclick='rvReject(${it.post_id})'>Отклонить</button>"
+        "<button class='mini ghost' onclick='rvPublish(${it.post_id})'>Опубликовать</button>"
+        "</div></div>`;}"
+        "async function loadQueue(){const host=document.getElementById('rv-list');"
+        "const st=gv('rv-status');const pf=gv('rv-platform');"
+        "let url='/review/projects/'+PID+'/queue?';if(st)url+='review_status='+encodeURIComponent(st)+'&';"
+        "if(pf)url+='platform='+encodeURIComponent(pf);"
+        "try{const q=await api('GET',url);host.classList.remove('muted');"
+        "host.innerHTML=q.count?q.items.map(card).join(''):\"<div class='card muted'>Очередь пуста — новых постов на ревью нет.</div>\";"
+        "}catch(x){err(eEl,x)}}"
+        "async function rvApprove(id){try{await api('POST','/review/posts/'+id+'/approve',{});msg.textContent='Пост #'+id+' одобрен.';loadQueue();}catch(x){err(eEl,x)}}"
+        "async function rvReject(id){try{await api('POST','/review/posts/'+id+'/reject',{reason_tags:['не та тема']});msg.textContent='Пост #'+id+' отклонён.';loadQueue();}catch(x){err(eEl,x)}}"
+        "async function rvChanges(id){try{await api('POST','/review/posts/'+id+'/request-changes',{reason_tags:['нужны правки']});msg.textContent='По посту #'+id+' запрошены правки.';loadQueue();}catch(x){err(eEl,x)}}"
+        "async function rvPublish(id){try{const r=await api('POST','/review/posts/'+id+'/publish-now',{confirm:true});"
+        "if(r.blocked){msg.textContent='Публикация заблокирована: '+esc(r.reason)+' (ничего не списано).';}"
+        "else{msg.textContent='Пост #'+id+' опубликован.';}loadQueue();}catch(x){err(eEl,x)}}"
+        "window.rvApprove=rvApprove;window.rvReject=rvReject;window.rvChanges=rvChanges;window.rvPublish=rvPublish;"
+        "['rv-status','rv-platform'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener('change',loadQueue);});"
+        "loadQueue();"
+    )
+    return _page("Ревью проекта", body, script, active="review", active_pid=project_id)
+
+
+@router.get("/learning", response_class=HTMLResponse)
+def ui_learning_index() -> HTMLResponse:
+    """Лендинг обучения: выбрать проект и открыть блок «Чему бот научился»."""
+    body = (
+        "<h2>Чему бот научился</h2>"
+        "<p class='muted'>Бот строит персональный профиль по вашим одобрениям, правкам, "
+        "отклонениям и метрикам постов. Данные одного клиента не смешиваются с другими.</p>"
+        "<div class='card'><h3>Проекты</h3><div id='ln-projects' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "(async()=>{const a=needAccount(eEl);if(!a)return;try{"
+        "const ps=await api('GET','/saas/accounts/'+a+'/projects');"
+        "const host=document.getElementById('ln-projects');host.classList.remove('muted');"
+        "host.innerHTML=ps.length?ps.map(p=>`<div class='sched-task'><b>${esc(p.name)}</b> "
+        "<a href='/ui/projects/${p.id}/learning'><button class='mini'>Открыть профиль</button></a></div>`).join('')"
+        ":\"<div class='muted'>Нет проектов.</div>\";}catch(x){err(eEl,x)}})();"
+    )
+    return _page("Обучение", body, script, active="learning")
+
+
+@router.get("/projects/{project_id}/learning", response_class=HTMLResponse)
+def ui_project_learning(project_id: int) -> HTMLResponse:
+    """Блок «Чему бот научился»: темы, CTA, теги, время, уверенность, рекомендации."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/review'><button class='ghost mini'>Очередь ревью</button></a></div>"
+        "<h2>Чему бот научился</h2>"
+        "<div class='card'><div class='kv'>"
+        "<div>Уверенность профиля</div><div id='ln-confidence'>—</div>"
+        "<div>Версия профиля</div><div id='ln-version'>—</div>"
+        "<div>Обработано сигналов</div><div id='ln-events'>—</div></div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='mini sec' onclick='lnRebuild()'>Пересчитать профиль</button></div></div>"
+        "<div class='grid'>"
+        "<div class='card'><h3>Предпочитаемые темы</h3><div id='ln-preferred-topics' class='muted'>—</div></div>"
+        "<div class='card'><h3>Отклонённые темы</h3><div id='ln-rejected-topics' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучший призыв к действию (CTA)</h3><div id='ln-cta' class='muted'>—</div></div>"
+        "<div class='card'><h3>Длина текста</h3><div id='ln-length' class='muted'>—</div></div>"
+        "<div class='card'><h3>Сильные теги</h3><div id='ln-high-tags' class='muted'>—</div></div>"
+        "<div class='card'><h3>Слабые теги</h3><div id='ln-low-tags' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучшее медиа</h3><div id='ln-media' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучшее время публикаций</h3><div id='ln-times' class='muted'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Что бот будет делать</h3><div id='ln-recs' class='muted'>—</div></div>"
+        "<div class='card'><h3>Последние решения</h3><div id='ln-events-list' class='muted'>—</div></div>"
+        "<div id='ln-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('ln-msg');"
+        "function fill(id,arr,pre){const el=document.getElementById(id);"
+        "el.classList.remove('muted');el.innerHTML=(arr&&arr.length)?arr.map(v=>`<span class='badge'>${(pre||'')+esc(''+v)}</span>`).join(' '):\"<span class='muted'>пока нет данных</span>\";}"
+        "async function load(){try{const s=await api('GET','/learning/projects/'+PID+'/summary');"
+        "document.getElementById('ln-confidence').textContent=Math.round((s.confidence_score||0)*100)+'%';"
+        "document.getElementById('ln-version').textContent=s.profile_version||0;"
+        "document.getElementById('ln-events').textContent=s.updated_from_events_count||0;"
+        "fill('ln-preferred-topics',s.preferred_topics);fill('ln-rejected-topics',s.rejected_topics);"
+        "fill('ln-cta',s.preferred_cta);fill('ln-high-tags',s.high_performing_tags,'#');"
+        "fill('ln-low-tags',s.low_performing_tags,'#');fill('ln-media',s.preferred_media_types);"
+        "fill('ln-times',s.best_publish_times);"
+        "const tl=s.preferred_text_length||{};document.getElementById('ln-length').innerHTML=tl.target?`около ${tl.target} символов`:\"<span class='muted'>пока нет данных</span>\";"
+        "const recs=s.recommendations||[];document.getElementById('ln-recs').innerHTML=recs.length?recs.map(r=>`<div>• ${esc(r)}</div>`).join(''):\"<span class='muted'>Недостаточно данных — соберём после первых решений.</span>\";"
+        "const ev=s.recent_events||[];document.getElementById('ln-events-list').innerHTML=ev.length?ev.map(e=>`<div class='muted'>#${e.post_id} · ${esc(e.event_type)}${e.rating?(' · '+e.rating+'★'):''}</div>`).join(''):\"<span class='muted'>Событий пока нет.</span>\";"
+        "}catch(x){err(eEl,x)}}"
+        "async function lnRebuild(){try{const a=acc();let url='/learning/projects/'+PID+'/rebuild';if(a)url+='?account_id='+a;"
+        "const r=await api('POST',url,{});msg.textContent='Профиль пересчитан (версия '+r.profile_version+').';load();}catch(x){err(eEl,x)}}"
+        "window.lnRebuild=lnRebuild;load();"
+    )
+    return _page("Обучение проекта", body, script, active="learning", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/automation", response_class=HTMLResponse)
+def ui_project_automation(project_id: int) -> HTMLResponse:
+    """Настройки режима автоматизации проекта: semi_auto / full_auto + safety gates."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/review'><button class='ghost mini'>Очередь ревью</button></a></div>"
+        "<h2>Режим автоматизации</h2>"
+        "<div class='callout warn'><b>Автоматический режим публикует live только если включены "
+        "все safety gates.</b> Иначе бот создаёт draft/needs_review и пишет понятную причину.</div>"
+        "<div class='grid'>"
+        "<div class='card'><h3>Полуавтоматический</h3>"
+        "<p class='muted'>Бот создаёт черновики по расписанию. Вы одобряете и публикуете вручную.</p>"
+        "<button class='mini' onclick='setMode(\"semi_auto\")'>Включить semi_auto</button></div>"
+        "<div class='card'><h3>Полностью автоматический</h3>"
+        "<p class='muted'>Бот сам публикует, если все safety gates включены и качество выше порога.</p>"
+        "<div><label>Подтверждение</label> "
+        "<input id='fa-confirm' placeholder='ENABLE_FULL_AUTO' style='width:220px'></div>"
+        "<p class='muted'>Чтобы включить, введите <b>ENABLE_FULL_AUTO</b>.</p>"
+        "<button class='mini' onclick='setMode(\"full_auto\")'>Включить full_auto</button></div>"
+        "</div>"
+        "<div class='card'><h3>Требования (safety gates)</h3>"
+        "<ul id='ag-checklist'>"
+        "<li>Баланс units достаточен</li>"
+        "<li>Платформа подключена</li>"
+        "<li>Живая публикация включена (live-флаг)</li>"
+        "<li>Качество контента выше порога</li>"
+        "<li>Профиль обучения готов</li>"
+        "<li>Медиа доступно</li>"
+        "</ul></div>"
+        "<div class='card'><h3>Текущие планы</h3><div id='ag-plans' class='muted'>Загрузка…</div></div>"
+        "<div id='ag-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('ag-msg');"
+        "async function load(){try{const s=await api('GET','/automation/projects/'+PID+'/settings');"
+        "const host=document.getElementById('ag-plans');host.classList.remove('muted');"
+        "host.innerHTML=s.plans_count?(`<div class='muted'>Режим проекта: <b>${esc(s.effective_mode)}</b> · "
+        "профиль: ${s.learning_profile_ready?('готов, '+Math.round((s.learning_confidence||0)*100)+'%'):'ещё не готов'}</div>`+"
+        "s.plans.map(p=>`<div class='sched-task'>План #${p.plan_id} · ${esc((p.platforms||[]).join(', '))} · "
+        "<span class='pill ${p.automation_mode===\"full_auto\"?'ok':''}'>${esc(p.automation_mode)}</span> "
+        "· порог ${p.min_quality_score_for_auto} · авто-публикация: ${p.auto_publish_enabled?'да':'нет'}</div>`).join(''))"
+        ":\"<div class='muted'>Планов расписания ещё нет — создайте расписание на странице платформы.</div>\";"
+        "}catch(x){err(eEl,x)}}"
+        "async function setMode(mode){try{const body={automation_mode:mode};"
+        "if(mode==='full_auto'){body.auto_publish_enabled=true;body.confirm=gv('fa-confirm');}"
+        "await api('POST','/automation/projects/'+PID+'/settings',body);"
+        "msg.textContent='Режим обновлён: '+mode;load();}catch(x){err(eEl,x)}}"
+        "window.setMode=setMode;load();"
+    )
+    return _page("Автоматизация проекта", body, script, active="scheduler", active_pid=project_id)

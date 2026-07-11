@@ -17,6 +17,13 @@ from app.repositories import billing_repository
 if TYPE_CHECKING:
     from app.config import Settings
 
+# Типы usage для review/обучения/автоматизации (v0.4.0). Значения — стабильные
+# строковые коды, идущие в UsageEvent.event_type.
+USAGE_REVIEW_PUBLISH_NOW = "review_publish_now"
+USAGE_LEARNING_PROFILE_REBUILD = "learning_profile_rebuild"
+USAGE_CONTENT_SCORING = "content_scoring"
+USAGE_AUTO_PUBLISH_ACTION = "auto_publish_action"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -25,6 +32,12 @@ ACTION_COSTS: dict[str, int] = {
     "publication_preview": 1,
     "publication_live": 5,
     "analytics": 1,
+    # v0.4.0: сбор фидбэка и превью-скоринг — бесплатны; публикация — как обычная
+    # живая публикация; глубокий пересчёт профиля — 5 units.
+    USAGE_CONTENT_SCORING: 0,
+    USAGE_LEARNING_PROFILE_REBUILD: 5,
+    USAGE_REVIEW_PUBLISH_NOW: 5,
+    USAGE_AUTO_PUBLISH_ACTION: 5,
 }
 _DEFAULT_ACTION_COST = 1
 

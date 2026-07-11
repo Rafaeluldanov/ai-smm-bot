@@ -13,6 +13,7 @@ from app.models.billing import (
     TariffPlan,
     UsageEvent,
 )
+from app.models.client_learning_profile import ClientLearningProfile
 from app.models.crm_bot_smm import (
     CrmBotProjectConfig,
     CrmContentSource,
@@ -33,6 +34,7 @@ from app.models.payment import (
 )
 from app.models.post import Post
 from app.models.post_analytics_snapshot import PostAnalyticsSnapshot
+from app.models.post_feedback_event import PostFeedbackEvent
 from app.models.post_publication import PostPublication
 from app.models.post_review_action import PostReviewAction
 from app.models.project import Project
@@ -52,6 +54,7 @@ __all__ = [
     "Base",
     "BillingAccount",
     "BillingLedgerEntry",
+    "ClientLearningProfile",
     "CrmBotProjectConfig",
     "CrmContentSource",
     "CrmKeyword",
@@ -68,6 +71,7 @@ __all__ = [
     "PaymentWebhookLog",
     "Post",
     "PostAnalyticsSnapshot",
+    "PostFeedbackEvent",
     "PostPublication",
     "PostReviewAction",
     "Project",

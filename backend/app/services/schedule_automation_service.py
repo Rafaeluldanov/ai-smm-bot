@@ -16,6 +16,7 @@ API не вызываются.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from typing import Any
@@ -35,6 +36,8 @@ from app.repositories import (
 from app.schemas.post import PostCreate
 from app.schemas.post_publication import PostPublicationCreate
 from app.services.audit_log_service import (
+    ACTION_AUTOMATION_AUTO_PUBLISH_BLOCKED,
+    ACTION_AUTOMATION_AUTO_PUBLISH_SUCCEEDED,
     ACTION_SCHEDULE_RUN_DRAFT_CREATED,
     ACTION_SCHEDULE_RUN_FAILED,
     ACTION_SCHEDULE_RUN_INSUFFICIENT_BALANCE,
@@ -43,7 +46,11 @@ from app.services.audit_log_service import (
     ACTION_SCHEDULE_RUN_STARTED,
     AuditLogService,
 )
-from app.services.billing_service import BillingService, InsufficientBalanceError
+from app.services.billing_service import (
+    USAGE_AUTO_PUBLISH_ACTION,
+    BillingService,
+    InsufficientBalanceError,
+)
 from app.services.platform_connection_service import PlatformConnectionService
 from app.services.unit_economics_service import (
     DEFAULT_POST_INPUT_TOKENS,
@@ -56,6 +63,9 @@ from app.services.unit_economics_service import (
 USAGE_SCHEDULE_DRAFT = "schedule_due_draft_generation"
 # Режим, при котором авто-публикация запрещена (создаём только draft).
 _AUTO_PUBLISH_MODE = "auto_publish"
+# Режимы автоматизации (v0.4.0).
+AUTOMATION_SEMI_AUTO = "semi_auto"
+AUTOMATION_FULL_AUTO = "full_auto"
 
 
 class ScheduleAutomationError(Exception):
@@ -82,11 +92,19 @@ class ScheduleAutomationService:
         economics: UnitEconomicsService | None = None,
         audit_service: AuditLogService | None = None,
         connection_service: PlatformConnectionService | None = None,
+        learning_service: Any | None = None,
+        publication_service: Any | None = None,
+        review_service: Any | None = None,
     ) -> None:
         self._billing = billing_service or BillingService()
         self._economics = economics or UnitEconomicsService()
         self._audit = audit_service or AuditLogService()
         self._connections = connection_service or PlatformConnectionService()
+        # v0.4.0: обучение/оценка контента и (для full_auto) публикация. Ленивое
+        # построение, чтобы не тянуть тяжёлые зависимости и избежать циклов импорта.
+        self._learning = learning_service
+        self._publication = publication_service
+        self._review = review_service
 
     # ------------------------------------------------------------------ #
     # Планы / due-логика                                                 #
@@ -412,6 +430,12 @@ class ScheduleAutomationService:
             self._audit_run(db, ACTION_SCHEDULE_RUN_FAILED, run)
             return {**self.mask_run(run), "outcome": "failed"}
 
+        # 3b) Скоринг контента + снимок обучения (для semi_auto и full_auto).
+        automation_mode = getattr(entry.plan, "automation_mode", AUTOMATION_SEMI_AUTO) or (
+            AUTOMATION_SEMI_AUTO
+        )
+        scoring = self._score_and_annotate(db, project_id, entry, run, post)
+
         # 4) Списание units (идемпотентно, ровно один раз).
         entry_ledger = self._billing.debit_for_action(
             db,
@@ -427,7 +451,19 @@ class ScheduleAutomationService:
         schedule_run_repository.update_run(db, run, units_estimated=units)
         schedule_run_repository.mark_draft_created(db, run, post.id, pub.id, charged)
         self._audit_run(db, ACTION_SCHEDULE_RUN_DRAFT_CREATED, run, units=charged)
-        return {**self.mask_run(run), "outcome": "draft_created", "post_id": post.id}
+
+        outcome: dict[str, Any] = {"outcome": "draft_created", "post_id": post.id}
+        # 5) Полностью автоматический режим: попытка авто-публикации под safety gates.
+        if automation_mode == AUTOMATION_FULL_AUTO and getattr(
+            entry.plan, "auto_publish_enabled", False
+        ):
+            reason = self._attempt_auto_publish(
+                db, account_id, project_id, entry, run, post, scoring
+            )
+            outcome["auto_publish_attempted"] = True
+            outcome["auto_publish_blocked_reason"] = reason
+            outcome["auto_published"] = reason is None
+        return {**self.mask_run(run), **outcome}
 
     # ------------------------------------------------------------------ #
     # Построение поста и медиа                                            #
@@ -546,7 +582,212 @@ class ScheduleAutomationService:
             "units_charged": run.units_charged,
             "error_message": run.error_message,
             "created_at": run.created_at.isoformat() if run.created_at else None,
+            # Автоматизация/обучение (v0.4.0).
+            "automation_mode": getattr(run, "automation_mode", None),
+            "auto_publish_attempted": bool(getattr(run, "auto_publish_attempted", False)),
+            "auto_publish_blocked_reason": getattr(run, "auto_publish_blocked_reason", None),
+            "quality_score": getattr(run, "quality_score", None),
+            "safety_score": getattr(run, "safety_score", None),
+            "learning_profile_version": getattr(run, "learning_profile_version", None),
         }
+
+    # ------------------------------------------------------------------ #
+    # Скоринг контента и полностью автоматический режим (v0.4.0)          #
+    # ------------------------------------------------------------------ #
+
+    def _score_and_annotate(
+        self, db: Session, project_id: int, entry: _DueEntry, run: Any, post: Post
+    ) -> dict[str, Any]:
+        """Оценить пост и сохранить снимок обучения в ScheduleRun + generation_notes.
+
+        Никогда не роняет прогон: при ошибке скоринга возвращает нейтральные значения.
+        """
+        automation_mode = getattr(entry.plan, "automation_mode", AUTOMATION_SEMI_AUTO) or (
+            AUTOMATION_SEMI_AUTO
+        )
+        try:
+            scoring = self._learning_service().score_content_candidate(
+                db, project_id, entry.platform, post
+            )
+        except Exception:  # noqa: BLE001 — скоринг не должен ронять прогон расписания
+            with contextlib.suppress(Exception):
+                db.rollback()
+            scoring = {
+                "quality_score": 0,
+                "predicted_engagement_score": 0,
+                "fit_score": 0,
+                "learning_reasons": [],
+                "warnings": [],
+                "recommended_changes": [],
+                "profile_version": 0,
+            }
+        quality = int(scoring.get("quality_score", 0) or 0)
+        warnings = list(scoring.get("warnings", []) or [])
+        safety = max(0, 100 - min(100, len(warnings) * 15))
+        profile_version = int(scoring.get("profile_version", 0) or 0)
+
+        notes = dict(post.generation_notes or {})
+        notes.update(
+            {
+                "automation_mode": automation_mode,
+                "quality_score": quality,
+                "predicted_engagement_score": scoring.get("predicted_engagement_score"),
+                "learning_reasons": (scoring.get("learning_reasons") or [])[:8],
+                "safety_warnings": warnings[:8],
+                "learning_profile_version": profile_version,
+                "recommended_changes": (scoring.get("recommended_changes") or [])[:8],
+            }
+        )
+        post.generation_notes = notes
+        db.commit()
+        db.refresh(post)
+
+        schedule_run_repository.update_run(
+            db,
+            run,
+            automation_mode=automation_mode,
+            quality_score=quality,
+            safety_score=safety,
+            learning_profile_version=profile_version,
+        )
+        return {**scoring, "quality_score": quality, "safety_score": safety}
+
+    def _attempt_auto_publish(
+        self,
+        db: Session,
+        account_id: int,
+        project_id: int,
+        entry: _DueEntry,
+        run: Any,
+        post: Post,
+        scoring: dict[str, Any],
+    ) -> str | None:
+        """Попытка авто-публикации под safety gates. Возвращает причину блокировки или None.
+
+        Gates (все обязательны): порог качества → первое ревью → баланс → live-разрешения
+        площадки. Live-отправка происходит ТОЛЬКО если все гейты пройдены; иначе draft
+        остаётся needs_review и пишется понятная причина.
+        """
+        from app.repositories import post_feedback_repository
+
+        plan = entry.plan
+        quality = int(scoring.get("quality_score", 0) or 0)
+
+        # 1) Порог качества.
+        if quality < getattr(plan, "min_quality_score_for_auto", 70):
+            return self._block_auto(db, run, post, project_id, "quality_score_below_threshold")
+        # 2) Требуется хотя бы одно одобрение клиента до первой авто-публикации.
+        if getattr(plan, "require_review_before_first_auto", True):
+            approvals = post_feedback_repository.count_for_project(
+                db, project_id, ("approved", "auto_published")
+            )
+            if approvals == 0:
+                return self._block_auto(db, run, post, project_id, "needs_first_review")
+        # 3) Баланс под платную авто-публикацию.
+        autopub_units = self._billing.estimate_action_cost(USAGE_AUTO_PUBLISH_ACTION)
+        try:
+            self._billing.ensure_balance(db, account_id, autopub_units)
+        except InsufficientBalanceError:
+            return self._block_auto(db, run, post, project_id, "insufficient_balance")
+        # 4) Live-разрешения площадки (live-флаг + креды + таргет). Без сети.
+        try:
+            preview = self._publication_service().preview_publication(db, post.id)
+            sendable = [item for item in preview.items if item.would_send]
+        except Exception:  # noqa: BLE001 — сбой превью не должен ронять прогон
+            with contextlib.suppress(Exception):
+                db.rollback()
+            sendable = []
+        if not sendable:
+            return self._block_auto(db, run, post, project_id, "live_disabled")
+
+        # --- Все гейты пройдены: одобряем и публикуем ---
+        from app.schemas.post_publication import PostPublishRequest
+        from app.schemas.post_review import PostReviewDecisionRequest
+
+        with contextlib.suppress(Exception):
+            self._review_service().approve_post(
+                db, post.id, PostReviewDecisionRequest(actor_role="bot")
+            )
+        send_platforms = [item.platform for item in sendable]
+        result = self._publication_service().publish_post(
+            db, post.id, PostPublishRequest(platforms=send_platforms)
+        )
+        published_ok = (
+            int(getattr(result, "published_count", 0)) > 0
+            and int(getattr(result, "failed_count", 0)) == 0
+        )
+        if not published_ok:
+            return self._block_auto(db, run, post, project_id, "publish_failed")
+
+        ledger = self._billing.debit_for_action(
+            db,
+            account_id,
+            units=autopub_units,
+            usage_type=USAGE_AUTO_PUBLISH_ACTION,
+            idempotency_key=f"{entry.idempotency_key}-autopub",
+            project_id=project_id,
+            post_id=post.id,
+            metadata={"platforms": send_platforms},
+        )
+        charged = autopub_units if ledger is not None else 0
+        schedule_run_repository.update_run(
+            db,
+            run,
+            auto_publish_attempted=True,
+            auto_publish_blocked_reason=None,
+            units_charged=(run.units_charged or 0) + charged,
+        )
+        with contextlib.suppress(Exception):
+            self._learning_service().record_review_feedback(
+                db, post.id, "auto_published", platform_key=entry.platform
+            )
+        self._audit_run(db, ACTION_AUTOMATION_AUTO_PUBLISH_SUCCEEDED, run, units=charged)
+        return None
+
+    def _block_auto(self, db: Session, run: Any, post: Post, project_id: int, reason: str) -> str:
+        """Заблокировать авто-публикацию: draft остаётся needs_review + причина + аудит."""
+        schedule_run_repository.update_run(
+            db, run, auto_publish_attempted=True, auto_publish_blocked_reason=reason
+        )
+        with contextlib.suppress(Exception):
+            from app.repositories import post_feedback_repository
+
+            post_feedback_repository.create_event(
+                db,
+                account_id=run.account_id,
+                project_id=project_id,
+                post_id=post.id,
+                platform_key=run.platform_key,
+                event_type="auto_blocked",
+                reason_tags=[reason],
+                event_metadata={"reason": reason},
+            )
+        self._audit_run(db, ACTION_AUTOMATION_AUTO_PUBLISH_BLOCKED, run)
+        return reason
+
+    def _learning_service(self) -> Any:
+        if self._learning is None:
+            from app.services.client_learning_service import ClientLearningService
+
+            self._learning = ClientLearningService()
+        return self._learning
+
+    def _publication_service(self) -> Any:
+        if self._publication is None:
+            from app.api.deps import (
+                get_post_publication_service,
+                get_publication_platform_registry,
+            )
+
+            self._publication = get_post_publication_service(get_publication_platform_registry())
+        return self._publication
+
+    def _review_service(self) -> Any:
+        if self._review is None:
+            from app.services.post_review_service import PostReviewService
+
+            self._review = PostReviewService()
+        return self._review
 
     # ------------------------------------------------------------------ #
     # Внутреннее                                                         #

@@ -567,3 +567,11 @@ refresh-cookie (HttpOnly). Добавлены `/auth/refresh` (ротация), 
 Живой публикации нет; креды — из подключения проекта; нехватка units → `insufficient_
 balance`, нет подключения → `missing_credentials`. Подробно —
 [35_Botfleet_Schedule_Automation_Engine.md](35_Botfleet_Schedule_Automation_Engine.md).
+
+## Биллинг ревью/обучения/автоматизации (v0.4.0)
+
+Сбор фидбэка (approve/reject/edit/rating) и превью-скоринг — **бесплатны**. Глубокий пересчёт
+профиля обучения — 5 units. Публикация «Опубликовать» и авто-публикация — как обычная живая
+публикация (units), заблокированная публикация **не списывает** units, успешная — ровно один
+раз (идемпотентно). Авто-режим не обходит биллинг. Подробно —
+[37_Botfleet_Review_Learning_Automation.md](37_Botfleet_Review_Learning_Automation.md).

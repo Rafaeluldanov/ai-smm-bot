@@ -227,3 +227,13 @@ base URL не HTTPS. Ссылки `/media/public/{token}` временные, о
 Движок находит due-слоты и создаёт **draft/needs_review** (не live), списывает units,
 пишет `ScheduleRun`. Страница `/ui/projects/{id}/schedule-runs` — история прогонов.
 Подробно — [35_Botfleet_Schedule_Automation_Engine.md](35_Botfleet_Schedule_Automation_Engine.md).
+
+## Ревью, обучение и автоматизация (v0.4.0)
+
+Новые страницы кабинета и пункты sidebar **Ревью** и **Обучение**:
+`/ui/review` и `/ui/projects/{id}/review` (очередь со скорингом и кнопками
+Одобрить/Запросить правки/Отклонить/Опубликовать), `/ui/projects/{id}/learning`
+(«Чему бот научился»), `/ui/projects/{id}/automation` (режимы `semi_auto`/`full_auto` +
+чек-лист safety gates + подтверждение `ENABLE_FULL_AUTO`). Кнопка «Опубликовать» показывает
+причину, если live недоступен, и ничего не списывает. Подробно —
+[37_Botfleet_Review_Learning_Automation.md](37_Botfleet_Review_Learning_Automation.md).

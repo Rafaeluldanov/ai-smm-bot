@@ -10,7 +10,7 @@
 
 from typing import Any
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, JSONType, TimestampMixin
@@ -52,3 +52,18 @@ class ScheduleRun(Base, TimestampMixin):
     units_charged: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, default=None)
     run_metadata: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)
+
+    # --- Автоматизация / обучение (v0.4.0) ---
+    # semi_auto | full_auto — режим, в котором обрабатывался слот.
+    automation_mode: Mapped[str | None] = mapped_column(String(20), default=None)
+    # Была ли попытка авто-публикации (full_auto).
+    auto_publish_attempted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Причина, по которой авто-публикация не состоялась (напр. live_disabled,
+    # quality_score_below_threshold, needs_first_review, insufficient_balance).
+    auto_publish_blocked_reason: Mapped[str | None] = mapped_column(String(64), default=None)
+    # Версия профиля обучения, использованного при генерации.
+    learning_profile_version: Mapped[int | None] = mapped_column(Integer, default=None)
+    # Оценка качества контента (0..100) на момент прогона.
+    quality_score: Mapped[int | None] = mapped_column(Integer, default=None)
+    # Оценка безопасности контента (0..100) на момент прогона.
+    safety_score: Mapped[int | None] = mapped_column(Integer, default=None)

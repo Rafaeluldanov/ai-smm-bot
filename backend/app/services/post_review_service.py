@@ -41,7 +41,13 @@ ACTION_CHANGE_MEDIA = "change_media"
 ACTION_COMMENT = "comment"
 
 # Статусы, в которых разрешена ручная правка поста.
-_EDITABLE_STATUSES: set[str] = {"draft", "needs_review", "needs_media", "rejected"}
+_EDITABLE_STATUSES: set[str] = {
+    "draft",
+    "needs_review",
+    "changes_requested",
+    "needs_media",
+    "rejected",
+}
 
 # Поля поста, которые можно править вручную.
 _EDITABLE_FIELDS: tuple[str, ...] = (
@@ -101,6 +107,18 @@ class PostReviewService:
         """Запросить доработку (→ draft) из needs_review/approved."""
         post = self._get_post(db, post_id)
         self._apply_transition(db, post, "draft", ACTION_REQUEST_CHANGES, request)
+        return self.build_review_card(db, post_id)
+
+    def request_changes_status(
+        self, db: Session, post_id: int, request: PostReviewDecisionRequest
+    ) -> PostReviewCard:
+        """Запросить доработку с явным статусом ``changes_requested`` (v0.4.0 review-очередь).
+
+        В отличие от :meth:`request_changes` (→ draft), оставляет пост видимым в очереди
+        ревью как «нужны правки», сохраняя контекст согласования.
+        """
+        post = self._get_post(db, post_id)
+        self._apply_transition(db, post, "changes_requested", ACTION_REQUEST_CHANGES, request)
         return self.build_review_card(db, post_id)
 
     def return_to_draft(

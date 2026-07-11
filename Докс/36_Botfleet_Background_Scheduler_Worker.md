@@ -104,3 +104,11 @@ Worker — **отдельный процесс/контейнер**, не вну
 - workflow одобрения (draft → approved);
 - живая публикация после одобрения;
 - мониторинг/алерты worker-а.
+
+## Развитие: авто-режим и обучение (v0.4.0)
+
+Worker делегирует в `ScheduleAutomationService.run_due`, который теперь поддерживает
+`semi_auto`/`full_auto`: скоринг контента, снимок обучения и (для `full_auto`) авто-публикацию
+под safety gates. По умолчанию live выключен — worker по-прежнему создаёт только
+`draft/needs_review`, если гейты не пройдены. Очередь ревью и профиль обучения —
+[37_Botfleet_Review_Learning_Automation.md](37_Botfleet_Review_Learning_Automation.md).

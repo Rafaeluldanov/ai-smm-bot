@@ -203,6 +203,27 @@ class CrmPublishingPlan(Base, TimestampMixin):
     timezone: Mapped[str] = mapped_column(String(64), default="Europe/Moscow", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
+    # --- Режим автоматизации (v0.4.0) ---
+    # semi_auto — бот создаёт draft/needs_review, публикует только клиент вручную;
+    # full_auto — бот может авто-публиковать, НО только если включены все safety gates.
+    automation_mode: Mapped[str] = mapped_column(
+        String(20), default="semi_auto", index=True, nullable=False
+    )
+    # Разрешена ли авто-публикация (второй рубильник помимо automation_mode).
+    auto_publish_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Собирать ли сигналы обучения по этому плану.
+    learning_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Требовать хотя бы одно одобрение клиента до первой авто-публикации.
+    require_review_before_first_auto: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
+    # Порог качества (0..100) для авто-публикации; ниже — уходит в needs_review.
+    min_quality_score_for_auto: Mapped[int] = mapped_column(Integer, default=70, nullable=False)
+    # Лимит авто-постов в день (None — без явного лимита сверх posts_per_day).
+    max_posts_per_day_auto: Mapped[int | None] = mapped_column(Integer, default=None)
+    # Заметки безопасности/предупреждения (без секретов).
+    safety_notes: Mapped[list[Any]] = mapped_column(JSONType, default=list, nullable=False)
+
 
 class CrmOnboardingDraft(Base, TimestampMixin):
     """Черновик онбординга: незавершённая форма из CRM (payload + ошибки)."""

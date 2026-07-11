@@ -73,6 +73,23 @@ ACTION_BALANCE_DEBITED = "billing.balance.debited"
 ACTION_BALANCE_CREDITED = "billing.balance.credited"
 ACTION_OAUTH_CONNECTED = "oauth.connected"
 ACTION_OAUTH_FAILED = "oauth.failed"
+# Review / approval workflow + обучение + автоматизация (v0.4.0).
+ACTION_REVIEW_POST_OPENED = "review.post.opened"
+ACTION_REVIEW_POST_EDITED = "review.post.edited"
+ACTION_REVIEW_POST_APPROVED = "review.post.approved"
+ACTION_REVIEW_POST_REJECTED = "review.post.rejected"
+ACTION_REVIEW_POST_CHANGES_REQUESTED = "review.post.changes_requested"
+ACTION_REVIEW_POST_PUBLISH_CLICKED = "review.post.publish_clicked"
+ACTION_REVIEW_POST_PUBLISH_BLOCKED = "review.post.publish_blocked"
+ACTION_REVIEW_POST_PUBLISHED = "review.post.published"
+ACTION_LEARNING_FEEDBACK_RECORDED = "learning.feedback.recorded"
+ACTION_LEARNING_PROFILE_UPDATED = "learning.profile.updated"
+ACTION_LEARNING_PROFILE_REBUILT = "learning.profile.rebuilt"
+ACTION_AUTOMATION_MODE_CHANGED = "automation.mode.changed"
+ACTION_AUTOMATION_FULL_AUTO_ENABLED = "automation.full_auto.enabled"
+ACTION_AUTOMATION_FULL_AUTO_DISABLED = "automation.full_auto.disabled"
+ACTION_AUTOMATION_AUTO_PUBLISH_BLOCKED = "automation.auto_publish.blocked"
+ACTION_AUTOMATION_AUTO_PUBLISH_SUCCEEDED = "automation.auto_publish.succeeded"
 
 
 class AuditLogService:

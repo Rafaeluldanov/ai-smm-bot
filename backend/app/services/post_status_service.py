@@ -9,25 +9,33 @@
 """
 
 # Допустимые статусы поста.
+#
+# ``changes_requested`` и ``failed`` добавлены в v0.4.0 (review/approval workflow):
+# - ``changes_requested`` — клиент в очереди ревью запросил доработку (полуавтомат);
+# - ``failed`` — попытка публикации (в т. ч. авто) завершилась ошибкой.
 ALLOWED_POST_STATUSES: list[str] = [
     "draft",
     "needs_review",
+    "changes_requested",
     "approved",
     "scheduled",
     "published",
     "rejected",
     "needs_media",
+    "failed",
 ]
 
 # Разрешённые переходы: из статуса -> множество статусов.
 _TRANSITIONS: dict[str, set[str]] = {
     "draft": {"needs_review", "approved", "rejected", "needs_media"},
     "needs_media": {"draft", "needs_review", "rejected"},
-    "needs_review": {"approved", "rejected", "draft"},
-    "approved": {"scheduled", "rejected", "draft"},
-    "scheduled": {"published", "approved", "rejected"},
+    "needs_review": {"approved", "rejected", "draft", "changes_requested"},
+    "changes_requested": {"draft", "needs_review", "approved", "rejected"},
+    "approved": {"scheduled", "published", "rejected", "draft", "changes_requested", "failed"},
+    "scheduled": {"published", "approved", "rejected", "failed"},
     "published": {"approved"},
     "rejected": {"draft"},
+    "failed": {"draft", "needs_review", "approved"},
 }
 
 

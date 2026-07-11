@@ -107,3 +107,12 @@ make schedule-due-run     account_id=1 project_id=1 platform=telegram date=today
 - workflow одобрения (approval) → перевод draft в approved;
 - живая публикация после одобрения (per-platform live QA);
 - реальные метрики платформенных API.
+
+## Развитие: режимы автоматизации и обучение (v0.4.0)
+
+Движок расширен режимами `semi_auto`/`full_auto`: `_process_entry` теперь оценивает контент
+(`content_scoring_service`), пишет `quality_score`/`safety_score`/`learning_profile_version` в
+`ScheduleRun` и, для `full_auto` с `auto_publish_enabled`, пытается опубликовать под safety
+gates (иначе `auto_publish_blocked_reason`). Живая публикация возможна только при всех гейтах;
+в тестах — через `FakePublishingClient`. Workflow одобрения и очередь ревью реализованы в
+[37_Botfleet_Review_Learning_Automation.md](37_Botfleet_Review_Learning_Automation.md).

@@ -16,12 +16,25 @@ def test_allowed_statuses() -> None:
     assert set(statuses) == {
         "draft",
         "needs_review",
+        "changes_requested",
         "approved",
         "scheduled",
         "published",
         "rejected",
         "needs_media",
+        "failed",
     }
+
+
+def test_review_workflow_transitions() -> None:
+    # v0.4.0: полуавтомат — запрос доработки и возврат в очередь ревью.
+    assert can_transition("needs_review", "changes_requested") is True
+    assert can_transition("changes_requested", "needs_review") is True
+    assert can_transition("changes_requested", "approved") is True
+    # v0.4.0: full-auto — прямая публикация одобренного и фиксация ошибки.
+    assert can_transition("approved", "published") is True
+    assert can_transition("approved", "failed") is True
+    assert can_transition("failed", "needs_review") is True
 
 
 def test_valid_transitions() -> None:

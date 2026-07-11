@@ -6,8 +6,12 @@ from typing import TYPE_CHECKING, Annotated
 if TYPE_CHECKING:
     from app.services.auth_session_service import AuthSessionService
     from app.services.auth_token_service import AuthTokenService
+    from app.services.automation_settings_service import AutomationSettingsService
+    from app.services.client_learning_service import ClientLearningService
+    from app.services.content_scoring_service import ContentScoringService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
+    from app.services.review_workflow_service import ReviewWorkflowService
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -176,6 +180,39 @@ def get_post_generation_service() -> PostGenerationService:
 def get_post_review_service() -> PostReviewService:
     """Построить сервис согласования постов."""
     return PostReviewService()
+
+
+def get_content_scoring_service() -> "ContentScoringService":
+    """Построить сервис эвристической оценки контента (без БД/сети)."""
+    from app.services.content_scoring_service import ContentScoringService
+
+    return ContentScoringService()
+
+
+def get_client_learning_service() -> "ClientLearningService":
+    """Построить движок обучения бота на клиенте (per-project профиль)."""
+    from app.services.client_learning_service import ClientLearningService
+
+    return ClientLearningService(scoring_service=get_content_scoring_service())
+
+
+def get_automation_settings_service() -> "AutomationSettingsService":
+    """Построить сервис настроек режима автоматизации (semi_auto|full_auto)."""
+    from app.services.automation_settings_service import AutomationSettingsService
+
+    return AutomationSettingsService()
+
+
+def get_review_workflow_service() -> "ReviewWorkflowService":
+    """Построить оркестратор review/approval workflow (очередь, решения, publish-now)."""
+    from app.services.review_workflow_service import ReviewWorkflowService
+
+    return ReviewWorkflowService(
+        review_service=get_post_review_service(),
+        learning_service=get_client_learning_service(),
+        publication_service=get_post_publication_service(get_publication_platform_registry()),
+        billing_service=get_billing_service(),
+    )
 
 
 def get_publication_platform_registry() -> PublicationPlatformRegistry:

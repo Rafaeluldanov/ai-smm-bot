@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from app.api.analytics import router as analytics_router
 from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
+from app.api.automation import router as automation_router
 from app.api.autonomous_runs import router as autonomous_runs_router
 from app.api.billing import router as billing_router
 from app.api.crm_bot_smm import router as crm_bot_smm_router
@@ -22,6 +23,7 @@ from app.api.post_publications import router as post_publications_router
 from app.api.post_reviews import router as post_reviews_router
 from app.api.posts import router as posts_router
 from app.api.projects import router as projects_router
+from app.api.review_workflow import router as review_workflow_router
 from app.api.saas_onboarding import router as saas_router
 from app.api.schedule_automation import router as schedule_automation_router
 from app.api.scheduler_worker import router as scheduler_worker_router
@@ -70,6 +72,8 @@ def create_app() -> FastAPI:
     app.include_router(topics_router)
     app.include_router(posts_router)
     app.include_router(post_reviews_router)
+    app.include_router(review_workflow_router)
+    app.include_router(automation_router)
     app.include_router(post_publications_router)
     app.include_router(analytics_router)
     app.include_router(platform_connections_router)

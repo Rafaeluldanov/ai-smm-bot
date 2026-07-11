@@ -1724,3 +1724,12 @@ make vk-browser-publish-live    post_id=44               # публикует Т
 Докс/17_MVP_запуск.md
 ```
 <!-- MVP_RELEASE_END -->
+
+## Ревью, обучение и автоматизация (v0.4.0)
+
+Полу-/полностью автоматический режим и персональное обучение бота на клиенте:
+очередь ревью с кнопкой «Опубликовать» (`/ui/review`), безопасный `full_auto` по
+календарю (публикует live только при всех safety gates — по умолчанию **выключено**),
+профиль обучения «Чему бот научился» (`/ui/projects/{id}/learning`) и настройки режима
+(`/ui/projects/{id}/automation`). Подробно —
+[Докс/37_Botfleet_Review_Learning_Automation.md](./Докс/37_Botfleet_Review_Learning_Automation.md).
