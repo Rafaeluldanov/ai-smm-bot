@@ -23,6 +23,7 @@ from app.api.post_reviews import router as post_reviews_router
 from app.api.posts import router as posts_router
 from app.api.projects import router as projects_router
 from app.api.saas_onboarding import router as saas_router
+from app.api.schedule_automation import router as schedule_automation_router
 from app.api.security_middleware import (
     CSRFMiddleware,
     RateLimitMiddleware,
@@ -73,6 +74,7 @@ def create_app() -> FastAPI:
     app.include_router(platform_connections_router)
     app.include_router(media_proxy_router)
     app.include_router(media_public_router)
+    app.include_router(schedule_automation_router)
     app.include_router(external_images_router)
     app.include_router(autonomous_runs_router)
     app.include_router(seo_router)

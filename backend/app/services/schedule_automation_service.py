@@ -1,0 +1,586 @@
+"""Движок автоматизации расписаний Botfleet (безопасный, без live-публикации).
+
+Клиент создал расписание (``CrmPublishingPlan``) → Botfleet находит due-слоты и для
+каждого создаёт **draft/needs_review** пост + ``PostPublication`` (pending/scheduled),
+списывает units и пишет лог (``ScheduleRun`` + audit). **Живой публикации НЕТ**, внешние
+API не вызываются.
+
+Правила:
+- креды берутся из подключения проекта (:mod:`platform_connection_service`); токен наружу
+  не выходит; missing → ``missing_credentials`` (пост не создаётся);
+- недостаток баланса → ``insufficient_balance`` (пост не создаётся, списания нет);
+- успех создаёт draft и списывает units один раз (идемпотентно);
+- повтор того же due-слота (``idempotency_key``) не создаёт дубль и не списывает дважды;
+- секретов нет ни в ``run_metadata``, ни в аудите.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, date, datetime
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from app.models.crm_bot_smm import CrmPublishingPlan
+from app.models.post import Post
+from app.repositories import crm_bot_smm_repository as crm_repo
+from app.repositories import (
+    media_asset_repository,
+    post_publication_repository,
+    post_repository,
+    project_repository,
+    schedule_run_repository,
+)
+from app.schemas.post import PostCreate
+from app.schemas.post_publication import PostPublicationCreate
+from app.services.audit_log_service import (
+    ACTION_SCHEDULE_RUN_DRAFT_CREATED,
+    ACTION_SCHEDULE_RUN_FAILED,
+    ACTION_SCHEDULE_RUN_INSUFFICIENT_BALANCE,
+    ACTION_SCHEDULE_RUN_MISSING_CREDENTIALS,
+    ACTION_SCHEDULE_RUN_PREVIEW,
+    ACTION_SCHEDULE_RUN_STARTED,
+    AuditLogService,
+)
+from app.services.billing_service import BillingService, InsufficientBalanceError
+from app.services.platform_connection_service import PlatformConnectionService
+from app.services.unit_economics_service import (
+    DEFAULT_POST_INPUT_TOKENS,
+    DEFAULT_POST_OUTPUT_TOKENS,
+    USAGE_SCHEDULE_GENERATION,
+    UnitEconomicsService,
+)
+
+# Платное действие: генерация draft по due-слоту расписания.
+USAGE_SCHEDULE_DRAFT = "schedule_due_draft_generation"
+# Режим, при котором авто-публикация запрещена (создаём только draft).
+_AUTO_PUBLISH_MODE = "auto_publish"
+
+
+class ScheduleAutomationError(Exception):
+    """Ошибка автоматизации расписаний (проект не найден / чужой аккаунт) — API → 400."""
+
+
+@dataclass(frozen=True)
+class _DueEntry:
+    """Один due-слот расписания (план × платформа × дата × время)."""
+
+    plan: CrmPublishingPlan
+    platform: str
+    run_date: str
+    planned_time: str
+    idempotency_key: str
+
+
+class ScheduleAutomationService:
+    """Обработка due-задач расписаний: preview / dry-run / реальное создание draft."""
+
+    def __init__(
+        self,
+        billing_service: BillingService | None = None,
+        economics: UnitEconomicsService | None = None,
+        audit_service: AuditLogService | None = None,
+        connection_service: PlatformConnectionService | None = None,
+    ) -> None:
+        self._billing = billing_service or BillingService()
+        self._economics = economics or UnitEconomicsService()
+        self._audit = audit_service or AuditLogService()
+        self._connections = connection_service or PlatformConnectionService()
+
+    # ------------------------------------------------------------------ #
+    # Планы / due-логика                                                 #
+    # ------------------------------------------------------------------ #
+
+    def _plans(
+        self, db: Session, project_id: int, platform_key: str | None
+    ) -> list[CrmPublishingPlan]:
+        config = crm_repo.get_config_by_project_id(db, project_id)
+        if config is None:
+            return []
+        out: list[CrmPublishingPlan] = []
+        for plan in crm_repo.list_plans_by_config(db, config.id):
+            if not plan.is_active:
+                continue
+            platforms = plan.platforms or []
+            if platform_key and platform_key not in platforms:
+                continue
+            out.append(plan)
+        return out
+
+    @staticmethod
+    def _within_range(plan: CrmPublishingPlan, run_date: str) -> bool:
+        if plan.start_date and run_date < plan.start_date:
+            return False
+        return not (plan.end_date and run_date > plan.end_date)
+
+    @staticmethod
+    def _resolve_run_date(date_arg: str | None, now: datetime | None) -> str:
+        if date_arg and date_arg not in ("today", "now"):
+            return date_arg
+        base = now or datetime.now(UTC)
+        return base.date().isoformat()
+
+    @staticmethod
+    def _time_is_due(planned_time: str, now: datetime | None) -> bool:
+        if now is None:
+            return True
+        return planned_time <= now.strftime("%H:%M")
+
+    def _find_due(
+        self,
+        db: Session,
+        project_id: int,
+        run_date: str,
+        now: datetime | None,
+        platform_key: str | None,
+    ) -> list[_DueEntry]:
+        weekday = date.fromisoformat(run_date).weekday()  # Пн=0
+        due: list[_DueEntry] = []
+        for plan in self._plans(db, project_id, platform_key):
+            if weekday not in (plan.weekdays or []):
+                continue
+            if not self._within_range(plan, run_date):
+                continue
+            times = plan.publish_times or ["12:00"]
+            for platform in plan.platforms or []:
+                if platform_key and platform != platform_key:
+                    continue
+                for planned_time in times:
+                    if not self._time_is_due(planned_time, now):
+                        continue
+                    key = f"sched-{project_id}-{plan.id}-{platform}-{run_date}-{planned_time}"
+                    due.append(_DueEntry(plan, platform, run_date, planned_time, key))
+        return due
+
+    def _next_run_at(self, plan: CrmPublishingPlan, now: datetime | None) -> str | None:
+        """Ближайший запуск (best-effort) из weekdays/publish_times."""
+        weekdays = sorted(plan.weekdays or [])
+        times = sorted(plan.publish_times or [])
+        if not weekdays or not times:
+            return None
+        base = now or datetime.now(UTC)
+        for add in range(0, 8):
+            day = base.date().fromordinal(base.date().toordinal() + add)
+            if day.weekday() not in weekdays:
+                continue
+            for t in times:
+                cand = datetime.fromisoformat(f"{day.isoformat()}T{t}").replace(tzinfo=UTC)
+                if cand > base:
+                    return cand.isoformat()
+        return None
+
+    # ------------------------------------------------------------------ #
+    # Оценка стоимости                                                   #
+    # ------------------------------------------------------------------ #
+
+    def estimate_schedule_run_units(self, platform: str, media_count: int = 0) -> int:
+        """units за создание одного draft по расписанию (генерация текста)."""
+        return self._economics.estimate_generation_units(
+            DEFAULT_POST_INPUT_TOKENS, DEFAULT_POST_OUTPUT_TOKENS, USAGE_SCHEDULE_GENERATION
+        )
+
+    # ------------------------------------------------------------------ #
+    # 1. Карточки задач расписания                                       #
+    # ------------------------------------------------------------------ #
+
+    def list_schedule_tasks(
+        self, db: Session, project_id: int, platform_key: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Карточки задач расписания (планы × платформы) с готовностью к запуску."""
+        now = datetime.now(UTC)
+        cards: list[dict[str, Any]] = []
+        for plan in self._plans(db, project_id, platform_key):
+            category = crm_repo.get_category_by_id(db, plan.category_id)
+            for platform in plan.platforms or []:
+                if platform_key and platform != platform_key:
+                    continue
+                creds = self._connections.resolve_publish_credentials(db, project_id, platform)
+                warnings: list[str] = []
+                if creds.source == "missing":
+                    warnings.append("Подключите платформу — заполните API/ID в разделе платформы.")
+                if plan.mode == _AUTO_PUBLISH_MODE:
+                    warnings.append(
+                        "Режим auto_publish: live выключен — будет создан только draft."
+                    )
+                cards.append(
+                    {
+                        "plan_id": plan.id,
+                        "platform_key": platform,
+                        "title": (category.title if category is not None else None)
+                        or "План публикаций",
+                        "category_title": category.title if category is not None else None,
+                        "weekdays": plan.weekdays or [],
+                        "publish_times": plan.publish_times or [],
+                        "posts_per_day": plan.posts_per_day,
+                        "mode": plan.mode,
+                        "timezone": plan.timezone,
+                        "start_date": plan.start_date,
+                        "end_date": plan.end_date,
+                        "status": "active" if plan.is_active else "paused",
+                        "next_run_at": self._next_run_at(plan, now),
+                        "estimated_units_per_post": self.estimate_schedule_run_units(platform),
+                        "connection_status": creds.source,
+                        "can_run": creds.source != "missing",
+                        "warnings": warnings,
+                    }
+                )
+        return cards
+
+    # ------------------------------------------------------------------ #
+    # 2. Preview / dry-run (без записи)                                   #
+    # ------------------------------------------------------------------ #
+
+    def preview_due_runs(
+        self,
+        db: Session,
+        account_id: int,
+        project_id: int,
+        date_arg: str | None = None,
+        now: datetime | None = None,
+        platform_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Что было бы сделано по due-задачам (БЕЗ записи в БД)."""
+        self._verify_ownership(db, account_id, project_id)
+        run_date = self._resolve_run_date(date_arg, now)
+        due = self._find_due(db, project_id, run_date, now, platform_key)
+        balance = self._billing.get_balance(db, account_id).balance_units
+        entries: list[dict[str, Any]] = []
+        total_units = 0
+        remaining = balance
+        for entry in due:
+            creds = self._connections.resolve_publish_credentials(db, project_id, entry.platform)
+            media_ids = self._select_media(db, project_id, entry.plan)
+            units = self.estimate_schedule_run_units(entry.platform, len(media_ids))
+            existing = schedule_run_repository.get_by_idempotency_key(db, entry.idempotency_key)
+            if existing is not None and existing.status == "draft_created":
+                outcome = "already_done"
+            elif creds.source == "missing":
+                outcome = "missing_credentials"
+            elif remaining < units:
+                outcome = "insufficient_balance"
+            else:
+                outcome = "would_create_draft"
+                total_units += units
+                remaining -= units
+            entries.append(
+                {
+                    "plan_id": entry.plan.id,
+                    "platform_key": entry.platform,
+                    "run_date": entry.run_date,
+                    "planned_time": entry.planned_time,
+                    "estimated_units": units,
+                    "media_count": len(media_ids),
+                    "credentials_source": creds.source,
+                    "outcome": outcome,
+                    "would_create_draft": outcome == "would_create_draft",
+                    "live_publish": False,
+                }
+            )
+        self._audit.record(
+            db,
+            ACTION_SCHEDULE_RUN_PREVIEW,
+            account_id=account_id,
+            project_id=project_id,
+            entity_type="schedule_preview",
+            metadata={"run_date": run_date, "due_count": len(due), "platform": platform_key},
+        )
+        return {
+            "dry_run": True,
+            "run_date": run_date,
+            "due_count": len(due),
+            "total_units": total_units,
+            "balance_units": balance,
+            "affordable": balance >= total_units,
+            "entries": entries,
+            "live_calls": False,
+        }
+
+    def run_due_dry(
+        self,
+        db: Session,
+        account_id: int,
+        project_id: int,
+        date_arg: str | None = None,
+        now: datetime | None = None,
+        platform_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Dry-run: то же, что preview_due_runs (без записи, для кнопки «Preview due»)."""
+        return self.preview_due_runs(db, account_id, project_id, date_arg, now, platform_key)
+
+    # ------------------------------------------------------------------ #
+    # 3. Реальное создание draft (без live-публикации)                   #
+    # ------------------------------------------------------------------ #
+
+    def run_due(
+        self,
+        db: Session,
+        account_id: int,
+        project_id: int,
+        date_arg: str | None = None,
+        now: datetime | None = None,
+        platform_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Создать draft/needs_review по каждому due-слоту (идемпотентно). Live НЕТ."""
+        self._verify_ownership(db, account_id, project_id)
+        run_date = self._resolve_run_date(date_arg, now)
+        due = self._find_due(db, project_id, run_date, now, platform_key)
+        results: list[dict[str, Any]] = []
+        created = skipped = 0
+        for entry in due:
+            existing = schedule_run_repository.get_by_idempotency_key(db, entry.idempotency_key)
+            if existing is not None and existing.status == "draft_created":
+                skipped += 1
+                results.append({**self.mask_run(existing), "outcome": "skipped_duplicate"})
+                continue
+            run = existing or schedule_run_repository.create_run(
+                db,
+                account_id=account_id,
+                project_id=project_id,
+                platform_key=entry.platform,
+                publishing_plan_id=entry.plan.id,
+                schedule_key=entry.idempotency_key,
+                run_date=entry.run_date,
+                planned_time=entry.planned_time,
+                status="planned",
+                idempotency_key=entry.idempotency_key,
+                run_metadata={"category_id": entry.plan.category_id, "mode": entry.plan.mode},
+            )
+            self._audit_run(db, ACTION_SCHEDULE_RUN_STARTED, run)
+            results.append(self._process_entry(db, account_id, project_id, entry, run))
+            if run.status == "draft_created":
+                created += 1
+        return {
+            "dry_run": False,
+            "run_date": run_date,
+            "due_count": len(due),
+            "created": created,
+            "skipped": skipped,
+            "entries": results,
+            "live_calls": False,
+        }
+
+    def _process_entry(
+        self, db: Session, account_id: int, project_id: int, entry: _DueEntry, run: Any
+    ) -> dict[str, Any]:
+        # 1) Креды подключения (токен наружу не выходит).
+        creds = self._connections.resolve_publish_credentials(db, project_id, entry.platform)
+        if creds.source == "missing":
+            schedule_run_repository.update_run(
+                db,
+                run,
+                status="missing_credentials",
+                error_message="Платформа не подключена в проекте. Заполните API/ID.",
+            )
+            self._audit_run(db, ACTION_SCHEDULE_RUN_MISSING_CREDENTIALS, run)
+            return {**self.mask_run(run), "outcome": "missing_credentials"}
+
+        # 2) Баланс.
+        media_ids = self._select_media(db, project_id, entry.plan)
+        units = self.estimate_schedule_run_units(entry.platform, len(media_ids))
+        try:
+            self._billing.ensure_balance(db, account_id, units)
+        except InsufficientBalanceError:
+            schedule_run_repository.update_run(
+                db,
+                run,
+                status="insufficient_balance",
+                units_estimated=units,
+                error_message="Недостаточно units — пополните баланс.",
+            )
+            self._audit_run(db, ACTION_SCHEDULE_RUN_INSUFFICIENT_BALANCE, run, units=units)
+            return {**self.mask_run(run), "outcome": "insufficient_balance"}
+
+        # 3) Создание draft + publication (без live-публикации).
+        try:
+            post = self.build_post_for_schedule(db, entry, media_ids)
+            pub = post_publication_repository.create_publication(
+                db,
+                PostPublicationCreate(
+                    post_id=post.id,
+                    project_id=project_id,
+                    platform=entry.platform,
+                    target_id=creds.external_id,
+                    status="scheduled",
+                    scheduled_at=self._due_datetime(entry.run_date, entry.planned_time),
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 — ошибка создания не должна ронять весь run
+            schedule_run_repository.mark_failed(
+                db, run, f"draft build failed: {type(exc).__name__}"
+            )
+            self._audit_run(db, ACTION_SCHEDULE_RUN_FAILED, run)
+            return {**self.mask_run(run), "outcome": "failed"}
+
+        # 4) Списание units (идемпотентно, ровно один раз).
+        entry_ledger = self._billing.debit_for_action(
+            db,
+            account_id,
+            units=units,
+            usage_type=USAGE_SCHEDULE_DRAFT,
+            idempotency_key=f"{entry.idempotency_key}-debit",
+            project_id=project_id,
+            post_id=post.id,
+            metadata={"plan_id": entry.plan.id, "platform": entry.platform},
+        )
+        charged = units if entry_ledger is not None else 0
+        schedule_run_repository.update_run(db, run, units_estimated=units)
+        schedule_run_repository.mark_draft_created(db, run, post.id, pub.id, charged)
+        self._audit_run(db, ACTION_SCHEDULE_RUN_DRAFT_CREATED, run, units=charged)
+        return {**self.mask_run(run), "outcome": "draft_created", "post_id": post.id}
+
+    # ------------------------------------------------------------------ #
+    # Построение поста и медиа                                            #
+    # ------------------------------------------------------------------ #
+
+    def build_post_for_schedule(self, db: Session, entry: _DueEntry, media_ids: list[int]) -> Post:
+        """Создать draft/needs_review пост по due-слоту (без AI/сети, без live)."""
+        category = crm_repo.get_category_by_id(db, entry.plan.category_id)
+        title = (category.title if category is not None else None) or "Публикация по расписанию"
+        cta = (category.cta if category is not None else "") or ""
+        tag = ""
+        if category is not None and category.media_tags:
+            tag = str(category.media_tags[0])
+        text = f"[Черновик расписания] {title}. {cta}".strip()
+        notes: dict[str, Any] = {
+            "source": "schedule_automation",
+            "plan_id": entry.plan.id,
+            "category_id": entry.plan.category_id,
+            "media_asset_ids": media_ids,
+            "primary_tag": tag,
+            "live": False,
+        }
+        if not media_ids:
+            notes["warning"] = "no_media_text_only"
+        if entry.platform == "instagram" and media_ids:
+            notes["needs_public_image_url"] = True
+        # Текст пишем в поле платформы (по умолчанию — vk_text).
+        return post_repository.create_post(
+            db,
+            PostCreate(
+                project_id=entry.plan.project_id,
+                title=title,
+                status="needs_review",
+                hashtags=[tag] if tag else [],
+                media_asset_id=media_ids[0] if media_ids else None,
+                scheduled_at=self._due_datetime(entry.run_date, entry.planned_time),
+                generation_notes=notes,
+                telegram_text=text if entry.platform == "telegram" else None,
+                instagram_text=text if entry.platform == "instagram" else None,
+                vk_text=text if entry.platform not in ("telegram", "instagram") else None,
+            ),
+        )
+
+    @staticmethod
+    def _select_media(db: Session, project_id: int, plan: CrmPublishingPlan) -> list[int]:
+        """Подобрать одобренное медиа проекта (по тегам категории, best-effort)."""
+        assets = [
+            a
+            for a in media_asset_repository.list_media_assets_by_project(db, project_id)
+            if a.status == "approved"
+        ]
+        if not assets:
+            return []
+        category = crm_repo.get_category_by_id(db, plan.category_id)
+        tags = set(category.media_tags or []) if category is not None else set()
+        if tags:
+            for asset in assets:
+                values: set[str] = set()
+                for value in (asset.tags or {}).values():
+                    if isinstance(value, list):
+                        values.update(str(v) for v in value)
+                if tags & values:
+                    return [asset.id]
+        return [assets[0].id]
+
+    @staticmethod
+    def _due_datetime(run_date: str, planned_time: str) -> datetime:
+        try:
+            return datetime.fromisoformat(f"{run_date}T{planned_time}").replace(tzinfo=UTC)
+        except ValueError:
+            return datetime.fromisoformat(f"{run_date}T00:00").replace(tzinfo=UTC)
+
+    # ------------------------------------------------------------------ #
+    # История прогонов                                                   #
+    # ------------------------------------------------------------------ #
+
+    def list_runs(
+        self,
+        db: Session,
+        project_id: int,
+        platform_key: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """История прогонов проекта (с фильтром платформы/статуса)."""
+        if platform_key:
+            runs = schedule_run_repository.list_for_platform(db, project_id, platform_key, limit)
+        else:
+            runs = schedule_run_repository.list_for_project(db, project_id, limit)
+        rows = [self.mask_run(r) for r in runs]
+        if status:
+            rows = [r for r in rows if r["status"] == status]
+        return rows
+
+    def get_run(self, db: Session, project_id: int, run_id: int) -> dict[str, Any] | None:
+        """Один прогон проекта (или None). Чужой проект — None."""
+        run = schedule_run_repository.get_by_id(db, run_id)
+        if run is None or run.project_id != project_id:
+            return None
+        return self.mask_run(run)
+
+    @staticmethod
+    def mask_run(run: Any) -> dict[str, Any]:
+        """Безопасное представление прогона (без секретов)."""
+        return {
+            "id": run.id,
+            "project_id": run.project_id,
+            "platform_key": run.platform_key,
+            "plan_id": run.publishing_plan_id,
+            "run_date": run.run_date,
+            "planned_time": run.planned_time,
+            "status": run.status,
+            "post_id": run.post_id,
+            "publication_id": run.publication_id,
+            "units_estimated": run.units_estimated,
+            "units_charged": run.units_charged,
+            "error_message": run.error_message,
+            "created_at": run.created_at.isoformat() if run.created_at else None,
+        }
+
+    # ------------------------------------------------------------------ #
+    # Внутреннее                                                         #
+    # ------------------------------------------------------------------ #
+
+    def _verify_ownership(self, db: Session, account_id: int, project_id: int) -> None:
+        project = project_repository.get_project_by_id(db, project_id)
+        if project is None:
+            raise ScheduleAutomationError(f"Проект id={project_id} не найден")
+        if project.account_id is not None and project.account_id != account_id:
+            raise ScheduleAutomationError(
+                f"Проект id={project_id} не принадлежит аккаунту id={account_id}"
+            )
+
+    def _audit_run(self, db: Session, action: str, run: Any, units: int = 0) -> None:
+        self._audit.record(
+            db,
+            action,
+            account_id=run.account_id,
+            project_id=run.project_id,
+            entity_type="schedule_run",
+            entity_id=run.id,
+            metadata={
+                "platform_key": run.platform_key,
+                "plan_id": run.publishing_plan_id,
+                "run_id": run.id,
+                "post_id": run.post_id,
+                "publication_id": run.publication_id,
+                "status": run.status,
+                "units": units,
+            },
+        )
+
+
+def get_schedule_automation_service() -> ScheduleAutomationService:
+    """DI-фабрика движка автоматизации расписаний."""
+    return ScheduleAutomationService()

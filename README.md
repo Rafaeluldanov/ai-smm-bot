@@ -1434,6 +1434,31 @@ Foundation публичных HTTPS-ссылок на медиа — нужен 
 
 Миграция **0019** (public media links). Live/payments off; raw-токен не хранится/не печатается.
 
+### Движок автоматизации расписаний (v0.3.8)
+
+Расписания становятся реальными задачами: Botfleet находит due-слоты и создаёт
+**draft/needs_review** посты + публикации (pending/scheduled), списывает units и пишет логи
+(подробно — [Докс/35](Докс/35_Botfleet_Schedule_Automation_Engine.md)). **Живой публикации
+нет**, внешние API не вызываются.
+
+- **Модель** `ScheduleRun` (миграция **0020**): факт обработки due-слота
+  (`plan×platform×date×time`), статусы `planned/draft_created/skipped/failed/
+  insufficient_balance/missing_credentials`; `idempotency_key` unique (без дублей);
+  `run_metadata` без секретов.
+- **Сервис** (`schedule_automation_service.py`): `list_schedule_tasks`, `preview_due_runs`
+  / `run_due_dry` (без записи), `run_due` (создаёт draft, идемпотентно), `build_post_for_
+  schedule`. Креды — из подключения проекта (`resolve_publish_credentials`), токен наружу
+  не выходит; missing → `missing_credentials`; нехватка units → `insufficient_balance`.
+- **Billing**: платное действие `schedule_due_draft_generation` (units из юнит-экономики) —
+  dry-run 0, неуспех 0, успех списывает один раз, повтор не списывает дважды.
+- **API** `/schedule/projects/{id}/tasks|runs|preview-due|run-due-dry|run-due` +
+  `/schedule/runs/{id}` под `require_project_access`. **UI**: блок «Автоматизация
+  расписаний» в workspace (Preview due / Создать drafts сейчас / История запусков) +
+  страница `/ui/projects/{id}/schedule-runs`. **CLI**: `make schedule-due-preview`,
+  `make schedule-due-run`. Аудит `schedule.run.*` без секретов.
+
+Миграция **0020** (schedule runs). Live/payments off; секреты/токены не печатаются.
+
 ### Личный кабинет v0.2.3
 
 Кабинет переработан в нормальную раскладку **header + sidebar** на всех страницах

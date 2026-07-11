@@ -101,4 +101,7 @@ make media-proxy-cleanup dry_run=true
 - локальный HTTP URL не годится для Meta — нужен публичный HTTPS-домен и деплой;
 - публичный URL должен быть доступен из интернета (reverse-proxy/домен);
 - стратегия кэширования (`MEDIA_PROXY_CACHE_DIR`) — задел на будущее (CDN/кэш);
-- реальные метрики внешних API — отдельным этапом.
+- реальные метрики внешних API — отдельным этапом;
+- движок автоматизации расписаний (v0.3.8) для Instagram-черновиков отмечает
+  `needs_public_image_url` в generation_notes — см.
+  [35_Botfleet_Schedule_Automation_Engine.md](35_Botfleet_Schedule_Automation_Engine.md).

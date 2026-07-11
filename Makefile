@@ -8,6 +8,7 @@ BIN := $(VENV)/bin
         retag-media media-summary select-topics content-plan \
         enhance-media enhance-project-media media-enhancement-summary \
         media-proxy-link media-proxy-cleanup \
+        schedule-due-preview schedule-due-run \
         generate-post generate-weekly-posts \
         media-groups media-group-post publish-preview media-platform-preview \
         review-post approve-post reject-post \
@@ -87,6 +88,12 @@ media-proxy-link: ## Публичная media-ссылка: make media-proxy-lin
 
 media-proxy-cleanup: ## Пометить просроченные ссылки: make media-proxy-cleanup [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_proxy_cleanup --dry-run "$(or $(dry_run),true)"
+
+schedule-due-preview: ## Preview due-задач: make schedule-due-preview account_id=1 project_id=1 platform=telegram [date=today]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.schedule_due_preview --account-id "$(account_id)" --project-id "$(project_id)" --platform "$(platform)" --date "$(or $(date),today)"
+
+schedule-due-run: ## Обработать due-задачи: make schedule-due-run account_id=1 project_id=1 platform=telegram [date=today] [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.schedule_due_run --account-id "$(account_id)" --project-id "$(project_id)" --platform "$(platform)" --date "$(or $(date),today)" --dry-run "$(or $(dry_run),true)"
 
 select-topics: ## Выбрать темы проекта: make select-topics project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.select_topics --project-slug "$(project_slug)"

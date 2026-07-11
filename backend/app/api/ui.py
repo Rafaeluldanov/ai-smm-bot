@@ -1606,7 +1606,22 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         "<div class='tabpane' id='pane-schedule'>"
         "<div class='inline'><a id='sched-new-link' href='#'>"
         "<button class='mini'>Создать расписание</button></a></div>"
-        "<div id='sched-host' class='sched-list'><div class='muted'>Загрузка…</div></div></div>"
+        "<div id='sched-host' class='sched-list'><div class='muted'>Загрузка…</div></div>"
+        # Автоматизация расписаний (движок due-задач → draft, без live).
+        "<div class='card' id='sched-automation'><h3>Автоматизация расписаний</h3>"
+        "<div class='callout'><b>Как это работает</b>"
+        "<p>Botfleet находит due-задачи и создаёт <b>draft/needs_review</b> посты + "
+        "публикации (pending/scheduled), списывая units. <b>Живая публикация выключена</b> "
+        "— всё уходит на ревью. Повторный запуск не создаёт дубли (идемпотентность).</p>"
+        "<p class='muted'>Подключите платформу (вкладка «Настройки»), если она не "
+        "подключена. Если не хватает units — пополните баланс.</p></div>"
+        "<div id='sa-tasks' class='muted'>Загрузка задач…</div>"
+        "<div class='inline' style='margin-top:10px'>"
+        "<button class='mini sec' onclick='saPreviewDue()'>Preview due</button>"
+        "<button class='mini' onclick='saRunDue()'>Создать drafts сейчас</button>"
+        "<a id='sa-runs-link' href='#'><button class='mini ghost'>История запусков</button></a>"
+        "</div>"
+        "<div id='sa-result' class='muted' style='margin-top:8px'></div></div></div>"
         # Preview
         "<div class='tabpane' id='pane-preview'>"
         "<div class='card'><h3>Preview (dry-run)</h3>"
@@ -1731,8 +1746,41 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         "window.connSave=connSave;window.connCheck=connCheck;window.connDisconnect=connDisconnect;"
         "connLoad();connLogs();"
     )
+    # --- JS автоматизации расписаний (preview/run due, задачи) --- #
+    sa_js = (
+        "const SBASE='/schedule/projects/'+PID;"
+        "const saRunsLink=document.getElementById('sa-runs-link');"
+        "if(saRunsLink)saRunsLink.href='/ui/projects/'+PID+'/schedule-runs?platform='+encodeURIComponent(PLATFORM);"
+        "async function saLoadTasks(){const host=document.getElementById('sa-tasks');if(!host)return;"
+        "try{const rows=await api('GET',SBASE+'/tasks?platform_key='+encodeURIComponent(PLATFORM));host.classList.remove('muted');"
+        "host.innerHTML=rows.length?rows.map(t=>`<div class='sched-grid'>`"
+        "+`<div><span class='k'>План</span><span class='v'>#${t.plan_id} ${esc(t.title||'')}</span></div>`"
+        "+`<div><span class='k'>Время</span><span class='v'>${esc((t.publish_times||[]).join(', ')||'—')}</span></div>`"
+        "+`<div><span class='k'>Подключение</span><span class='v'><span class='pill ${t.connection_status==='missing'?'off':'ok'}'>${esc(t.connection_status)}</span></span></div>`"
+        "+`<div><span class='k'>units/пост</span><span class='v'>${t.estimated_units_per_post}</span></div>`"
+        "+`<div><span class='k'>Следующий</span><span class='v'>${esc((t.next_run_at||'—').replace('T',' ').slice(0,16))}</span></div>`"
+        "+`</div>`+((t.warnings||[]).length?`<div class='muted'>⚠️ ${esc(t.warnings.join('; '))}</div>`:'')).join('<hr>')"
+        ":\"<div class='muted'>Задач расписания нет. Создайте расписание выше.</div>\";}catch(e){}}"
+        "async function saPreviewDue(){const a=needAccount(eEl);if(!a)return;const R=document.getElementById('sa-result');R.textContent='Preview…';"
+        "try{const r=await api('POST',SBASE+'/preview-due',{account_id:a,platform_key:PLATFORM});"
+        "R.innerHTML=`<span class='pill ok'>preview</span> Due: <b>${r.due_count}</b> · units нужно: <b>${r.total_units}</b> · баланс ${r.balance_units} · `"
+        "+(r.affordable?'хватает':'<b>не хватает — пополните</b>')+`<div class='muted'>`+(r.entries||[]).map(e=>esc(e.platform_key+' '+e.planned_time+' → '+e.outcome)).join('<br>')+`</div>`;"
+        "}catch(x){err(eEl,x)}}"
+        "async function saRunDue(){const a=needAccount(eEl);if(!a)return;if(!confirm('Создать drafts по due-задачам? (live-публикации нет)'))return;"
+        "const R=document.getElementById('sa-result');R.textContent='Создание drafts…';"
+        "try{const r=await api('POST',SBASE+'/run-due',{account_id:a,platform_key:PLATFORM});"
+        "R.innerHTML=`<span class='pill ok'>готово</span> Создано drafts: <b>${r.created}</b> · пропущено: ${r.skipped}`"
+        "+`<div class='muted'>`+(r.entries||[]).map(e=>esc((e.platform_key||PLATFORM)+' → '+(e.outcome||e.status))).join('<br>')+`</div>`;"
+        "initShell();}catch(x){err(eEl,x)}}"
+        "window.saPreviewDue=saPreviewDue;window.saRunDue=saRunDue;"
+        "saLoadTasks();"
+    )
     return _page(
-        label, body, _SCHED_TASKS_JS + script + conn_js, active="projects", active_pid=project_id
+        label,
+        body,
+        _SCHED_TASKS_JS + script + conn_js + sa_js,
+        active="projects",
+        active_pid=project_id,
     )
 
 
@@ -1792,6 +1840,54 @@ def ui_media_proxy(project_id: int) -> HTMLResponse:
         "mpStatus();mpLinks();"
     )
     return _page("Media Proxy", body, script, active="projects", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/schedule-runs", response_class=HTMLResponse)
+def ui_schedule_runs(project_id: int) -> HTMLResponse:
+    """Страница истории прогонов расписания проекта (что бот сделал/пропустил)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a></div>"
+        "<h2>История запусков расписания</h2>"
+        "<p class='muted'>Что сделал движок автоматизации по due-задачам: создал draft, "
+        "пропустил (дубликат) или остановился на ошибке (нет подключения / не хватает "
+        "units). <b>Живой публикации нет</b> — всё уходит на ревью.</p>"
+        # Фильтры
+        "<div class='card'><div class='an-filters'>"
+        "<div><label>Платформа</label><select id='sr-platform'>"
+        "<option value=''>Все</option><option value='telegram'>Telegram</option>"
+        "<option value='vk'>VK</option><option value='instagram'>Instagram</option></select></div>"
+        "<div><label>Статус</label><select id='sr-status'>"
+        "<option value=''>Все</option><option value='draft_created'>draft_created</option>"
+        "<option value='skipped'>skipped</option><option value='failed'>failed</option>"
+        "<option value='insufficient_balance'>insufficient_balance</option>"
+        "<option value='missing_credentials'>missing_credentials</option></select></div>"
+        "</div></div>"
+        "<div id='sr-list' class='muted'>Загрузка…</div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "function stPill(s){const ok=s==='draft_created';const off=(s==='failed'||s==='missing_credentials'||s==='insufficient_balance');"
+        "return `<span class='pill ${ok?'ok':(off?'off':'')}'>${esc(s)}</span>`;}"
+        "async function loadRuns(){const host=document.getElementById('sr-list');"
+        "const p=gv('sr-platform');const st=gv('sr-status');"
+        "let url='/schedule/projects/'+PID+'/runs?';if(p)url+='platform_key='+encodeURIComponent(p)+'&';if(st)url+='run_status='+encodeURIComponent(st);"
+        "try{const rows=await api('GET',url);host.classList.remove('muted');"
+        "host.innerHTML=rows.length?`<table class='price-table'><thead><tr><th>ID</th><th>Дата</th><th>Платформа</th><th>План</th>"
+        "<th>Статус</th><th>Post</th><th>Pub</th><th>units</th><th>Ошибка</th></tr></thead><tbody>`"
+        "+rows.map(r=>`<tr><td>#${r.id}</td><td class='muted'>${esc((r.run_date||'')+' '+(r.planned_time||''))}</td>"
+        "<td>${esc(r.platform_key)}</td><td>${r.plan_id?('#'+r.plan_id):'—'}</td>"
+        "<td>${stPill(r.status)}</td><td>${r.post_id?('#'+r.post_id):'—'}</td>"
+        "<td>${r.publication_id?('#'+r.publication_id):'—'}</td><td>${r.units_charged}</td>"
+        "<td class='muted'>${esc(r.error_message||'')}</td></tr>`).join('')+`</tbody></table>`"
+        ":\"<div class='card muted'>Запусков ещё нет. Откройте платформу и нажмите «Создать drafts сейчас».</div>\";"
+        "}catch(x){err(eEl,x)}}"
+        "['sr-platform','sr-status'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener('change',loadRuns);});"
+        "const q=new URLSearchParams(location.search).get('platform');if(q){const s=document.getElementById('sr-platform');if(s)s.value=q;}"
+        "loadRuns();"
+    )
+    return _page("Запуски расписания", body, script, active="projects", active_pid=project_id)
 
 
 # --------------------------------------------------------------------------- #

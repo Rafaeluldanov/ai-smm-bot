@@ -218,3 +218,12 @@ preview показывает `needs_public_image_url`, готовность medi
 base URL не HTTPS. Ссылки `/media/public/{token}` временные, отзываемые, raw-токен не
 хранится. Живая публикация Instagram выключена. Подробно —
 [34_Botfleet_Media_Proxy_Public_Image_URL.md](34_Botfleet_Media_Proxy_Public_Image_URL.md).
+
+## Обновление v0.3.8: автоматизация расписаний
+
+Вкладка «Расписание» усилена блоком **«Автоматизация расписаний»**: карточки задач
+(next_run_at, units, connection status), кнопки **Preview due / Создать drafts сейчас /
+История запусков**, предупреждения о подключении/балансе, «Живая публикация выключена».
+Движок находит due-слоты и создаёт **draft/needs_review** (не live), списывает units,
+пишет `ScheduleRun`. Страница `/ui/projects/{id}/schedule-runs` — история прогонов.
+Подробно — [35_Botfleet_Schedule_Automation_Engine.md](35_Botfleet_Schedule_Automation_Engine.md).

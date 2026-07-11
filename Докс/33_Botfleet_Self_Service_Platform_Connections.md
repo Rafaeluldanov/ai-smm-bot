@@ -107,6 +107,8 @@ API логов: `GET /projects/{id}/platform-connections/{platform_key}/logs`.
 - OAuth-потоки per client (VK ID / Meta) вместо ручного ввода токена;
 - media-proxy для публичных `image_url` (Instagram/Pinterest/CMS) —
   реализован в [34_Botfleet_Media_Proxy_Public_Image_URL.md](34_Botfleet_Media_Proxy_Public_Image_URL.md);
+- движок автоматизации расписаний использует эти подключения (креды проекта) —
+  [35_Botfleet_Schedule_Automation_Engine.md](35_Botfleet_Schedule_Automation_Engine.md);
 - production secrets manager (KMS/Fernet) вместо dev-кодирования секретов;
 - реальные метрики платформенных API;
 - онлайн-проверки подключения за явным флагом в проде.

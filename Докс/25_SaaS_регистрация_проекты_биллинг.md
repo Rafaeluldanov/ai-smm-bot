@@ -559,3 +559,11 @@ refresh-cookie (HttpOnly). Добавлены `/auth/refresh` (ротация), 
 хранится, только sha256; срок/отзыв; HEIC→JPEG; content-type/размер ограничены). Живая
 публикация Instagram выключена. Подробно —
 [34_Botfleet_Media_Proxy_Public_Image_URL.md](34_Botfleet_Media_Proxy_Public_Image_URL.md).
+
+## Обновление v0.3.8: движок автоматизации расписаний
+
+Расписания стали реальными задачами: due-слоты → **draft/needs_review** посты + публикации
+(pending/scheduled), списание units, логи (`ScheduleRun`, миграция 0020), идемпотентность.
+Живой публикации нет; креды — из подключения проекта; нехватка units → `insufficient_
+balance`, нет подключения → `missing_credentials`. Подробно —
+[35_Botfleet_Schedule_Automation_Engine.md](35_Botfleet_Schedule_Automation_Engine.md).
