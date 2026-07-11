@@ -29,7 +29,7 @@ credentials.json
 *.log
 # Производные улучшенные копии медиа (MEDIA_ENHANCEMENT_STORAGE_DIR)
 backend/data/
-# Локальные dev-артефакты (отчёт мастера VK OAuth туннеля и т. п.)
+# Локальные dev-артефакты (VK OAuth туннель, кэш media-proxy MEDIA_PROXY_CACHE_DIR и т. п.)
 tmp/
 
 # Tooling caches

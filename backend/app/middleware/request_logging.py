@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -17,6 +18,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.logging import get_logger
 from app.core.redaction import redact_sensitive_text
+
+# Публичный media-токен в пути (/media/public/<token>) — маскируем в access-log.
+_MEDIA_TOKEN_RE = re.compile(r"/media/public/[^/?\s]+")
 
 logger = get_logger("botfleet.access")
 
@@ -55,6 +59,8 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         if request.url.query:
             raw_path = f"{raw_path}?{request.url.query}"
         safe_path = redact_sensitive_text(raw_path)
+        # Публичный media-токен (сегмент пути) не логируем целиком.
+        safe_path = _MEDIA_TOKEN_RE.sub("/media/public/***", safe_path)
         logger.info(
             "access method=%s path=%s status=%s duration_ms=%s request_id=%s",
             request.method,

@@ -272,6 +272,7 @@ class PostPublicationService:
     ) -> PostPublishPreview:
         """Dry-run preview: показать payload публикации по платформам БЕЗ отправки."""
         request = request or PostPublishRequest()
+        settings = get_settings()
         post = post_repository.get_post_by_id(db, post_id)
         if post is None:
             raise PostNotFoundError(post_id)
@@ -315,6 +316,11 @@ class PostPublicationService:
             upload_strategy: str | None = None
             would_prepare_media = False
             needs_public_image_url = False
+            # Media proxy (публичный image_url). В dry-run ссылки НЕ создаются.
+            would_prepare_public_image_url = False
+            public_media_base_url_ready = settings.media_proxy_https_ready
+            media_proxy_enabled = settings.media_proxy_enabled
+            public_media_warning: str | None = None
             # VK/Telegram — live-ready фото; сохраняем прежнее решение и точные тексты
             # предупреждений. Остальные платформы — решение из capability-слоя.
             if platform == "vk":
@@ -358,11 +364,21 @@ class PostPublicationService:
                 if media_kind in {"image", "image_group", "mixed"}:
                     would_prepare_media = True
                     needs_public_image_url = True
+                    # Botfleet Media Proxy готов выдать публичный image_url (в dry-run НЕ
+                    # создаём ссылку — только показываем готовность/предупреждения).
+                    would_prepare_public_image_url = media_proxy_enabled
                     item_warnings.append(
                         "Instagram API публикует не локальный файл, а публичный HTTPS "
-                        "image_url — нужен прямой публичный URL (для Яндекс Диска — "
-                        "публичная ссылка или будущий media-proxy Botfleet)."
+                        "image_url — Botfleet Media Proxy выдаёт временную ссылку "
+                        "/media/public/… (нужен публичный HTTPS-домен)."
                     )
+                    if not public_media_base_url_ready:
+                        public_media_warning = (
+                            "Публичный base URL не HTTPS/недоступен извне — Instagram "
+                            "(Meta) не сможет загрузить image_url. Нужен публичный "
+                            "HTTPS-домен (PUBLIC_APP_URL / MEDIA_PROXY_PUBLIC_BASE_URL)."
+                        )
+                        item_warnings.append(public_media_warning)
             else:
                 would_attach_media = route.would_attach_media if route is not None else False
                 if route is not None:
@@ -399,6 +415,10 @@ class PostPublicationService:
                     would_send=live_enabled and bool(target_id) and live_implemented,
                     credentials_source=str(payload.get("credentials_source", "missing")),
                     token_present=bool(payload.get("token_present", False)),
+                    would_prepare_public_image_url=would_prepare_public_image_url,
+                    media_proxy_enabled=media_proxy_enabled,
+                    public_media_base_url_ready=public_media_base_url_ready,
+                    public_media_warning=public_media_warning,
                 )
             )
         return PostPublishPreview(

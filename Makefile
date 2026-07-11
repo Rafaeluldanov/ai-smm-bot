@@ -7,6 +7,7 @@ BIN := $(VENV)/bin
         sync-public-media \
         retag-media media-summary select-topics content-plan \
         enhance-media enhance-project-media media-enhancement-summary \
+        media-proxy-link media-proxy-cleanup \
         generate-post generate-weekly-posts \
         media-groups media-group-post publish-preview media-platform-preview \
         review-post approve-post reject-post \
@@ -80,6 +81,12 @@ enhance-project-media: ## Улучшить медиа проекта: make enhan
 
 media-enhancement-summary: ## Сводка улучшений: make media-enhancement-summary project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_enhancement_summary --project-slug "$(project_slug)"
+
+media-proxy-link: ## Публичная media-ссылка: make media-proxy-link project_id=1 media_asset_id=1 [purpose=instagram]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.create_public_media_link --project-id "$(project_id)" --media-asset-id "$(media_asset_id)" --purpose "$(or $(purpose),instagram)"
+
+media-proxy-cleanup: ## Пометить просроченные ссылки: make media-proxy-cleanup [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_proxy_cleanup --dry-run "$(or $(dry_run),true)"
 
 select-topics: ## Выбрать темы проекта: make select-topics project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.select_topics --project-slug "$(project_slug)"

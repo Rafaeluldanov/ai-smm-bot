@@ -209,3 +209,12 @@ ER, CTR) и рекомендации (что улучшить, лучшее вр
 credentials проекта; preview показывает источник кредов (project_connection/env_fallback/
 missing). Подробно —
 [33_Botfleet_Self_Service_Platform_Connections.md](33_Botfleet_Self_Service_Platform_Connections.md).
+
+## Обновление v0.3.7: media proxy для Instagram
+
+В Instagram workspace добавлена секция **«Публичные ссылки на медиа»** и страница
+`/ui/projects/{id}/media-proxy` (статус base URL/HTTPS/TTL, список ссылок, отзыв). Instagram
+preview показывает `needs_public_image_url`, готовность media-proxy и предупреждение, если
+base URL не HTTPS. Ссылки `/media/public/{token}` временные, отзываемые, raw-токен не
+хранится. Живая публикация Instagram выключена. Подробно —
+[34_Botfleet_Media_Proxy_Public_Image_URL.md](34_Botfleet_Media_Proxy_Public_Image_URL.md).

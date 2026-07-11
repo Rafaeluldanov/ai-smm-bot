@@ -36,6 +36,7 @@ from app.models.post_analytics_snapshot import PostAnalyticsSnapshot
 from app.models.post_publication import PostPublication
 from app.models.post_review_action import PostReviewAction
 from app.models.project import Project
+from app.models.public_media_link import PublicMediaLink
 from app.models.topic import Topic
 from app.models.user import User
 
@@ -68,6 +69,7 @@ __all__ = [
     "PostPublication",
     "PostReviewAction",
     "Project",
+    "PublicMediaLink",
     "TariffPlan",
     "Topic",
     "UsageEvent",

@@ -160,6 +160,19 @@ make restore-db backup_path=backups/... confirm=RESTORE understand=true
 
 - [ ] заменить `crm_secret_service` на реальный KMS/Fernet (secrets manager);
 - [ ] OAuth-потоки per client (VK ID / Meta) вместо ручного ввода токена;
-- [ ] media-proxy для публичных `image_url`;
+- [ ] media-proxy для публичных `image_url` — реализован
+      ([34_Botfleet_Media_Proxy_Public_Image_URL.md](34_Botfleet_Media_Proxy_Public_Image_URL.md));
+      перед live нужен публичный HTTPS-домен (`MEDIA_PROXY_PUBLIC_BASE_URL`);
 - [ ] онлайн-проверки подключения включать за явным флагом;
 - [ ] проверить, что `live_enabled` включается только после платформенных тестов.
+
+## 19. Media proxy перед запуском (v0.3.7)
+
+Публичные ссылки на медиа (`/media/public/{token}`) готовы как foundation для Instagram.
+Перед боевым запуском:
+
+- [ ] публичный **HTTPS-домен** в `MEDIA_PROXY_PUBLIC_BASE_URL` (не localhost) —
+      `media_proxy_https_ready` должно быть true;
+- [ ] reverse-proxy/CDN, чтобы `/media/public/{token}` был доступен из интернета;
+- [ ] `make media-proxy-cleanup` по cron (помечать истёкшие ссылки);
+- [ ] реализовать live Instagram `media_publish` (сейчас выключено).

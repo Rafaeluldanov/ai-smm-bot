@@ -1104,7 +1104,10 @@ def _instagram_guide_html() -> str:
             "<p>Через <code>/{ig-user-id}/media</code> (создать контейнер с "
             "<b>публичным image_url</b>) → <code>/{ig-user-id}/media_publish</code>.</p>"
             "<p>Нужен <b>публичный image_url</b> (прямая HTTPS-ссылка). Локальный файл и "
-            "приватный Яндекс Диск не подходят — позже нужен <b>media-proxy Botfleet</b>.</p>"
+            "приватный Яндекс Диск не подходят — используется <b>Botfleet Media Proxy</b>: "
+            "временная ссылка <code>/media/public/{token}</code> (см. вкладку «Обзор» → "
+            "«Публичные ссылки на медиа» и страницу Media Proxy). В production нужен "
+            "публичный HTTPS-домен.</p>"
             "</div>",
         ]
     )
@@ -1468,6 +1471,50 @@ def _connection_form_html(platform: str, planned: bool) -> str:
     )
 
 
+def _media_proxy_section_html(project_id: int, settings: Settings) -> str:
+    """Секция «Публичные ссылки на медиа» (media-proxy) для платформ с image_url."""
+    base = html.escape(settings.media_proxy_public_base_url_effective or "—")
+    https_ready = settings.media_proxy_https_ready
+    enabled = settings.media_proxy_enabled
+    ttl_h = settings.media_proxy_default_ttl_seconds // 3600
+    max_mb = settings.media_proxy_max_bytes // (1024 * 1024)
+    ready_pill = (
+        "<span class='pill ok'>HTTPS готов</span>"
+        if https_ready
+        else "<span class='pill off'>HTTPS не готов</span>"
+    )
+    warn = (
+        ""
+        if https_ready
+        else (
+            "<div class='callout warn'><b>Нужен публичный HTTPS-домен</b>"
+            "<p>Локальный/не-HTTPS base URL недоступен внешним платформам (Instagram/Meta). "
+            "Задайте PUBLIC_APP_URL / MEDIA_PROXY_PUBLIC_BASE_URL с публичным HTTPS.</p></div>"
+        )
+    )
+    return (
+        "<div class='card' id='mediaproxy-card'><h3>Публичные ссылки на медиа</h3>"
+        "<p class='muted'>Instagram API требует публичный HTTPS <b>image_url</b>. Botfleet "
+        "Media Proxy создаёт временную ссылку вида "
+        "<code>https://app.example.ru/media/public/****</code> — она ограничена сроком "
+        "действия и её можно отозвать.</p>"
+        "<div class='kv'>"
+        f"<div><span class='k'>MEDIA_PROXY_ENABLED</span><span class='v'>{'true' if enabled else 'false'}</span></div>"
+        f"<div><span class='k'>Public base URL</span><span class='v'><code>{base}</code></span></div>"
+        f"<div><span class='k'>HTTPS ready</span><span class='v'>{ready_pill}</span></div>"
+        f"<div><span class='k'>Default TTL</span><span class='v'>{ttl_h} ч</span></div>"
+        f"<div><span class='k'>Max file size</span><span class='v'>{max_mb} MB</span></div>"
+        "</div>"
+        f"{warn}"
+        "<div class='inline' style='margin-top:10px'>"
+        f"<a href='/ui/projects/{project_id}/media-proxy'><button class='mini sec'>Открыть список ссылок</button></a>"
+        "<a href='/ui/guide/instagram'><button class='mini ghost'>Гайд по media proxy</button></a>"
+        "</div>"
+        "<p class='muted' style='margin-top:6px'>Живая публикация Instagram выключена — "
+        "это foundation для публичного image_url (dry-run ссылок не создаёт).</p></div>"
+    )
+
+
 @router.get("/projects/{project_id}/platforms/{platform}", response_class=HTMLResponse)
 def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
     """Рабочая область платформы: вкладки Обзор/Настройки/Гайд/Расписание/Preview/Аналитика."""
@@ -1526,6 +1573,12 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
     guide_html = _platform_guide_html(platform)
     conn_form = _connection_form_html(platform, planned)
     settings_pane = conn_form + _platform_settings_pane(platform, settings)
+    # Media proxy: для платформ, которым нужен публичный image_url (Instagram и др.).
+    media_proxy_section = (
+        _media_proxy_section_html(project_id, settings)
+        if item is not None and item.requires_public_media_url
+        else ""
+    )
     body = (
         f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
         "<button class='sec mini'>← К проекту</button></a></div>"
@@ -1539,6 +1592,7 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         "<div class='tabpane active' id='pane-overview'>"
         "<div class='card'><div id='pw-overview' class='muted'>Загрузка…</div></div>"
         f"{roadmap_extra}"
+        f"{media_proxy_section}"
         # Журнал действий (аудит проекта по платформе, без секретов).
         "<div class='card'><h3>Журнал действий</h3>"
         "<p class='muted'>Логи создаются автоматически: подключение, изменение токена, "
@@ -1680,6 +1734,64 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
     return _page(
         label, body, _SCHED_TASKS_JS + script + conn_js, active="projects", active_pid=project_id
     )
+
+
+@router.get("/projects/{project_id}/media-proxy", response_class=HTMLResponse)
+def ui_media_proxy(project_id: int) -> HTMLResponse:
+    """Страница media-proxy проекта: статус, список публичных ссылок, отзыв."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a></div>"
+        "<h2>Публичные ссылки на медиа (Media Proxy)</h2>"
+        "<p class='muted'>Instagram и другие платформы требуют публичный HTTPS "
+        "<b>image_url</b>. Botfleet выдаёт временную ссылку "
+        "<code>/media/public/{token}</code>: токен случайный, хранится только хеш, ссылка "
+        "ограничена по времени и отзывается. Живая публикация Instagram выключена.</p>"
+        # Статус
+        "<div class='card'><h3>Статус</h3><div id='mp-status' class='kv'>"
+        "<div class='muted'>Загрузка…</div></div></div>"
+        # Список ссылок
+        "<h2>Ссылки</h2>"
+        "<div id='mp-links' class='muted'>Загрузка…</div>"
+        "<div class='callout ok' style='margin-top:12px'><b>Безопасность</b><ul>"
+        "<li>Raw-токен не хранится в БД (только sha256-хеш) и не пишется в логи/аудит.</li>"
+        "<li>Ссылка ограничена по времени, отзывается, привязана к проекту/медиа.</li>"
+        "<li>Content-type ограничен allowlist, размер — лимитом; внутренние пути не "
+        "раскрываются.</li>"
+        "</ul></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "function fmtTtl(s){return Math.round((s||0)/3600)+' ч';}"
+        "async function mpStatus(){try{const s=await api('GET','/media-proxy/projects/'+PID+'/status');"
+        "const host=document.getElementById('mp-status');"
+        "const rd=s.https_ready?\"<span class='pill ok'>да</span>\":\"<span class='pill off'>нет</span>\";"
+        "host.innerHTML=`<div><span class='k'>MEDIA_PROXY_ENABLED</span><span class='v'>${s.enabled}</span></div>`"
+        "+`<div><span class='k'>Public base URL</span><span class='v'><code>${esc(s.base_url||'—')}</code></span></div>`"
+        "+`<div><span class='k'>HTTPS ready</span><span class='v'>${rd}</span></div>`"
+        "+`<div><span class='k'>Default TTL</span><span class='v'>${fmtTtl(s.default_ttl_seconds)}</span></div>`"
+        "+`<div><span class='k'>Max size</span><span class='v'>${Math.round((s.max_bytes||0)/1048576)} MB</span></div>`;"
+        "if((s.warnings||[]).length||(s.errors||[]).length){host.innerHTML+=`<div class='v muted'>`+[...(s.errors||[]),...(s.warnings||[])].map(esc).join('<br>')+`</div>`;}"
+        "}catch(x){err(eEl,x)}}"
+        "async function mpRevoke(id){if(!confirm('Отозвать ссылку?'))return;"
+        "try{await api('DELETE','/media-proxy/projects/'+PID+'/links/'+id);mpLinks();}catch(x){err(eEl,x)}}"
+        "window.mpRevoke=mpRevoke;"
+        "async function mpLinks(){const host=document.getElementById('mp-links');"
+        "try{const rows=await api('GET','/media-proxy/projects/'+PID+'/links');host.classList.remove('muted');"
+        "host.innerHTML=rows.length?`<table class='price-table'><thead><tr><th>ID</th><th>Purpose</th><th>Статус</th>"
+        "<th>Media</th><th>Истекает</th><th>Обращений</th><th></th></tr></thead><tbody>`"
+        "+rows.map(r=>`<tr><td>#${r.id}</td><td>${esc(r.purpose)}</td>"
+        "<td><span class='pill ${r.status==='active'?'ok':'off'}'>${esc(r.status)}</span></td>"
+        "<td>#${r.media_asset_id} ${esc(r.content_type||'')}</td>"
+        "<td class='muted'>${esc((r.expires_at||'').replace('T',' ').slice(0,16))}</td>"
+        "<td>${r.hit_count}</td>"
+        "<td>${r.status==='active'?`<button class='mini ghost' onclick='mpRevoke(${r.id})'>Отозвать</button>`:''}</td></tr>`).join('')"
+        "+`</tbody></table>`:\"<div class='card muted'>Ссылок пока нет. Создайте их на странице платформы или через API/CLI.</div>\";"
+        "}catch(x){err(eEl,x)}}"
+        "mpStatus();mpLinks();"
+    )
+    return _page("Media Proxy", body, script, active="projects", active_pid=project_id)
 
 
 # --------------------------------------------------------------------------- #

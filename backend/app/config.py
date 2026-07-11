@@ -83,6 +83,8 @@ class Settings(BaseSettings):
     rate_limit_auth_per_minute: int = 10
     rate_limit_api_per_minute: int = 120
     rate_limit_payment_per_minute: int = 30
+    # Публичный media-proxy GET (/media/public/{token}) — базовый IP-лимит.
+    rate_limit_media_per_minute: int = 240
 
     # --- Security headers ---
     security_headers_enabled: bool = True
@@ -251,6 +253,23 @@ class Settings(BaseSettings):
     media_enhancement_output_format: str = "jpg"
     media_enhancement_jpeg_quality: int = 92
 
+    # --- Media Proxy: временные публичные HTTPS-ссылки на медиа (для Instagram) ---
+    # Instagram Graph API публикует по публичному image_url, а не по локальному файлу.
+    # Botfleet отдаёт медиа по временной ссылке https://<base>/media/public/{token}:
+    # токен случайный/длинный, хранится только хеш, ссылка ограничена по времени и
+    # отзывается. Base URL берётся из MEDIA_PROXY_PUBLIC_BASE_URL или PUBLIC_APP_URL/
+    # APP_BASE_URL. В production обязателен HTTPS. Живая публикация Instagram выключена.
+    media_proxy_enabled: bool = True
+    media_proxy_public_base_url: str = ""
+    media_proxy_default_ttl_seconds: int = 86400
+    media_proxy_max_ttl_seconds: int = 604800
+    media_proxy_max_bytes: int = 15728640
+    media_proxy_allowed_content_types: str = "image/jpeg,image/png,image/webp"
+    media_proxy_require_https_in_production: bool = True
+    media_proxy_token_bytes: int = 32
+    media_proxy_cache_dir: str = "tmp/media_proxy_cache"
+    media_proxy_cache_enabled: bool = True
+
     # --- Производные свойства (готовность к боевому запуску) ---
 
     @property
@@ -262,6 +281,45 @@ class Settings(BaseSettings):
     def is_local(self) -> bool:
         """Локальное/тестовое окружение."""
         return self.app_env.strip().lower() in {"local", "dev", "development", "test"}
+
+    # --- Media Proxy: производные свойства ---
+
+    @property
+    def media_proxy_public_base_url_effective(self) -> str:
+        """Базовый URL для публичных медиа-ссылок (без завершающего слэша).
+
+        Приоритет: MEDIA_PROXY_PUBLIC_BASE_URL → PUBLIC_APP_URL → APP_BASE_URL.
+        """
+        for candidate in (
+            self.media_proxy_public_base_url,
+            self.public_app_url,
+            self.app_base_url,
+        ):
+            if candidate and candidate.strip():
+                return candidate.strip().rstrip("/")
+        return ""
+
+    @property
+    def media_proxy_https_ready(self) -> bool:
+        """Готов ли публичный base URL для внешних платформ (HTTPS и не localhost)."""
+        base = self.media_proxy_public_base_url_effective.lower()
+        if not base.startswith("https://"):
+            return False
+        return "127.0.0.1" not in base and "localhost" not in base
+
+    @property
+    def media_proxy_enabled_effective(self) -> bool:
+        """Включён ли media-proxy и задан ли базовый URL для ссылок."""
+        return self.media_proxy_enabled and bool(self.media_proxy_public_base_url_effective)
+
+    @property
+    def media_proxy_allowed_content_types_list(self) -> list[str]:
+        """Разрешённые content-type для публичных медиа-ссылок."""
+        return [
+            ct.strip().lower()
+            for ct in self.media_proxy_allowed_content_types.split(",")
+            if ct.strip()
+        ]
 
     # --- Auth / session: производные (effective) свойства ---
 

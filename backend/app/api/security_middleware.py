@@ -92,6 +92,8 @@ def _rate_bucket(path: str, settings: Settings) -> tuple[str, int] | None:
         return "auth", settings.rate_limit_auth_per_minute
     if path.startswith("/billing/"):
         return "payment", settings.rate_limit_payment_per_minute
+    if path.startswith("/media/public/"):
+        return "media", settings.rate_limit_media_per_minute
     if path.startswith(("/saas/", "/analytics/", "/integrations/", "/audit/")):
         return "api", settings.rate_limit_api_per_minute
     return None

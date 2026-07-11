@@ -551,3 +551,11 @@ refresh-cookie (HttpOnly). Добавлены `/auth/refresh` (ротация), 
 Бот использует credentials проекта, а не глобальные env. Есть безопасная проверка
 подключения и автоматический журнал действий. Подробно —
 [33_Botfleet_Self_Service_Platform_Connections.md](33_Botfleet_Self_Service_Platform_Connections.md).
+
+## Обновление v0.3.7: media proxy (публичные image_url)
+
+Для Instagram (и площадок, которым нужен публичный `image_url`) добавлен media-proxy:
+`PublicMediaLink` (миграция 0019) + временные ссылки `/media/public/{token}` (raw-токен не
+хранится, только sha256; срок/отзыв; HEIC→JPEG; content-type/размер ограничены). Живая
+публикация Instagram выключена. Подробно —
+[34_Botfleet_Media_Proxy_Public_Image_URL.md](34_Botfleet_Media_Proxy_Public_Image_URL.md).

@@ -156,6 +156,11 @@ class PublicationPreviewItem(BaseModel):
     # Токен НИКОГДА не раскрывается — только источник и факт наличия.
     credentials_source: str = "missing"
     token_present: bool = False
+    # Media proxy (публичный image_url для Instagram и др.). Ссылки в dry-run НЕ создаются.
+    would_prepare_public_image_url: bool = False
+    media_proxy_enabled: bool = False
+    public_media_base_url_ready: bool = False
+    public_media_warning: str | None = None
 
 
 class PostPublishPreview(BaseModel):
