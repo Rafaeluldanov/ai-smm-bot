@@ -156,3 +156,10 @@ make learning-rebuild project_id=1 dry_run=true
 
 Реальный VK stats API · реальная стратегия метрик Telegram · Instagram insights ·
 A/B-тестирование · цикл оптимизации тем (multi-armed bandit).
+
+
+## Продолжение: A/B и оптимизация тем (v0.4.2)
+
+Метрики вариантов подхватываются A/B-слоем: при выборе winner они обновляют профиль
+обучения, а рекомендации тем строятся в т. ч. по импортированным метрикам. См.
+[39_Botfleet_AB_Testing_Topic_Optimization.md](39_Botfleet_AB_Testing_Topic_Optimization.md).

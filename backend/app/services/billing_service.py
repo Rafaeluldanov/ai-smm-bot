@@ -29,6 +29,13 @@ USAGE_METRICS_IMPORT = "metrics_import"
 USAGE_LEARNING_REBUILD = "learning_rebuild"
 USAGE_MANUAL_METRICS_SAVE = "manual_metrics_save"
 
+# Типы usage для A/B-тестирования и оптимизации тем (v0.4.2).
+USAGE_AB_EXPERIMENT_CREATE = "ab_experiment_create"
+USAGE_VARIANT_GENERATION = "variant_generation"
+USAGE_TOPIC_OPTIMIZATION = "topic_optimization"
+USAGE_EXPERIMENT_ANALYSIS = "experiment_analysis"
+USAGE_WINNER_SELECTION = "winner_selection"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -48,6 +55,13 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_MANUAL_METRICS_SAVE: 0,
     USAGE_METRICS_IMPORT: 0,
     USAGE_LEARNING_REBUILD: 5,
+    # v0.4.2: preview/оптимизация/ручной winner — бесплатно; создание A/B — 10 units;
+    # доп. вариант — 5; скоринг/авто-winner анализ — 5.
+    USAGE_TOPIC_OPTIMIZATION: 0,
+    USAGE_WINNER_SELECTION: 0,
+    USAGE_AB_EXPERIMENT_CREATE: 10,
+    USAGE_VARIANT_GENERATION: 5,
+    USAGE_EXPERIMENT_ANALYSIS: 5,
 }
 _DEFAULT_ACTION_COST = 1
 

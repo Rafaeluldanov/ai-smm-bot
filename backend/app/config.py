@@ -220,6 +220,20 @@ class Settings(BaseSettings):
     # Платный ли demo-импорт (по умолчанию бесплатный).
     metrics_demo_import_paid: bool = False
 
+    # --- A/B-тестирование и оптимизация тем (v0.4.2) ---
+    # A/B-эксперименты создаются через UI/API. Авто-применение winner к будущим
+    # расписаниям и авто-создание экспериментов worker-ом ВЫКЛЮЧЕНЫ по умолчанию.
+    # Live-публикаций это не подразумевает.
+    ab_testing_enabled: bool = True
+    ab_testing_auto_winner_enabled: bool = False
+    ab_testing_default_variant_count: int = 2
+    ab_testing_max_variants: int = 3
+    ab_testing_min_confidence_to_auto_apply: float = 0.7
+    schedule_experiments_enabled: bool = False
+    topic_optimization_enabled: bool = True
+    topic_optimization_recency_days: int = 60
+    topic_optimization_max_recommendations: int = 10
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров

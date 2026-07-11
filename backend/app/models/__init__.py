@@ -14,6 +14,8 @@ from app.models.billing import (
     UsageEvent,
 )
 from app.models.client_learning_profile import ClientLearningProfile
+from app.models.content_experiment import ContentExperiment
+from app.models.content_experiment_variant import ContentExperimentVariant
 from app.models.crm_bot_smm import (
     CrmBotProjectConfig,
     CrmContentSource,
@@ -56,6 +58,8 @@ __all__ = [
     "BillingAccount",
     "BillingLedgerEntry",
     "ClientLearningProfile",
+    "ContentExperiment",
+    "ContentExperimentVariant",
     "CrmBotProjectConfig",
     "CrmContentSource",
     "CrmKeyword",

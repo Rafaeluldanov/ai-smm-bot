@@ -100,6 +100,18 @@ ACTION_METRICS_MANUAL_SAVED = "metrics.manual.saved"
 ACTION_METRICS_LEARNING_REBUILD_PREVIEW = "metrics.learning.rebuild.preview"
 ACTION_METRICS_LEARNING_REBUILT = "metrics.learning.rebuilt"
 ACTION_METRICS_EXTERNAL_API_DISABLED = "metrics.external_api.disabled"
+# A/B-тестирование и оптимизация тем (v0.4.2).
+ACTION_EXPERIMENT_CREATED = "experiment.created"
+ACTION_EXPERIMENT_VARIANT_CREATED = "experiment.variant.created"
+ACTION_EXPERIMENT_SCORED = "experiment.scored"
+ACTION_EXPERIMENT_FEEDBACK_RECORDED = "experiment.feedback.recorded"
+ACTION_EXPERIMENT_WINNER_SELECTED = "experiment.winner.selected"
+ACTION_EXPERIMENT_COMPLETED = "experiment.completed"
+ACTION_EXPERIMENT_CANCELED = "experiment.canceled"
+ACTION_OPTIMIZATION_RECOMMENDATIONS_GENERATED = "optimization.recommendations.generated"
+ACTION_OPTIMIZATION_TOPIC_SELECTED = "optimization.topic.selected"
+ACTION_AB_TEST_PREVIEWED = "ab_test.previewed"
+ACTION_AB_TEST_BLOCKED = "ab_test.blocked"
 
 
 class AuditLogService:

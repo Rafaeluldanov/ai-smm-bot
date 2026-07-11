@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING, Annotated
 
 if TYPE_CHECKING:
+    from app.services.ab_testing_service import ABTestingService
     from app.services.auth_session_service import AuthSessionService
     from app.services.auth_token_service import AuthTokenService
     from app.services.automation_settings_service import AutomationSettingsService
@@ -13,6 +14,7 @@ if TYPE_CHECKING:
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
     from app.services.review_workflow_service import ReviewWorkflowService
+    from app.services.topic_optimization_service import TopicOptimizationService
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -202,6 +204,26 @@ def get_automation_settings_service() -> "AutomationSettingsService":
     from app.services.automation_settings_service import AutomationSettingsService
 
     return AutomationSettingsService()
+
+
+def get_topic_optimization_service() -> "TopicOptimizationService":
+    """Построить сервис оптимизации тем и рекомендаций (без сети)."""
+    from app.services.topic_optimization_service import TopicOptimizationService
+
+    return TopicOptimizationService(
+        learning_service=get_client_learning_service(), settings=get_settings()
+    )
+
+
+def get_ab_testing_service() -> "ABTestingService":
+    """Построить сервис A/B-тестирования (варианты в ревью, без live-публикации)."""
+    from app.services.ab_testing_service import ABTestingService
+
+    return ABTestingService(
+        learning_service=get_client_learning_service(),
+        billing_service=get_billing_service(),
+        settings=get_settings(),
+    )
 
 
 def get_metrics_import_service() -> "MetricsImportService":

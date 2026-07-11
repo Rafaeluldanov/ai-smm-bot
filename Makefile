@@ -162,6 +162,21 @@ manual-metrics: ## Ручной ввод метрик публикации (бе
 learning-rebuild: ## Пересчёт обучения по метрикам (dry-run по умолчанию): make learning-rebuild project_id=1 [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.rebuild_learning_from_metrics --project-id "$(project_id)" --platform "$(or $(platform),all)" --depth "$(or $(depth),standard)" --dry-run "$(or $(dry_run),true)"
 
+topic-recommendations: ## Рекомендации тем: make topic-recommendations project_id=1 [platform=telegram] [limit=10]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.topic_recommendations --project-id "$(project_id)" --platform "$(or $(platform),all)" --limit "$(or $(limit),10)"
+
+ab-experiment-preview: ## Превью A/B по теме (без записи): make ab-experiment-preview project_id=1 platform=telegram topic="..."
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.create_ab_experiment --project-id "$(project_id)" --platform "$(or $(platform),all)" --topic "$(topic)" --variant-count "$(or $(variant_count),2)" --dry-run true
+
+ab-experiment-create: ## Создать A/B по теме (платно): make ab-experiment-create project_id=1 platform=telegram topic="..." [dry_run=false]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.create_ab_experiment --project-id "$(project_id)" --platform "$(or $(platform),all)" --topic "$(topic)" --variant-count "$(or $(variant_count),2)" --dry-run "$(or $(dry_run),true)"
+
+experiment-score: ## Скоринг эксперимента: make experiment-score experiment_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.score_experiment --experiment-id "$(experiment_id)"
+
+experiment-winner: ## Выбор winner (dry-run по умолчанию): make experiment-winner experiment_id=1 [method=auto] [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.choose_experiment_winner --experiment-id "$(experiment_id)" --method "$(or $(method),auto)" --dry-run "$(or $(dry_run),true)"
+
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
 

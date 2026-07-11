@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -302,6 +303,8 @@ class MetricsImportService:
                     rebuild=False,
                 )
                 learning_events += 1
+                # Если публикация относится к варианту эксперимента — привяжем метрики.
+                self._attach_variant_metrics(db, result.post_id, normalized)
 
         # Пересчёт профиля один раз в конце (после всех событий).
         if learning_events:
@@ -573,6 +576,27 @@ class MetricsImportService:
         if source == "api":
             return build_metrics_adapter(platform, self._settings)
         return build_metrics_adapter("demo", self._settings)
+
+    @staticmethod
+    def _attach_variant_metrics(db: Session, post_id: int, normalized: Any) -> None:
+        """Если пост — вариант A/B-эксперимента, привязать к нему метрики (best-effort)."""
+        try:
+            from app.repositories import content_experiment_repository
+
+            variant = content_experiment_repository.get_variant_for_post(db, post_id)
+            if variant is None:
+                return
+            content_experiment_repository.update_variant(
+                db,
+                variant,
+                metrics_snapshot=dict(normalized.raw_sanitized or {}),
+                er_percent=normalized.er_percent,
+                ctr_percent=normalized.ctr_percent,
+                status="measured",
+            )
+        except Exception:  # noqa: BLE001 — привязка метрик к варианту не должна ронять импорт
+            with contextlib.suppress(Exception):
+                db.rollback()
 
     def _create_snapshot(self, db: Session, project_id: int, result: Any, normalized: Any) -> Any:
         """Создать PostAnalyticsSnapshot из нормализованных метрик (ER/CTR — дробью)."""

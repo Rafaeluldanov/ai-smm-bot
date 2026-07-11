@@ -195,3 +195,10 @@ make run
 нормализация метрик площадок и пересчёт профиля по реальным/ручным данным: какие темы, теги,
 CTA, медиа и время работают лучше. См.
 [38_Botfleet_Metrics_Import_Learning_Feedback.md](38_Botfleet_Metrics_Import_Learning_Feedback.md).
+
+
+## Продолжение: A/B-тесты (v0.4.2)
+
+Варианты A/B создаются как draft/needs_review посты и проходят обычную очередь ревью;
+winner (ручной или авто по метрикам) обновляет профиль обучения. См.
+[39_Botfleet_AB_Testing_Topic_Optimization.md](39_Botfleet_AB_Testing_Topic_Optimization.md).

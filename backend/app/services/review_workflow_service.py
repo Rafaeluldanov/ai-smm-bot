@@ -500,7 +500,25 @@ class ReviewWorkflowService:
             "fit_score": scoring["fit_score"],
             "learning_reasons": scoring["learning_reasons"],
             "warnings": scoring["warnings"],
+            "experiment": self._experiment_info(db, post.id),
             "publications": [self._publication_view(p) for p in pubs],
+        }
+
+    @staticmethod
+    def _experiment_info(db: Session, post_id: int) -> dict[str, Any] | None:
+        """Если пост — вариант эксперимента, вернуть {experiment_id, title, variant_key}."""
+        from app.repositories import content_experiment_repository
+
+        variant = content_experiment_repository.get_variant_for_post(db, post_id)
+        if variant is None:
+            return None
+        experiment = content_experiment_repository.get_experiment_by_id(db, variant.experiment_id)
+        return {
+            "experiment_id": variant.experiment_id,
+            "variant_id": variant.id,
+            "variant_key": variant.variant_key,
+            "title": experiment.title if experiment is not None else None,
+            "is_winner": variant.is_winner,
         }
 
     def _score(self, db: Session, post: Post) -> dict[str, Any]:

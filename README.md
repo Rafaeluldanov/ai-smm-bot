@@ -1742,3 +1742,12 @@ make vk-browser-publish-live    post_id=44               # публикует Т
 сработал лучше и какие выводы сделал бот. Реальные API-метрики — за feature flag (по
 умолчанию выключены), demo/manual — без сети. Подробно —
 [Докс/38_Botfleet_Metrics_Import_Learning_Feedback.md](./Докс/38_Botfleet_Metrics_Import_Learning_Feedback.md).
+
+
+## A/B-тестирование и оптимизация тем (v0.4.2)
+
+Botfleet создаёт A/B-варианты постов (в очередь ревью, без live-публикации), сравнивает их
+по feedback + метрикам, выбирает winner и обновляет профиль обучения; плюс рекомендации
+«что публиковать дальше» (лучшие темы/CTA/медиа/время). Авто-применение winner и авто-
+эксперименты worker-ом выключены по умолчанию. Подробно —
+[Докс/39_Botfleet_AB_Testing_Topic_Optimization.md](./Докс/39_Botfleet_AB_Testing_Topic_Optimization.md).

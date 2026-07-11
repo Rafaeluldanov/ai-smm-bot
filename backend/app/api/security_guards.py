@@ -25,6 +25,7 @@ from app.models.account import Account
 from app.models.user import User
 from app.repositories import (
     account_repository,
+    content_experiment_repository,
     crm_bot_smm_repository,
     payment_repository,
     post_publication_repository,
@@ -163,6 +164,34 @@ def require_publication_access(
     if publication is None:
         raise _NOT_FOUND
     _guard_project(db, settings, user, publication.project_id)
+
+
+def require_experiment_access(
+    experiment_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к эксперименту (через проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    experiment = content_experiment_repository.get_experiment_by_id(db, experiment_id)
+    if experiment is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, experiment.project_id)
+
+
+def require_variant_access(
+    variant_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к варианту эксперимента (через проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    variant = content_experiment_repository.get_variant_by_id(db, variant_id)
+    if variant is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, variant.project_id)
 
 
 def require_vk_resource_access(

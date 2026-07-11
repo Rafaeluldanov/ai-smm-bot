@@ -61,6 +61,14 @@ METRICS_IMPORT_DEPTH_UNITS: dict[str, int] = {"light": 5, "standard": 10, "deep"
 METRICS_FREE_SOURCES: tuple[str, ...] = ("manual", "estimated", "internal", "demo")
 LEARNING_REBUILD_UNITS = 5
 
+# --- A/B-тестирование и оптимизация тем (v0.4.2) ---
+# Создание A/B-эксперимента: базовая цена (2 варианта) + доплата за каждый доп. вариант.
+AB_EXPERIMENT_BASE_UNITS = 10
+AB_EXPERIMENT_EXTRA_VARIANT_UNITS = 5
+AB_EXPERIMENT_BASE_VARIANTS = 2
+# Скоринг вариантов / авто-выбор winner (анализ).
+EXPERIMENT_ANALYSIS_UNITS = 5
+
 # Оценка токенов «по умолчанию» для генерации короткого поста (input/output).
 DEFAULT_POST_INPUT_TOKENS = 2000
 DEFAULT_POST_OUTPUT_TOKENS = 500
@@ -217,6 +225,16 @@ class UnitEconomicsService:
     def estimate_learning_rebuild_units(self, depth: str = "standard") -> int:
         """units за явный пересчёт профиля обучения (dry-run — бесплатно на уровне сервиса)."""
         return LEARNING_REBUILD_UNITS
+
+    def estimate_experiment_create_units(self, variant_count: int = 2) -> int:
+        """units за создание A/B-эксперимента: база (2 варианта) + доплата за доп. варианты."""
+        count = max(2, int(variant_count or 2))
+        extra = max(0, count - AB_EXPERIMENT_BASE_VARIANTS)
+        return AB_EXPERIMENT_BASE_UNITS + extra * AB_EXPERIMENT_EXTRA_VARIANT_UNITS
+
+    def estimate_experiment_analysis_units(self) -> int:
+        """units за скоринг вариантов / авто-выбор winner (анализ)."""
+        return EXPERIMENT_ANALYSIS_UNITS
 
     def metrics_import_price_table(self) -> list[dict[str, object]]:
         """Таблица цен импорта метрик по глубине (для UI/подсказок)."""

@@ -246,3 +246,12 @@ base URL не HTTPS. Ссылки `/media/public/{token}` временные, о
 `/ui/projects/{id}/learning/metrics` («как метрики повлияли на обучение»). Demo/estimated
 явно помечены как не реальные показатели; реальные API — за feature flag. Подробно —
 [38_Botfleet_Metrics_Import_Learning_Feedback.md](38_Botfleet_Metrics_Import_Learning_Feedback.md).
+
+
+## Эксперименты и оптимизация (v0.4.2)
+
+Новые пункты sidebar **Эксперименты** и **Оптимизация** и страницы
+`/ui/projects/{id}/experiments`, `/ui/projects/{id}/optimization`,
+`/ui/projects/{id}/recommendations`; карточка контент-оптимизации на дашборде; бейдж A/B на
+карточке в очереди ревью. Live-публикаций нет. Подробно —
+[39_Botfleet_AB_Testing_Topic_Optimization.md](39_Botfleet_AB_Testing_Topic_Optimization.md).

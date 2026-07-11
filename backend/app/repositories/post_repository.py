@@ -48,6 +48,12 @@ def list_posts(
     return list(db.scalars(stmt).all())
 
 
+def list_recent_posts(db: Session, project_id: int, limit: int = 50) -> list[Post]:
+    """Вернуть последние посты проекта (по убыванию id — свежие первыми)."""
+    stmt = select(Post).where(Post.project_id == project_id).order_by(Post.id.desc()).limit(limit)
+    return list(db.scalars(stmt).all())
+
+
 def create_post(db: Session, data: PostCreate) -> Post:
     """Создать пост."""
     post = Post(**data.model_dump())

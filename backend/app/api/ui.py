@@ -481,6 +481,8 @@ def _sidebar(active: str = "") -> str:
         f"<a class='sb-link{cls('review')}' href='/ui/review'>Ревью</a>"
         f"<a class='sb-link{cls('learning')}' href='/ui/learning'>Обучение</a>"
         f"<a class='sb-link{cls('metrics')}' href='/ui/metrics'>Метрики</a>"
+        f"<a class='sb-link{cls('experiments')}' href='/ui/experiments'>Эксперименты</a>"
+        f"<a class='sb-link{cls('optimization')}' href='/ui/optimization'>Оптимизация</a>"
         f"<a class='sb-link{cls('analytics')}' href='/ui/analytics'>Аналитика</a>"
         f"<a class='sb-link{cls('scheduler')}' href='/ui/scheduler'>Автоматизация</a>"
         f"<a class='sb-link{cls('guide')}' href='/ui/guide'>Гайд</a>"
@@ -1253,6 +1255,16 @@ def ui_project_dashboard(project_id: int) -> HTMLResponse:
         "<div id='sched-picker' class='card' style='display:none'>"
         "<p class='muted'>Выберите платформу для нового расписания:</p>"
         "<div id='sched-picker-links' class='inline'></div></div>"
+        # Карточка контент-оптимизации (v0.4.2).
+        "<div class='card'><h3>Рекомендации контента и A/B-тесты</h3>"
+        "<p class='muted'>Botfleet подсказывает лучшую тему/CTA и помогает проверить варианты "
+        "постов A/B. Live-публикаций нет — варианты идут в очередь ревью.</p>"
+        "<div id='opt-hint' class='muted'>Лучший CTA / лучшая тема — загрузка…</div>"
+        "<div class='inline' style='margin-top:8px'>"
+        f"<a href='/ui/projects/{project_id}/recommendations'><button class='mini'>Рекомендации контента</button></a>"
+        f"<a href='/ui/projects/{project_id}/experiments'><button class='mini sec'>A/B тесты</button></a>"
+        f"<a href='/ui/projects/{project_id}/optimization'><button class='mini ghost'>Оптимизация</button></a>"
+        "</div></div>"
         # Сетка платформ из каталога (server-rendered, оригинальные SVG-иконки).
         "<h2>Платформы</h2>"
         "<p class='muted'>Каталог площадок Botfleet: активные, ближайшие и планируемые. "
@@ -1264,6 +1276,11 @@ def ui_project_dashboard(project_id: int) -> HTMLResponse:
     )
     script = (
         f"const PID={project_id};"
+        # Подсказка оптимизации (лучший CTA / лучшая тема) в карточке дашборда.
+        "(async()=>{try{const s=await api('GET','/experiments/projects/'+PID+'/strategy');"
+        "const el=document.getElementById('opt-hint');if(!el)return;el.classList.remove('muted');"
+        "const cta=(s.best_cta&&s.best_cta[0])||'—';const topic=(s.will_do_more&&s.will_do_more[0])||'—';"
+        "el.innerHTML='Лучший CTA: <b>'+esc(''+cta)+'</b> · Лучшая тема: <b>'+esc(''+topic)+'</b>';}catch(e){}})();"
         f"const IG_CFG={json.dumps(ig_cfg)};"
         "function toggleSchedPicker(){const p=document.getElementById('sched-picker');"
         "if(p)p.style.display=(p.style.display==='none'||!p.style.display)?'block':'none';}"
@@ -2812,9 +2829,10 @@ def ui_project_review(project_id: int) -> HTMLResponse:
         "function card(it){"
         "const reasons=(it.learning_reasons||[]).slice(0,3).map(esc).join(' · ');"
         "const warns=(it.warnings||[]).slice(0,3).map(esc).join(' · ');"
+        "const exp=it.experiment?`<span class='badge'>A/B ${esc(it.experiment.variant_key)} · ${esc(it.experiment.title||'эксперимент')}</span>`:'';"
         "return `<div class='card' data-pid='${it.post_id}'>"
         "<div class='inline'><b>#${it.post_id}</b> <span class='pill'>${esc(it.status)}</span> "
-        "<span class='muted'>${esc(it.platform||'—')}</span> <b>${esc(it.title||'')}</b></div>"
+        "<span class='muted'>${esc(it.platform||'—')}</span> <b>${esc(it.title||'')}</b> ${exp}</div>"
         "<div class='muted'>${esc(it.text_preview||'')}</div>"
         "<div class='kv'><div>Качество</div><div>${scorePill(it.quality_score)}</div>"
         "<div>Прогноз вовлечения</div><div>${it.predicted_engagement_score}</div>"
@@ -3251,3 +3269,233 @@ def ui_project_learning_metrics(project_id: int) -> HTMLResponse:
         "window.lmPreview=lmPreview;window.lmRebuild=lmRebuild;load();"
     )
     return _page("Обучение по метрикам", body, script, active="metrics", active_pid=project_id)
+
+
+# --------------------------------------------------------------------------- #
+# v0.4.2: A/B-эксперименты и оптимизация тем                                   #
+# --------------------------------------------------------------------------- #
+
+_EXPERIMENTS_WARNING_HTML = (
+    "<div class='callout warn'><b>Live-публикаций нет.</b> Варианты идут в очередь ревью. "
+    "Demo/estimated метрики не являются реальными показателями. Обучение строго по проекту "
+    "(cross-client learning отключён).</div>"
+)
+
+
+@router.get("/experiments", response_class=HTMLResponse)
+def ui_experiments_index() -> HTMLResponse:
+    """Лендинг экспериментов: выбрать проект."""
+    body = (
+        "<h2>A/B-эксперименты</h2>"
+        + _EXPERIMENTS_WARNING_HTML
+        + "<div class='card'><h3>Проекты</h3><div id='ex-projects' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "(async()=>{const a=needAccount(eEl);if(!a)return;try{"
+        "const ps=await api('GET','/saas/accounts/'+a+'/projects');"
+        "const host=document.getElementById('ex-projects');host.classList.remove('muted');"
+        "host.innerHTML=ps.length?ps.map(p=>`<div class='sched-task'><b>${esc(p.name)}</b> "
+        "<a href='/ui/projects/${p.id}/experiments'><button class='mini'>Эксперименты</button></a> "
+        "<a href='/ui/projects/${p.id}/optimization'><button class='mini sec'>Оптимизация</button></a></div>`).join('')"
+        ":\"<div class='muted'>Нет проектов.</div>\";}catch(x){err(eEl,x)}})();"
+    )
+    return _page("Эксперименты", body, script, active="experiments")
+
+
+@router.get("/optimization", response_class=HTMLResponse)
+def ui_optimization_index() -> HTMLResponse:
+    """Лендинг оптимизации: выбрать проект."""
+    body = (
+        "<h2>Оптимизация тем</h2>"
+        "<p class='muted'>Что Botfleet рекомендует публиковать дальше на основе истории проекта.</p>"
+        "<div class='card'><h3>Проекты</h3><div id='op-projects' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "(async()=>{const a=needAccount(eEl);if(!a)return;try{"
+        "const ps=await api('GET','/saas/accounts/'+a+'/projects');"
+        "const host=document.getElementById('op-projects');host.classList.remove('muted');"
+        "host.innerHTML=ps.length?ps.map(p=>`<div class='sched-task'><b>${esc(p.name)}</b> "
+        "<a href='/ui/projects/${p.id}/optimization'><button class='mini'>Рекомендации</button></a></div>`).join('')"
+        ":\"<div class='muted'>Нет проектов.</div>\";}catch(x){err(eEl,x)}})();"
+    )
+    return _page("Оптимизация", body, script, active="optimization")
+
+
+@router.get("/projects/{project_id}/experiments", response_class=HTMLResponse)
+def ui_project_experiments(project_id: int) -> HTMLResponse:
+    """Список A/B-экспериментов проекта + создание."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/optimization'><button class='ghost mini'>Оптимизация</button></a>"
+        f"<a href='/ui/projects/{project_id}/recommendations'><button class='ghost mini'>Рекомендации</button></a></div>"
+        "<h2>A/B-эксперименты</h2>"
+        + _EXPERIMENTS_WARNING_HTML
+        + "<div class='card'><h3>Создать A/B по теме</h3>"
+        "<div class='an-filters'>"
+        "<div><label>Платформа</label><select id='ex-platform'>"
+        "<option value=''>Все</option><option value='telegram'>Telegram</option>"
+        "<option value='vk'>VK</option><option value='instagram'>Instagram</option></select></div>"
+        "<div><label>Тема</label><input id='ex-topic' placeholder='Напр. Футболки с логотипом' style='width:280px'></div>"
+        "<div><label>Вариантов</label><select id='ex-count'><option>2</option><option>3</option></select></div>"
+        "</div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='mini sec' onclick='exPreview()'>Посмотреть варианты</button>"
+        "<button class='mini' onclick='exCreate()'>Создать A/B по теме</button>"
+        f"<a href='/ui/projects/{project_id}/recommendations'><button class='mini ghost'>Посмотреть рекомендации</button></a>"
+        "</div><div id='ex-preview' class='muted' style='margin-top:8px'></div></div>"
+        "<div class='card'><h3>Эксперименты</h3><div id='ex-list' class='muted'>Загрузка…</div></div>"
+        "<div id='ex-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');const msg=document.getElementById('ex-msg');"
+        "function stPill(s){const ok=s==='completed';return `<span class='pill ${ok?'ok':''}'>${esc(s)}</span>`;}"
+        "async function loadList(){try{const rows=await api('GET','/experiments/projects/'+PID);"
+        "const host=document.getElementById('ex-list');host.classList.remove('muted');"
+        "host.innerHTML=rows.length?`<table class='price-table'><thead><tr><th>ID</th><th>Тип</th><th>Платформа</th>"
+        "<th>Статус</th><th>Winner</th><th>Confidence</th></tr></thead><tbody>`"
+        "+rows.map(r=>`<tr><td><a href='/ui/projects/'+PID+'/experiments/${r.id}'>#${r.id}</a></td>"
+        "<td>${esc(r.experiment_type)}</td><td>${esc(r.platform_key||'все')}</td>"
+        "<td>${stPill(r.status)}</td><td>${r.winner_variant_id?('#'+r.winner_variant_id):'—'}</td>"
+        "<td>${Math.round((r.confidence_score||0)*100)}%</td></tr>`).join('')+`</tbody></table>`"
+        ":\"<div class='muted'>Экспериментов ещё нет — создайте A/B по теме.</div>\";}catch(x){err(eEl,x)}}"
+        "function body(){return {platform_key:gv('ex-platform')||null,topic:gv('ex-topic'),variant_count:parseInt(gv('ex-count')||'2')};}"
+        "async function exPreview(){try{const b=body();if(!b.topic){msg.textContent='Укажите тему';return;}"
+        "const r=await api('POST','/experiments/projects/'+PID+'/preview-topic',b);"
+        "document.getElementById('ex-preview').innerHTML='Оценка: '+r.estimated_units+' units. '+r.variants.map(v=>`<div class='sched-task'><b>${esc(v.variant_key)}</b> ${esc(v.title||'')}<div class='muted'>${esc(v.text_preview||'')}</div></div>`).join('');}catch(x){err(eEl,x)}}"
+        "async function exCreate(){try{const b=body();if(!b.topic){msg.textContent='Укажите тему';return;}"
+        "b.idempotency_key='ui-ex-'+PID+'-'+Date.now();const r=await api('POST','/experiments/projects/'+PID+'/create-from-topic',b);"
+        "msg.textContent='Эксперимент #'+r.experiment.id+' создан ('+r.outcome+'). Варианты — в очереди ревью.';loadList();}catch(x){err(eEl,x)}}"
+        "window.exPreview=exPreview;window.exCreate=exCreate;loadList();"
+    )
+    return _page("Эксперименты проекта", body, script, active="experiments", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/experiments/{experiment_id}", response_class=HTMLResponse)
+def ui_project_experiment_detail(project_id: int, experiment_id: int) -> HTMLResponse:
+    """Детали эксперимента: варианты, метрики, winner."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/experiments'>"
+        "<button class='sec mini'>← Эксперименты</button></a></div>"
+        "<h2>Эксперимент</h2>"
+        + _EXPERIMENTS_WARNING_HTML
+        + "<div class='card'><div id='ex-head' class='muted'>Загрузка…</div></div>"
+        "<div class='card'><h3>Варианты</h3><div id='ex-variants' class='muted'>Загрузка…</div></div>"
+        "<div class='card'><h3>Выбор winner (победителя)</h3>"
+        "<p class='muted'>Выберите вручную или автоматически по метрикам. Winner обновляет обучение.</p>"
+        "<div class='inline'><button class='mini' onclick='exAuto()'>Авто-winner по метрикам</button>"
+        "<span id='ex-manual'></span></div>"
+        "<div id='ex-winner' class='card muted' style='margin-top:8px'></div></div>"
+        "<div id='ex-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const EID={experiment_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('ex-msg');"
+        "async function load(){try{const s=await api('GET','/experiments/'+EID);"
+        "const e=s.experiment;"
+        "document.getElementById('ex-head').classList.remove('muted');"
+        "document.getElementById('ex-head').innerHTML=`<b>${esc(e.title)}</b><div class='muted'>${esc(e.hypothesis||'')}</div>"
+        "<div class='kv'><div>Статус</div><div><span class='pill ${e.status===\"completed\"?'ok':''}'>${esc(e.status)}</span></div>"
+        "<div>Тип</div><div>${esc(e.experiment_type)}</div><div>Confidence</div><div>${Math.round((e.confidence_score||0)*100)}%</div></div>`;"
+        "const host=document.getElementById('ex-variants');host.classList.remove('muted');"
+        "host.innerHTML=s.variants.map(v=>`<div class='card' ${v.is_winner?\"style='border:2px solid var(--ok,#2a2)'\":''}>"
+        "<div class='inline'><b>${esc(v.variant_key)}</b> ${esc(v.title||'')} ${v.is_winner?\"<span class='pill ok'>winner</span>\":''}</div>"
+        "<div class='kv'><div>Угол</div><div>${esc(v.angle||'')}</div><div>CTA</div><div>${esc(v.cta_type||'')}</div>"
+        "<div>Качество</div><div>${v.quality_score!=null?v.quality_score:'—'}</div>"
+        "<div>Прогноз вовлечения</div><div>${v.predicted_engagement_score!=null?v.predicted_engagement_score:'—'}</div>"
+        "<div>ER</div><div>${v.er_percent!=null?v.er_percent+'%':'—'}</div>"
+        "<div>CTR</div><div>${v.ctr_percent!=null?v.ctr_percent+'%':'—'}</div></div></div>`).join('');"
+        "document.getElementById('ex-manual').innerHTML=s.variants.map(v=>`<button class='mini sec' onclick='exManual(${v.id})'>Выбрать ${esc(v.variant_key)}</button>`).join(' ');"
+        "if(s.winner){document.getElementById('ex-winner').classList.remove('muted');"
+        "document.getElementById('ex-winner').innerHTML='<b>Победитель: '+esc(s.winner.variant_key)+'</b> ('+esc(s.winner.winner_reason||'')+')<br>'+(s.winner_explanation||[]).map(esc).join('<br>');}"
+        "}catch(x){err(eEl,x)}}"
+        "async function exManual(vid){try{const r=await api('POST','/experiments/'+EID+'/choose-winner',{method:'manual',variant_id:vid});"
+        "msg.textContent='Winner выбран вручную. Обучение обновлено.';load();}catch(x){err(eEl,x)}}"
+        "async function exAuto(){try{const r=await api('POST','/experiments/'+EID+'/choose-winner',{method:'auto'});"
+        "msg.textContent='Winner выбран автоматически по метрикам.';load();}catch(x){err(eEl,x)}}"
+        "window.exManual=exManual;window.exAuto=exAuto;load();"
+    )
+    return _page("Эксперимент", body, script, active="experiments", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/optimization", response_class=HTMLResponse)
+def ui_project_optimization(project_id: int) -> HTMLResponse:
+    """Оптимизация: стратегия тем + рекомендации."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/experiments'><button class='ghost mini'>Эксперименты</button></a></div>"
+        "<h2>Что Botfleet рекомендует публиковать дальше</h2>"
+        + _EXPERIMENTS_WARNING_HTML
+        + "<div class='card'><div class='kv'>"
+        "<div>Уверенность профиля</div><div id='op-conf'>—</div></div></div>"
+        "<div class='grid'>"
+        "<div class='card'><h3>Публиковать чаще</h3><div id='op-more' class='muted'>—</div></div>"
+        "<div class='card'><h3>Избегать</h3><div id='op-avoid' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучший CTA</h3><div id='op-cta' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучшее медиа</h3><div id='op-media' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучшее время</h3><div id='op-time' class='muted'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Рекомендации тем</h3><div id='op-recs' class='muted'>Загрузка…</div></div>"
+        "<div id='op-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');const msg=document.getElementById('op-msg');"
+        "function fill(id,arr,pre){const el=document.getElementById(id);el.classList.remove('muted');"
+        "el.innerHTML=(arr&&arr.length)?arr.map(v=>`<span class='badge'>${(pre||'')+esc(''+v)}</span>`).join(' '):\"<span class='muted'>пока нет данных</span>\";}"
+        "let RECS=[];"
+        "async function load(){try{const s=await api('GET','/experiments/projects/'+PID+'/strategy');"
+        "document.getElementById('op-conf').textContent=Math.round((s.confidence_score||0)*100)+'%';"
+        "fill('op-more',s.will_do_more);fill('op-avoid',s.will_avoid);fill('op-cta',s.best_cta);"
+        "fill('op-media',s.best_media_types);fill('op-time',s.best_publish_times);"
+        "const r=await api('GET','/experiments/projects/'+PID+'/recommendations');RECS=r.recommendations;"
+        "const host=document.getElementById('op-recs');host.classList.remove('muted');"
+        "host.innerHTML=RECS.length?RECS.map((x,i)=>`<div class='sched-task'>"
+        "<span class='pill'>${esc(x.category)}</span> <b>${esc(''+x.topic)}</b> <span class='muted'>· ${Math.round(x.confidence_score*100)}% · ${esc(x.reason)}</span> "
+        "<button class='mini sec' onclick='opAB(${i})'>Создать A/B</button></div>`).join('')"
+        ":\"<div class='muted'>Пока недостаточно данных для рекомендаций.</div>\";"
+        "}catch(x){err(eEl,x)}}"
+        "async function opAB(i){try{const topic=''+(RECS[i]&&RECS[i].topic||'');if(!topic)return;"
+        "const r=await api('POST','/experiments/projects/'+PID+'/create-from-topic',{topic:topic,variant_count:2,idempotency_key:'ui-op-'+PID+'-'+Date.now()});"
+        "msg.textContent='Эксперимент #'+r.experiment.id+' создан по теме «'+esc(topic)+'». Варианты — в очереди ревью.';}catch(x){err(eEl,x)}}"
+        "window.opAB=opAB;load();"
+    )
+    return _page("Оптимизация проекта", body, script, active="optimization", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/recommendations", response_class=HTMLResponse)
+def ui_project_recommendations(project_id: int) -> HTMLResponse:
+    """Отдельная страница рекомендаций тем проекта."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/optimization'>"
+        "<button class='sec mini'>← Оптимизация</button></a>"
+        f"<a href='/ui/projects/{project_id}/experiments'><button class='ghost mini'>Эксперименты</button></a></div>"
+        "<h2>Рекомендации контента</h2>"
+        + _EXPERIMENTS_WARNING_HTML
+        + "<div class='card'><div class='an-filters'>"
+        "<div><label>Платформа</label><select id='rc-platform'>"
+        "<option value=''>Все</option><option value='telegram'>Telegram</option>"
+        "<option value='vk'>VK</option><option value='instagram'>Instagram</option></select></div></div></div>"
+        "<div id='rc-list' class='muted'>Загрузка…</div>"
+        "<div id='rc-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');const msg=document.getElementById('rc-msg');"
+        "async function load(){try{const p=gv('rc-platform');let url='/experiments/projects/'+PID+'/recommendations';if(p)url+='?platform_key='+encodeURIComponent(p);"
+        "const r=await api('GET',url);const host=document.getElementById('rc-list');host.classList.remove('muted');"
+        "host.innerHTML=r.recommendations.length?r.recommendations.map(x=>`<div class='card'>"
+        "<div class='inline'><span class='pill'>${esc(x.category)}</span> <b>${esc(''+x.topic)}</b> "
+        "<span class='muted'>${Math.round(x.confidence_score*100)}%</span></div>"
+        "<div class='muted'>${esc(x.reason)}</div>"
+        "<div class='muted'>CTA: ${esc(''+(x.suggested_cta||'—'))} · медиа: ${esc(''+(x.suggested_media_type||'—'))} · время: ${esc(''+(x.suggested_time||'—'))}</div>"
+        "${(x.risk_flags&&x.risk_flags.length)?`<div class='muted'>⚠ ${x.risk_flags.map(esc).join(', ')}</div>`:''}</div>`).join('')"
+        ":\"<div class='card muted'>Пока недостаточно данных — соберите feedback и метрики.</div>\";}catch(x){err(eEl,x)}}"
+        "const e=document.getElementById('rc-platform');if(e)e.addEventListener('change',load);load();"
+    )
+    return _page(
+        "Рекомендации контента", body, script, active="optimization", active_pid=project_id
+    )
