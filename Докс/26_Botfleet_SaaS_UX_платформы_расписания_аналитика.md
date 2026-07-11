@@ -199,3 +199,13 @@ ER, CTR) и рекомендации (что улучшить, лучшее вр
 - **Demo-аналитика** по существующим публикациям (offline): estimated views/reach/ER/CTR +
   quality/engagement, источник метрик (internal/estimated/demo) всегда указан. Live-вызовов
   внешних API нет.
+
+## Обновление v0.3.6: self-service подключение платформ
+
+В workspace площадки добавлена вкладка **«Настройки» → «Подключение»**: клиент вводит
+токен/ID сам (без `.env`), секреты хранятся зашифрованно в проекте, показывается только
+маска. Кнопки «Сохранить / Проверить подключение / Отключить», блок last-check и **«Журнал
+действий»** (автоматический audit, без секретов). Расписания и публикации используют
+credentials проекта; preview показывает источник кредов (project_connection/env_fallback/
+missing). Подробно —
+[33_Botfleet_Self_Service_Platform_Connections.md](33_Botfleet_Self_Service_Platform_Connections.md).

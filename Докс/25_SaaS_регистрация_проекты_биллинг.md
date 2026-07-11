@@ -543,3 +543,11 @@ refresh-cookie (HttpOnly). Добавлены `/auth/refresh` (ротация), 
 `/auth/logout-all`, `/auth/sessions`. В production dev-токен запрещён, авторизация
 обязательна, cookies Secure. Подробно —
 [29_Botfleet_Production_Auth_Sessions.md](29_Botfleet_Production_Auth_Sessions.md).
+
+## Обновление v0.3.6: self-service подключение платформ
+
+Клиент подключает площадки сам в личном кабинете (форма токен/ID), **без `.env`**: секреты
+шифруются и хранятся в проекте (`CrmSmmResource`, миграция 0018), наружу — только маска.
+Бот использует credentials проекта, а не глобальные env. Есть безопасная проверка
+подключения и автоматический журнал действий. Подробно —
+[33_Botfleet_Self_Service_Platform_Connections.md](33_Botfleet_Self_Service_Platform_Connections.md).

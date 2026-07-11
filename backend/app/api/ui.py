@@ -40,9 +40,11 @@ from app.services.platform_catalog_service import (
     PlatformCatalogItem,
     PlatformCatalogService,
 )
+from app.services.platform_connection_schema_service import PlatformConnectionSchemaService
 from app.services.unit_economics_service import UnitEconomicsService
 
 _CATALOG = PlatformCatalogService()
+_CONN_SCHEMA = PlatformConnectionSchemaService()
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 
@@ -225,6 +227,12 @@ h2[id],h3[id]{scroll-margin-top:72px}
 .platform-card .open{margin-top:auto;font-size:13px;color:var(--accent);font-weight:600}
 .pw-head .platform-icon{width:46px;height:46px;border-radius:14px}
 .pw-head .platform-icon svg{width:28px;height:28px}
+/* Форма подключения платформы (self-service) */
+.cf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin:8px 0}
+.cf-field label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.cf-field input{width:100%}
+.cf-field .cf-help{font-size:11px;margin-top:2px}
+.cf-field .req{color:var(--danger)}
 /* Акценты иконок платформ (оригинальные цвета «в духе», не официальные логотипы) */
 .accent-telegram{color:#3aa0e0}.accent-vk{color:#4b74b3}.accent-instagram{color:#c95a9b}
 .accent-website{color:#4a8f7b}.accent-yandex_disk{color:#d15a3a}.accent-youtube{color:#d1483a}
@@ -1407,6 +1415,59 @@ def _platform_settings_pane(platform: str, settings: Settings) -> str:
     )
 
 
+def _connection_form_html(platform: str, planned: bool) -> str:
+    """Server-rendered форма подключения платформы (поля из схемы, без секретов).
+
+    Секреты — write-only: значение не рендерится, показывается только статус/маска (JS).
+    """
+    schema = _CONN_SCHEMA.get_connection_schema(platform)
+    disabled = " disabled" if planned else ""
+    rows: list[str] = []
+    for f in schema.fields:
+        fid = f"cf-{f.name}"
+        ph = html.escape(f.placeholder or "")
+        if f.secret:
+            help_txt = "Секрет не показывается. Оставьте поле пустым, чтобы не менять сохранённый."
+            inp = (
+                f"<input id='{fid}' type='password' autocomplete='new-password' "
+                f"data-field='{f.name}' data-secret='1' placeholder='{ph}'{disabled}>"
+            )
+        else:
+            input_type = "url" if f.type == "url" else "text"
+            list_hint = " (через запятую)" if f.type == "list" else ""
+            help_txt = html.escape(f.help or "") + list_hint
+            inp = (
+                f"<input id='{fid}' type='{input_type}' data-field='{f.name}' "
+                f"placeholder='{ph}'{disabled}>"
+            )
+        req = " <span class='req'>*</span>" if f.required else ""
+        rows.append(
+            f"<div class='cf-field'><label for='{fid}'>{html.escape(f.label)}{req}</label>"
+            f"{inp}<div class='cf-help muted'>{help_txt}</div></div>"
+        )
+    steps = "".join(f"<li>{html.escape(s)}</li>" for s in schema.test_steps)
+    warns = "".join(f"<li>{html.escape(w)}</li>" for w in schema.warnings)
+    btns = (
+        "<button class='mini' onclick='connSave()'>Сохранить</button>"
+        "<button class='mini sec' onclick='connCheck()'>Проверить подключение</button>"
+        "<button class='mini ghost' onclick='connDisconnect()'>Отключить</button>"
+        if not planned
+        else "<button class='mini' disabled>Интеграция в разработке</button>"
+    )
+    return (
+        "<div class='card' id='conn-card'><h3>Подключение</h3>"
+        "<p class='muted'>Заполните ключи и ID площадки — они хранятся в проекте (не в .env), "
+        "секреты шифруются и показываются только маской.</p>"
+        "<div id='conn-status' class='muted' style='margin-bottom:8px'>Загрузка…</div>"
+        f"<div class='cf-grid'>{''.join(rows)}</div>"
+        f"<div class='inline' style='margin-top:10px'>{btns}</div>"
+        "<div id='conn-result' class='muted' style='margin-top:8px'></div>"
+        f"<div class='callout' style='margin-top:10px'><b>Что проверяется</b><ul>{steps}</ul></div>"
+        + (f"<div class='callout warn'><b>Важно</b><ul>{warns}</ul></div>" if warns else "")
+        + f"<p class='muted'>{html.escape(schema.media_requirements)}</p></div>"
+    )
+
+
 @router.get("/projects/{project_id}/platforms/{platform}", response_class=HTMLResponse)
 def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
     """Рабочая область платформы: вкладки Обзор/Настройки/Гайд/Расписание/Preview/Аналитика."""
@@ -1463,7 +1524,8 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
 
     tabs_bar = "".join(_tab_btn(i, key, name) for i, (key, name) in enumerate(tabs))
     guide_html = _platform_guide_html(platform)
-    settings_pane = _platform_settings_pane(platform, settings)
+    conn_form = _connection_form_html(platform, planned)
+    settings_pane = conn_form + _platform_settings_pane(platform, settings)
     body = (
         f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
         "<button class='sec mini'>← К проекту</button></a></div>"
@@ -1476,7 +1538,12 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         # Обзор
         "<div class='tabpane active' id='pane-overview'>"
         "<div class='card'><div id='pw-overview' class='muted'>Загрузка…</div></div>"
-        f"{roadmap_extra}</div>"
+        f"{roadmap_extra}"
+        # Журнал действий (аудит проекта по платформе, без секретов).
+        "<div class='card'><h3>Журнал действий</h3>"
+        "<p class='muted'>Логи создаются автоматически: подключение, изменение токена, "
+        "проверка, расписание, публикация, аналитика. Секреты не пишутся.</p>"
+        "<div id='conn-logs' class='muted'>Загрузка…</div></div></div>"
         # Настройки
         f"<div class='tabpane' id='pane-settings'>{settings_pane}</div>"
         # Гайд
@@ -1575,7 +1642,44 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         "const h=(location.hash||'').replace('#','');if(h)showTab(h);"
         "}catch(x){err(eEl,x)}})();"
     )
-    return _page(label, body, _SCHED_TASKS_JS + script, active="projects", active_pid=project_id)
+    # --- JS формы подключения (self-service) + журнал действий --- #
+    conn_js = (
+        "const CBASE='/projects/'+PID+'/platform-connections/'+encodeURIComponent(PLATFORM);"
+        "function cf(name){return document.querySelector(`[data-field='${name}']`);}"
+        "function connPayload(){const out={};document.querySelectorAll('#conn-card [data-field]').forEach(el=>{"
+        "const v=(el.value||'').trim();if(el.dataset.secret){if(v)out[el.dataset.field]=v;}"
+        "else{out[el.dataset.field]=el.dataset.field==='tags'?v.split(',').map(s=>s.trim()).filter(Boolean):v;}});return out;}"
+        "async function connLoad(){try{const d=await api('GET',CBASE);const c=d.connection;const st=document.getElementById('conn-status');"
+        "if(!c){if(st)st.innerHTML=\"<span class='pill off'>не подключено</span> Заполните поля и сохраните.\";return;}"
+        "['title','external_id','url','root_folder','app_id','redirect_uri','default_cta'].forEach(k=>{const el=cf(k);if(el&&c[k]!=null)el.value=c[k];});"
+        "const tg=cf('tags');if(tg&&Array.isArray(c.tags))tg.value=c.tags.join(', ');"
+        "const sec=c.api_key_masked?(' · токен: '+esc(c.api_key_masked)):' · токен: —';"
+        "const lc=c.last_check_status?(`<br>Последняя проверка: <b>${esc(c.last_check_status)}</b> · ${esc(c.last_check_at||'')} · ${esc(c.last_check_message||'')}`):'';"
+        "if(st)st.innerHTML=`<span class='pill ${c.connected?'ok':'off'}'>${c.connected?'подключено':'черновик'}</span> статус: ${esc(c.status)}${sec}${lc}`;"
+        "}catch(e){}}"
+        "async function connSave(){const R=document.getElementById('conn-result');R.textContent='Сохранение…';"
+        "try{const c=await api('POST',CBASE,connPayload());R.innerHTML=\"<span class='pill ok'>сохранено</span> токен: \"+esc(c.api_key_masked||'—');"
+        "document.querySelectorAll('#conn-card [data-secret]').forEach(el=>{el.value='';});connLoad();connLogs();initShell();}catch(x){R.textContent=String(x.message||x);}}"
+        "async function connCheck(){const R=document.getElementById('conn-result');R.textContent='Проверка…';"
+        "try{const r=await api('POST',CBASE+'/check',{});"
+        "const items=(r.checks||[]).map(i=>`<div>${i.ok?'✅':(i.status==='warning'?'⚠️':(i.status==='planned'?'🕓':'❌'))} <b>${esc(i.label)}</b> — ${esc(i.message)}</div>`).join('');"
+        "const steps=(r.next_steps||[]).map(s=>`<li>${esc(s)}</li>`).join('');"
+        "R.innerHTML=`<div class='callout ${r.status==='ok'?'ok':(r.status==='error'?'':'warn')}'><b>Проверка: ${esc(r.status)}</b><div class='muted'>${esc(r.message)}</div>${items}`+(steps?`<b>Что делать</b><ul>${steps}</ul>`:'')+`</div>`;"
+        "connLoad();connLogs();}catch(x){R.textContent=String(x.message||x);}}"
+        "async function connDisconnect(){if(!confirm('Отключить платформу? Секрет будет деактивирован.'))return;"
+        "const R=document.getElementById('conn-result');try{await api('DELETE',CBASE);R.innerHTML=\"<span class='pill off'>отключено</span>\";"
+        "document.querySelectorAll('#conn-card [data-field]').forEach(el=>{el.value='';});connLoad();connLogs();initShell();}catch(x){R.textContent=String(x.message||x);}}"
+        "async function connLogs(){const host=document.getElementById('conn-logs');if(!host)return;"
+        "try{const rows=await api('GET',CBASE+'/logs?limit=20');host.classList.remove('muted');"
+        "host.innerHTML=rows.length?`<table class='price-table'><thead><tr><th>Действие</th><th>Когда</th><th>Статус</th></tr></thead><tbody>`"
+        "+rows.map(r=>`<tr><td>${esc(r.action)}</td><td class='muted'>${esc((r.created_at||'').replace('T',' ').slice(0,16))}</td><td>${esc(r.status||'—')}</td></tr>`).join('')+`</tbody></table>`"
+        ":\"<div class='muted'>Пока нет действий.</div>\";}catch(e){}}"
+        "window.connSave=connSave;window.connCheck=connCheck;window.connDisconnect=connDisconnect;"
+        "connLoad();connLogs();"
+    )
+    return _page(
+        label, body, _SCHED_TASKS_JS + script + conn_js, active="projects", active_pid=project_id
+    )
 
 
 # --------------------------------------------------------------------------- #

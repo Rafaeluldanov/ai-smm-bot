@@ -12,9 +12,10 @@
 - ``live_enabled`` по умолчанию false; живые публикации на этом этапе выключены.
 """
 
+from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, JSONType, TimestampMixin
@@ -75,6 +76,24 @@ class CrmSmmResource(Base, TimestampMixin):
     keywords: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
     live_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # --- Self-service подключение платформы (v0.3.6) ---
+    # app_id — НЕсекретный идентификатор приложения (VK/Meta); app_secret — секрет
+    # (хранится зашифрованным, наружу только маска). Основной токен площадки —
+    # api_key_encrypted (bot token / access token). redirect_uri и пр. — в metadata.
+    app_id: Mapped[str | None] = mapped_column(String(255), default=None)
+    app_secret_encrypted: Mapped[str | None] = mapped_column(Text, default=None)
+    app_secret_masked: Mapped[str | None] = mapped_column(String(64), default=None)
+    # draft | connected | error — состояние подключения (по результату проверки).
+    status: Mapped[str] = mapped_column(String(20), default="draft", index=True, nullable=False)
+    # Результат последней безопасной проверки подключения (без секретов).
+    last_check_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    last_check_status: Mapped[str | None] = mapped_column(String(20), default=None)
+    last_check_message: Mapped[str | None] = mapped_column(String(1000), default=None)
+    # Прочие несекретные параметры подключения (redirect_uri, default_cta и т. п.).
+    resource_metadata: Mapped[dict[str, Any]] = mapped_column(
+        JSONType, default=dict, nullable=False
+    )
 
 
 class CrmKeyword(Base, TimestampMixin):

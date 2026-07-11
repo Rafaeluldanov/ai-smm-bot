@@ -151,3 +151,15 @@ make restore-db backup_path=backups/... confirm=RESTORE understand=true
 
 Иконки — оригинальные (не официальные логотипы): юридически безопасно, без внешних
 ассетов/CDN. Live-публикации и боевые платежи остаются выключенными.
+
+## 18. Self-service подключения перед запуском (v0.3.6)
+
+Клиенты подключают площадки сами в UI (без `.env`) — детали в
+[33_Botfleet_Self_Service_Platform_Connections.md](33_Botfleet_Self_Service_Platform_Connections.md).
+Секреты шифруются в БД (dev-кодирование); перед боевым запуском:
+
+- [ ] заменить `crm_secret_service` на реальный KMS/Fernet (secrets manager);
+- [ ] OAuth-потоки per client (VK ID / Meta) вместо ручного ввода токена;
+- [ ] media-proxy для публичных `image_url`;
+- [ ] онлайн-проверки подключения включать за явным флагом;
+- [ ] проверить, что `live_enabled` включается только после платформенных тестов.

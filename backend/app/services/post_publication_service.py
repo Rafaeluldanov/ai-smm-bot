@@ -193,9 +193,21 @@ class PostPublicationService:
         hashtags = list(post.hashtags or [])
         settings = get_settings()
         notes = post.generation_notes or {}
+        # Креды публикации резолвятся из подключения проекта (БД) → env-fallback (local) →
+        # missing. Токен НЕ кладём в payload — только источник и факт наличия. Если у
+        # подключения есть external_id, а target не задан — используем его.
+        from app.services.platform_connection_service import PlatformConnectionService
+
+        creds = PlatformConnectionService().resolve_publish_credentials(
+            db, post.project_id, platform
+        )
+        if target_id is None and creds.external_id:
+            target_id = creds.external_id
         payload: dict[str, object] = {
             "post_id": post.id,
             "media_asset_id": post.media_asset_id,
+            "credentials_source": creds.source,
+            "token_present": creds.token_present,
             "hashtags": hashtags,
             "media_source": "none",
             "media_kind": "none",
@@ -385,6 +397,8 @@ class PostPublicationService:
                     platform_capabilities=capabilities_read,
                     live_enabled=live_enabled,
                     would_send=live_enabled and bool(target_id) and live_implemented,
+                    credentials_source=str(payload.get("credentials_source", "missing")),
+                    token_present=bool(payload.get("token_present", False)),
                 )
             )
         return PostPublishPreview(

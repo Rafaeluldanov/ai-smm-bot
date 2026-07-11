@@ -150,3 +150,12 @@ logout/logout-all ревокируют сессии; аудит login/logout/ref
 `/ui/legal/*`, middleware X-Request-ID + access-log с редакцией секретов. В production
 приложение не стартует при небезопасной конфигурации. Подробно —
 [30_Botfleet_Public_Launch_Readiness.md](30_Botfleet_Public_Launch_Readiness.md).
+
+## Обновление v0.3.6: секреты подключений платформ
+
+Клиент вводит токены площадок в UI — они шифруются (`crm_secret_service`) и хранятся в БД
+(`CrmSmmResource`), наружу отдаётся только маска/факт наличия; секрет write-only (пустой =
+не менять). Все подключения под `require_project_access` (tenant-изоляция). Публикация
+резолвит креды строго по `project_id` (чужой токен недоступен); токен не попадает в
+payload/preview/логи/ошибки. Каждое действие пишется в аудит автоматически. Подробно —
+[33_Botfleet_Self_Service_Platform_Connections.md](33_Botfleet_Self_Service_Platform_Connections.md).

@@ -152,6 +152,57 @@ def list_resources_by_config(db: Session, config_id: int) -> list[CrmSmmResource
 
 
 # --------------------------------------------------------------------------- #
+# Platform connections (self-service, v0.3.6)                                  #
+# --------------------------------------------------------------------------- #
+
+
+def list_resources_by_project(db: Session, project_id: int) -> list[CrmSmmResource]:
+    """Вернуть ресурсы проекта в порядке создания (все типы платформ)."""
+    stmt = (
+        select(CrmSmmResource)
+        .where(CrmSmmResource.project_id == project_id)
+        .order_by(CrmSmmResource.id)
+    )
+    return list(db.scalars(stmt))
+
+
+def get_active_resource_by_project_platform(
+    db: Session, project_id: int, resource_type: str
+) -> CrmSmmResource | None:
+    """Найти активное подключение платформы проекта (по project_id + resource_type)."""
+    stmt = (
+        select(CrmSmmResource)
+        .where(
+            CrmSmmResource.project_id == project_id,
+            CrmSmmResource.resource_type == resource_type,
+            CrmSmmResource.is_active.is_(True),
+        )
+        .order_by(CrmSmmResource.id)
+    )
+    return db.scalars(stmt).first()
+
+
+def create_resource_fields(db: Session, fields: dict[str, Any]) -> CrmSmmResource:
+    """Создать ресурс из готового словаря полей (секреты уже зашифрованы вызывающим)."""
+    resource = CrmSmmResource(**fields)
+    db.add(resource)
+    db.commit()
+    db.refresh(resource)
+    return resource
+
+
+def update_resource_fields(
+    db: Session, resource: CrmSmmResource, fields: dict[str, Any]
+) -> CrmSmmResource:
+    """Обновить ресурс из готового словаря полей (секреты уже зашифрованы вызывающим)."""
+    for field, value in fields.items():
+        setattr(resource, field, value)
+    db.commit()
+    db.refresh(resource)
+    return resource
+
+
+# --------------------------------------------------------------------------- #
 # Ключевые слова                                                              #
 # --------------------------------------------------------------------------- #
 

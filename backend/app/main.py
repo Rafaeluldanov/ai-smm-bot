@@ -15,6 +15,7 @@ from app.api.health import router as health_router
 from app.api.integrations_vk import router as integrations_vk_router
 from app.api.media_assets import router as media_assets_router
 from app.api.media_enhancements import router as media_enhancements_router
+from app.api.platform_connections import router as platform_connections_router
 from app.api.post_publications import router as post_publications_router
 from app.api.post_reviews import router as post_reviews_router
 from app.api.posts import router as posts_router
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(post_reviews_router)
     app.include_router(post_publications_router)
     app.include_router(analytics_router)
+    app.include_router(platform_connections_router)
     app.include_router(external_images_router)
     app.include_router(autonomous_runs_router)
     app.include_router(seo_router)

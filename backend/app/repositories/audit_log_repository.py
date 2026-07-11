@@ -29,3 +29,17 @@ def list_for_account(
         .offset(offset)
     )
     return list(db.scalars(stmt).all())
+
+
+def list_for_project(
+    db: Session, project_id: int, limit: int = 100, offset: int = 0
+) -> list[AuditLogEntry]:
+    """Записи аудита проекта (свежие первыми)."""
+    stmt = (
+        select(AuditLogEntry)
+        .where(AuditLogEntry.project_id == project_id)
+        .order_by(AuditLogEntry.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(db.scalars(stmt).all())

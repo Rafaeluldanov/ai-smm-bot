@@ -152,6 +152,10 @@ class PublicationPreviewItem(BaseModel):
     platform_capabilities: PlatformCapabilitiesRead | None = None
     live_enabled: bool = False
     would_send: bool = False
+    # Откуда берутся креды публикации: project_connection | env_fallback | missing.
+    # Токен НИКОГДА не раскрывается — только источник и факт наличия.
+    credentials_source: str = "missing"
+    token_present: bool = False
 
 
 class PostPublishPreview(BaseModel):
