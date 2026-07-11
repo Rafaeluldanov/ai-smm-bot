@@ -145,3 +145,14 @@ invoice.created/paid и analytics.run. См.
   пополнения нет; миграция `0017` (provider_event_id/status/processed_at/error_message).
 - **Реквизиты плательщика**: `BillingProfileService` (validate/mask/readiness) — готовность
   под метод (карта/СБП/QR/счёт ИП/ООО). Карта в Botfleet не вводится и не хранится.
+
+## Обновление v0.3.5: demo-аналитика постов
+
+Аналитика дополнена **демо-аналитикой по существующим публикациям** (offline, без API) —
+подробно в [32_Botfleet_Каталог_платформ_и_аналитика_постов.md](32_Botfleet_Каталог_платформ_и_аналитика_постов.md).
+`post_analytics_service.build_demo_post_analytics` строит по одной карточке на публикацию:
+`estimated_views/reach/likes/comments/shares`, `er_percent`, `ctr_percent`,
+`quality_score`, `engagement_score`, `source`. Формулы прозрачны и детерминированы;
+источник (`internal`/`estimated`/`demo`) всегда указан и НЕ выдаётся за реальные
+API-метрики. UI `/ui/analytics`: summary-cards, календарь, demo-карточки с иконками
+площадок. Стоимость анализа (light/standard/deep) и правила списаний не изменились.

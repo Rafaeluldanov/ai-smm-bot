@@ -261,6 +261,33 @@ def project_calendar(
     return service.build_calendar(db, project_id, month, platform)
 
 
+@router.get("/projects/{project_id}/demo", dependencies=[Depends(require_project_access)])
+def project_demo_analytics(
+    project_id: int,
+    db: DbSession,
+    service: PostAnalytics,
+    platform: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Демо-аналитика по существующим публикациям проекта (offline, без вызовов API).
+
+    Метрики — оценка по тексту/структуре (source=estimated) или сохранённый снапшот
+    (demo/internal). Источник всегда указан; реальные вызовы внешних API не выполняются.
+    """
+    return service.build_demo_post_analytics(db, project_id, platform, min(max(1, limit), 200))
+
+
+@router.get("/projects/{project_id}/demo-summary", dependencies=[Depends(require_project_access)])
+def project_demo_summary(
+    project_id: int,
+    db: DbSession,
+    service: PostAnalytics,
+    platform: str | None = None,
+) -> dict[str, Any]:
+    """Сводка демо-аналитики: счётчики статусов и средние quality/engagement/ER."""
+    return service.demo_analytics_summary(db, project_id, platform)
+
+
 @router.post("/accounts/{account_id}/preview", dependencies=[Depends(require_account_member)])
 def analytics_cost_preview(
     account_id: int,

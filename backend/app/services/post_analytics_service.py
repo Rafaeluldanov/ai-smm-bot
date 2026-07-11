@@ -81,9 +81,23 @@ _B2B_WORDS = (
 _URL_RE = re.compile(r"https?://|\bt\.me/|\bvk\.com/", re.IGNORECASE)
 _DIGIT_RE = re.compile(r"\d")
 _PRICE_RE = re.compile(r"\d[\d\s]*\s*(?:₽|руб|р\.|рублей)|цена|от\s+\d", re.IGNORECASE)
+_HASHTAG_RE = re.compile(r"#\w+", re.UNICODE)
 
 _IDEAL_MIN_LEN = 200
 _IDEAL_MAX_LEN = 900
+
+# Базовый охват демо-оценки по площадке (условные величины для наглядности, НЕ API).
+_PLATFORM_BASE_VIEWS: dict[str, int] = {
+    "telegram": 600,
+    "vk": 800,
+    "instagram": 500,
+    "website": 300,
+    "youtube": 1200,
+    "rutube": 400,
+    "odnoklassniki": 500,
+    "dzen": 700,
+}
+_DEFAULT_BASE_VIEWS = 400
 
 
 class PostAnalyticsError(Exception):
@@ -590,6 +604,177 @@ class PostAnalyticsService:
             "depth": depth_norm,
             "post_count": post_count,
             "report": cards,
+            "live_calls": False,
+        }
+
+    # ------------------------------------------------------------------ #
+    # 6. Demo-аналитика по существующим публикациям (offline, без API)   #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def detect_cta(text: str) -> bool:
+        """Есть ли призыв к действию (CTA) в тексте."""
+        low = f" {(text or '').lower()} "
+        return any(word in low for word in _CTA_WORDS)
+
+    @staticmethod
+    def detect_links(text: str) -> bool:
+        """Есть ли ссылка в тексте."""
+        return bool(_URL_RE.search(text or ""))
+
+    @staticmethod
+    def detect_hashtags(text: str) -> list[str]:
+        """Список хэштегов из текста (например ``['#мерч', '#опт']``)."""
+        return _HASHTAG_RE.findall(text or "")
+
+    def analyze_post_text(self, text: str) -> dict[str, Any]:
+        """Разобрать произвольный текст: длина, ссылка, CTA, хэштеги, вопрос, цифры."""
+        text = text or ""
+        hashtags = self.detect_hashtags(text)
+        return {
+            "text_length": len(text),
+            "word_count": len(text.split()),
+            "has_link": self.detect_links(text),
+            "has_cta": self.detect_cta(text),
+            "hashtags": hashtags,
+            "hashtags_count": len(hashtags),
+            "has_question": "?" in text,
+            "has_price_or_numbers": bool(_PRICE_RE.search(text)) or bool(_DIGIT_RE.search(text)),
+        }
+
+    def estimate_quality_score(self, post: Post, publication: PostPublication | None = None) -> int:
+        """Оценка качества контента поста 0..100 (по тексту/ссылке/CTA/медиа)."""
+        return self.analyze_post_content(post, publication).quality_score
+
+    def estimate_engagement_score(
+        self, post: Post, publication: PostPublication | None = None
+    ) -> int:
+        """Оценка вовлечения поста 0..100 (estimated, без реальных метрик)."""
+        return self.estimate_post_metrics(post, publication).engagement_score
+
+    def build_recommendations(
+        self, post: Post, publication: PostPublication | None = None
+    ) -> list[str]:
+        """Рекомендации по улучшению поста (CTA, ссылка, длина, оффер, media-group…)."""
+        return self.analyze_post_content(post, publication).recommendations
+
+    def estimate_engagement(
+        self, post: Post, publication: PostPublication | None = None
+    ) -> dict[str, Any]:
+        """Демо-оценка охватов/вовлечения поста (условные величины, НЕ API-метрики).
+
+        Формулы прозрачны и детерминированы (никакой случайности и внешних вызовов):
+        views = базовый охват площадки + бонус за медиа + бонус за CTA; reach = views·0.75;
+        likes = views·(1.5–4%) в зависимости от качества; comments = likes·5%;
+        shares = likes·8%; ER% = (likes+comments+shares)/reach; CTR% — по ссылке.
+        """
+        platform = publication.platform if publication is not None else None
+        content = self.analyze_post_content(post, publication)
+        base = _PLATFORM_BASE_VIEWS.get(platform or "", _DEFAULT_BASE_VIEWS)
+        media_bonus = min(400, content.media_count * 80)
+        cta_bonus = 150 if content.has_cta else 0
+        views = base + media_bonus + cta_bonus
+        reach = int(views * 0.75)
+        like_rate = 0.015 + (content.quality_score / 100) * 0.025  # 1.5% … 4%
+        likes = int(views * like_rate)
+        comments = int(likes * 0.05)
+        shares = int(likes * 0.08)
+        engagements = likes + comments + shares
+        er_percent = round(engagements / max(reach, 1) * 100, 2)
+        clicks = int(views * (0.02 if content.has_link else 0.005))
+        ctr_percent = round(clicks / max(views, 1) * 100, 2) if content.has_link else 0.0
+        return {
+            "estimated_views": views,
+            "estimated_reach": reach,
+            "estimated_likes": likes,
+            "estimated_comments": comments,
+            "estimated_shares": shares,
+            "estimated_clicks": clicks,
+            "er_percent": er_percent,
+            "ctr_percent": ctr_percent,
+        }
+
+    def _demo_source(self, db: Session, post_id: int, platform: str) -> str:
+        """Источник демо-метрик: internal (ручной снапшот) / demo (снапшот) / estimated."""
+        snapshot = analytics_repository.get_latest_snapshot_for_post_platform(db, post_id, platform)
+        if snapshot is None:
+            return SOURCE_ESTIMATED
+        return SOURCE_INTERNAL if snapshot.source == SOURCE_MANUAL else SOURCE_DEMO
+
+    def build_demo_post_analytics(
+        self,
+        db: Session,
+        project_id: int,
+        platform: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Демо-аналитика по УЖЕ существующим публикациям постов проекта (offline).
+
+        По одной карточке на публикацию (VK/Telegram/…). Метрики — оценка по тексту и
+        структуре (source=estimated) или по сохранённому снапшоту (demo/internal); НИКАКИХ
+        реальных вызовов внешних API. Источник метрик всегда указан явно.
+        """
+        want = (platform or "").strip().lower()
+        posts = post_repository.list_posts(db, project_id=project_id, limit=max(limit * 4, 100))
+        cards: list[dict[str, Any]] = []
+        for post in posts:
+            pubs = post_publication_repository.list_publications(db, post_id=post.id)
+            for pub in pubs:
+                if want and want not in ("", "all") and pub.platform != want:
+                    continue
+                text = self._post_text(post, pub.platform)
+                analysis = self.analyze_post_text(text)
+                content = self.analyze_post_content(post, pub)
+                est = self.estimate_engagement(post, pub)
+                cards.append(
+                    {
+                        "post_id": post.id,
+                        "publication_id": pub.id,
+                        "platform": pub.platform,
+                        "status": pub.status,
+                        "external_url": pub.external_url,
+                        "title": post.title or f"#{post.id}",
+                        "text_preview": (text[:160] + "…") if len(text) > 160 else text,
+                        "media_count": content.media_count,
+                        "text_length": analysis["text_length"],
+                        "has_link": analysis["has_link"],
+                        "has_cta": analysis["has_cta"],
+                        "hashtags_count": analysis["hashtags_count"],
+                        "quality_score": content.quality_score,
+                        "engagement_score": self.estimate_post_metrics(post, pub).engagement_score,
+                        "source": self._demo_source(db, post.id, pub.platform),
+                        **est,
+                    }
+                )
+                if len(cards) >= limit:
+                    return cards
+        return cards
+
+    def demo_analytics_summary(
+        self, db: Session, project_id: int, platform: str | None = None, limit: int = 200
+    ) -> dict[str, Any]:
+        """Сводка демо-аналитики: счётчики статусов и средние quality/engagement/ER."""
+        cards = self.build_demo_post_analytics(db, project_id, platform, limit)
+        posts = self.list_project_posts_for_analytics(db, project_id, platform)
+        total = len(posts)
+        published = sum(1 for p in posts if p["status"] == "published")
+        scheduled = sum(1 for p in posts if p["status"] == "scheduled")
+        failed = sum(1 for p in posts if p["status"] == "rejected")
+        n = len(cards) or 1
+        avg_quality = round(sum(c["quality_score"] for c in cards) / n)
+        avg_engagement = round(sum(c["engagement_score"] for c in cards) / n)
+        avg_er = round(sum(c["er_percent"] for c in cards) / n, 2)
+        return {
+            "project_id": project_id,
+            "platform": platform or "all",
+            "total_posts": total,
+            "published": published,
+            "scheduled": scheduled,
+            "failed": failed,
+            "publications": len(cards),
+            "avg_quality_score": avg_quality,
+            "avg_engagement_score": avg_engagement,
+            "avg_er_percent": avg_er,
             "live_calls": False,
         }
 

@@ -36,7 +36,13 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 
 from app.config import Settings, get_settings
+from app.services.platform_catalog_service import (
+    PlatformCatalogItem,
+    PlatformCatalogService,
+)
 from app.services.unit_economics_service import UnitEconomicsService
+
+_CATALOG = PlatformCatalogService()
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 
@@ -198,6 +204,37 @@ h2[id],h3[id]{scroll-margin-top:72px}
 .ptile .prow{font-size:12px;color:var(--muted);word-break:break-all}
 .ptile .open{margin-top:auto;font-size:13px;color:var(--accent);font-weight:600}
 .ptile.soon{opacity:.72}
+/* Каталог платформ: адаптивная сетка карточек с оригинальными SVG-иконками */
+.platform-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin:10px 0 6px;align-items:stretch}
+@media(max-width:900px){.platform-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}}
+@media(max-width:560px){.platform-grid{grid-template-columns:1fr}}
+.platform-card{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;box-shadow:0 1px 2px var(--shadow);color:var(--text);min-height:170px;transition:transform .08s,border-color .08s,box-shadow .08s}
+.platform-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 22px var(--shadow);text-decoration:none}
+.platform-card.planned,.platform-card.research{opacity:.82}
+.platform-card-head{display:flex;align-items:center;gap:10px}
+.platform-icon{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:12px;background:var(--surface-soft);border:1px solid var(--border);color:var(--accent);flex:0 0 auto}
+.platform-icon svg{width:24px;height:24px;display:block}
+.pc-title{font-weight:700;font-size:15px}
+.pc-cat{font-size:11px;color:var(--muted)}
+.pc-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;border:1px solid var(--border);background:var(--surface-soft);color:var(--muted);width:fit-content}
+.pc-badge.active{color:#1f9d55;border-color:rgba(31,157,85,.4)}
+.pc-badge.beta{color:#c07d0a;border-color:rgba(192,125,10,.4)}
+.pc-badge.planned,.pc-badge.research{color:var(--muted)}
+.pc-conn{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.pc-conn .prow{word-break:break-word}
+.platform-card .open{margin-top:auto;font-size:13px;color:var(--accent);font-weight:600}
+.pw-head .platform-icon{width:46px;height:46px;border-radius:14px}
+.pw-head .platform-icon svg{width:28px;height:28px}
+/* Акценты иконок платформ (оригинальные цвета «в духе», не официальные логотипы) */
+.accent-telegram{color:#3aa0e0}.accent-vk{color:#4b74b3}.accent-instagram{color:#c95a9b}
+.accent-website{color:#4a8f7b}.accent-yandex_disk{color:#d15a3a}.accent-youtube{color:#d1483a}
+.accent-rutube{color:#7a5ad1}.accent-dzen{color:#3aa08a}.accent-odnoklassniki{color:#d58a2a}
+.accent-google_drive{color:#3a8fd1}.accent-facebook_page{color:#4b74b3}.accent-tiktok{color:#c85a86}
+.accent-pinterest{color:#c8483a}.accent-tenchat{color:#3a7fa0}.accent-vc_ru{color:#c07d0a}
+.accent-linkedin{color:#3a6fa0}.accent-x_twitter{color:#6a7a86}.accent-threads{color:#8a5ad1}
+.accent-email{color:#4a8f7b}.accent-blog_cms{color:#7a86a0}.accent-whatsapp_business{color:#3aa05a}
+.accent-two_gis{color:#3aa05a}.accent-avito{color:#3a8fd1}.accent-pikabu{color:#3aa08a}
+.accent-default{color:var(--accent)}
 /* Вкладки страницы платформы */
 .tabs{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--border);margin:10px 0 14px}
 .tab{background:transparent;border:1px solid transparent;border-bottom:0;color:var(--muted);border-radius:9px 9px 0 0;padding:8px 14px;cursor:pointer;font:inherit;font-size:14px}
@@ -222,6 +259,12 @@ h2[id],h3[id]{scroll-margin-top:72px}
 .sched-task .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 /* Аналитика */
 .an-filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;align-items:end}
+.an-summary{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:8px 0}
+.an-summary .an-stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 12px;box-shadow:0 1px 2px var(--shadow)}
+.an-summary .an-stat .k{display:block;font-size:11px;color:var(--muted)}
+.an-summary .an-stat .v{font-size:20px;font-weight:700;color:var(--text)}
+.an-plat-ico{display:inline-flex;vertical-align:middle;width:18px;height:18px;color:var(--accent)}
+.an-plat-ico svg{width:18px;height:18px}
 .an-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin:10px 0}
 .an-cell{background:var(--surface-soft);border:1px solid var(--border);border-radius:7px;min-height:64px;padding:5px;font-size:11px;color:var(--muted)}
 .an-cell .d{font-weight:700;color:var(--text)}
@@ -939,6 +982,9 @@ _PLATFORM_ORDER = ["vk", "telegram", "instagram", "yandex_disk", "website", "you
 
 
 def _platform_label(platform: str) -> str:
+    item = _CATALOG.get(platform)
+    if item is not None:
+        return item.title_ru
     meta = _PLATFORM_META.get(platform)
     return meta["label"] if meta else platform
 
@@ -946,6 +992,11 @@ def _platform_label(platform: str) -> str:
 def _platform_icon(platform: str) -> str:
     meta = _PLATFORM_META.get(platform)
     return meta["icon"] if meta else "🔌"
+
+
+def _platform_icon_svg(platform: str) -> str:
+    """Оригинальная inline SVG-иконка платформы из каталога (стиль Botfleet)."""
+    return _CATALOG.icon_svg(platform)
 
 
 def _telegram_guide_html() -> str:
@@ -1147,6 +1198,27 @@ def _instagram_dashboard_card(settings: Settings) -> str:
     )
 
 
+def _platform_catalog_card(project_id: int, item: PlatformCatalogItem) -> str:
+    """Карточка платформы для сетки дашборда (server-rendered, оригинальная SVG-иконка).
+
+    ``.pc-conn[data-conn=key]`` — слот статуса подключения: JS дозаполняет его для
+    настроенных площадок; по умолчанию показывает короткое описание из каталога.
+    """
+    href = f"/ui/projects/{project_id}/platforms/{item.key}"
+    return (
+        f"<a class='platform-card {item.support_level}' href='{href}' "
+        f"data-platform='{item.key}'>"
+        "<div class='platform-card-head'>"
+        f"<span class='platform-icon {item.accent_class}'>{item.icon_svg}</span>"
+        f"<div><div class='pc-title'>{html.escape(item.title_ru)}</div>"
+        f"<div class='pc-cat'>{html.escape(item.category_title)}</div></div></div>"
+        f"<span class='pc-badge {item.support_level}'>{html.escape(item.support_title)}</span>"
+        f"<div class='pc-conn' data-conn='{item.key}'>"
+        f"<span class='prow'>{html.escape(item.notes_short)}</span></div>"
+        "<span class='open'>Открыть →</span></a>"
+    )
+
+
 @router.get("/projects/{project_id}/dashboard", response_class=HTMLResponse)
 def ui_project_dashboard(project_id: int) -> HTMLResponse:
     _settings = get_settings()
@@ -1154,6 +1226,7 @@ def ui_project_dashboard(project_id: int) -> HTMLResponse:
         "user_id": _settings.instagram_effective_user_id or "",
         "token_present": bool(_settings.instagram_access_token),
     }
+    cards = "".join(_platform_catalog_card(project_id, item) for item in _CATALOG.dashboard_items())
     body = (
         # Заголовок проекта (h1 заменяется на «Проект: {имя}» из JS) + баланс.
         "<div class='proj-head'><span id='pbadges'></span></div>"
@@ -1165,26 +1238,34 @@ def ui_project_dashboard(project_id: int) -> HTMLResponse:
         "<div id='sched-picker' class='card' style='display:none'>"
         "<p class='muted'>Выберите платформу для нового расписания:</p>"
         "<div id='sched-picker-links' class='inline'></div></div>"
-        # Сетка платформ (кликабельные карточки → страница платформы).
-        "<h2>Платформы</h2><div id='plats' class='ptiles'>"
-        "<div class='muted'>Загрузка…</div></div>"
+        # Сетка платформ из каталога (server-rendered, оригинальные SVG-иконки).
+        "<h2>Платформы</h2>"
+        "<p class='muted'>Каталог площадок Botfleet: активные, ближайшие и планируемые. "
+        "Карточки кликабельны — откройте площадку, чтобы увидеть настройки, гайд и статус.</p>"
+        f"<div id='plats' class='platform-grid'>{cards}</div>"
         # Компактная активность после платформ.
         "<h2>Активность</h2><div id='activity' class='card muted'>Загрузка…</div>"
         "<div id='error' class='err'></div>"
     )
-    platform_meta = {
-        k: {"icon": v["icon"], "label": v["label"], "kind": v["kind"]}
-        for k, v in _PLATFORM_META.items()
-    }
     script = (
         f"const PID={project_id};"
         f"const IG_CFG={json.dumps(ig_cfg)};"
-        f"const PLATFORM_META={json.dumps(platform_meta, ensure_ascii=False)};"
-        f"const PLATFORM_ORDER={json.dumps(_PLATFORM_ORDER)};"
         "function toggleSchedPicker(){const p=document.getElementById('sched-picker');"
         "if(p)p.style.display=(p.style.display==='none'||!p.style.display)?'block':'none';}"
         "const eEl=document.getElementById('error');"
-        "const P=document.getElementById('plats');const A=document.getElementById('activity');"
+        "const A=document.getElementById('activity');"
+        # Статус подключения + ключевые данные для карточки настроенной площадки (без секретов).
+        "function connRows(pt,r){"
+        "if(pt==='vk')return `<div class='prow'>Group ID: ${esc((r&&r.external_id)||'—')}</div>`"
+        "+`<div class='prow'>token: ${(r&&r.has_api_key)?'сохранён':'нет'} · live: выключен</div>`;"
+        "if(pt==='telegram')return `<div class='prow'>Channel: ${esc((r&&r.external_id)||'—')}</div>`"
+        "+`<div class='prow'>bot token: ${(r&&r.has_api_key)?'сохранён':'нет'} · media group</div>`;"
+        "if(pt==='instagram')return `<div class='prow'>User ID: ${esc((r&&r.external_id)||IG_CFG.user_id||'—')}</div>`"
+        "+`<div class='prow'>token: ${((r&&r.has_api_key)||IG_CFG.token_present)?'сохранён':'нет'} · image_url required</div>`;"
+        "if(pt==='yandex_disk')return `<div class='prow'>root: ${esc((r&&r.yandex_root_folder)||'—')}</div>`"
+        "+`<div class='prow'>public url: ${(r&&r.yandex_public_url)?'да':'—'} · теги: ${esc(((r&&r.tags)||[]).join(', ')||'—')}</div>`;"
+        "if(pt==='website')return `<div class='prow'>${esc((r&&r.url)||'—')}</div>`;"
+        "return '';}"
         "(async()=>{try{const d=await api('GET','/saas/projects/'+PID+'/dashboard');"
         # Заголовок «Проект: {имя}».
         "const h1=document.querySelector('main h1');if(h1)h1.textContent='Проект: '+(d.project_name||('#'+PID));"
@@ -1193,40 +1274,16 @@ def ui_project_dashboard(project_id: int) -> HTMLResponse:
         "+`<span class='badge'>баланс: ${d.billing_balance_units==null?'—':d.billing_balance_units} units</span>`"
         "+`<span class='badge'>платформы: ${d.platforms_count}</span>`"
         "+`<span class='badge'>планы: ${d.active_plans_count}</span>`;"
-        # Карта ресурсов по типу платформы (без секрета).
+        # Карта ресурсов по типу платформы (без секрета) — дозаполняем карточки каталога.
         "const byType={};((d.extra&&d.extra.platforms)||[]).forEach(p=>{byType[p.platform_type]=p;});"
-        "function tile(pt){const m=PLATFORM_META[pt]||{icon:'🔌',label:pt,kind:''};const r=byType[pt];"
-        "const soon=m.kind==='soon';"
-        "const on=!!(r&&(r.external_id||r.url||r.has_api_key||r.yandex_public_url));"
-        "let rows='';"
-        "if(pt==='vk'){rows=`<div class='prow'>Group ID: ${esc((r&&r.external_id)||'—')}</div>`"
-        "+`<div class='prow'>token: ${(r&&r.has_api_key)?'сохранён':'нет'}</div>`"
-        "+`<div class='prow'>live: выключен</div>`"
-        "+`<div class='prow'>⚠️ Фото через API требуют user-token</div>`;}"
-        "else if(pt==='telegram'){rows=`<div class='prow'>Channel: ${esc((r&&r.external_id)||'—')}</div>`"
-        "+`<div class='prow'>bot token: ${(r&&r.has_api_key)?'сохранён':'нет'}</div>`"
-        "+`<div class='prow'>media group: поддерживается</div>`"
-        "+`<div class='prow'>live: выключен</div>`;}"
-        "else if(pt==='instagram'){rows=`<div class='prow'>User ID: ${esc((r&&r.external_id)||IG_CFG.user_id||'—')}</div>`"
-        "+`<div class='prow'>token: ${((r&&r.has_api_key)||IG_CFG.token_present)?'сохранён':'нет'}</div>`"
-        "+`<div class='prow'>image_url required</div>`"
-        "+`<div class='prow'>live: выключен</div>`;}"
-        "else if(pt==='yandex_disk'){rows=`<div class='prow'>источник: Яндекс Диск</div>`"
-        "+`<div class='prow'>root: ${esc((r&&r.yandex_root_folder)||'—')}</div>`"
-        "+`<div class='prow'>public url: ${(r&&r.yandex_public_url)?'да':'—'}</div>`"
-        "+`<div class='prow'>теги: ${esc(((r&&r.tags)||[]).join(', ')||'—')}</div>`;}"
-        "else if(pt==='website'){rows=`<div class='prow'>${esc((r&&r.url)||'—')}</div>`;}"
-        "else{rows=`<div class='prow'>Планируется</div>`;}"
-        "const st=soon?`<span class='pill off'>скоро</span>`:(on?`<span class='pill ok'>настроено</span>`:`<span class='pill off'>не настроено</span>`);"
-        "return `<a class='ptile${soon?` soon`:``}' href='/ui/projects/${PID}/platforms/${encodeURIComponent(pt)}'>`"
-        "+`<div class='inline'><span class='ico'>${m.icon}</span> <span class='pname'>${esc(m.label)}</span></div>`"
-        "+`<div>${st}</div>${rows}<span class='open'>Открыть →</span></a>`;}"
-        "P.innerHTML=PLATFORM_ORDER.map(tile).join('');"
+        "document.querySelectorAll('.pc-conn').forEach(slot=>{const pt=slot.dataset.conn;const r=byType[pt];"
+        "if(!r)return;const on=!!(r.external_id||r.url||r.has_api_key||r.yandex_public_url);"
+        "const st=`<span class='pill ${on?'ok':'off'}'>${on?'подключено':'не подключено'}</span>`;"
+        "const rows=connRows(pt,r);slot.innerHTML=`<div class='prow'>${st}</div>`+rows;});"
         # Пикер платформ для нового расписания — только настроенные площадки.
-        "const cfg=PLATFORM_ORDER.filter(pt=>byType[pt]&&(PLATFORM_META[pt]||{}).kind!=='soon');"
-        "const links=cfg.length?cfg:['telegram','vk','instagram'];"
-        "document.getElementById('sched-picker-links').innerHTML=links.map(pt=>"
-        "`<a href='/ui/projects/${PID}/platforms/${encodeURIComponent(pt)}/schedule'><button class='mini sec'>${esc((PLATFORM_META[pt]||{}).label||pt)}</button></a>`).join('');"
+        "const links=Object.keys(byType);const use=links.length?links:['telegram','vk','instagram'];"
+        "document.getElementById('sched-picker-links').innerHTML=use.map(pt=>"
+        "`<a href='/ui/projects/${PID}/platforms/${encodeURIComponent(pt)}/schedule'><button class='mini sec'>${esc(pt)}</button></a>`).join('');"
         # Компактная активность: рекомендации + последние посты.
         "const acts=(d.next_recommended_actions||[]);"
         "const recent=(d.recent_posts||[]);"
@@ -1355,8 +1412,39 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
     """Рабочая область платформы: вкладки Обзор/Настройки/Гайд/Расписание/Preview/Аналитика."""
     platform = _safe_slug(platform)
     settings = get_settings()
+    item = _CATALOG.get(platform)
     label = _platform_label(platform)
-    icon = _platform_icon(platform)
+    icon_svg = _platform_icon_svg(platform)
+    accent = item.accent_class if item is not None else "accent-default"
+    support_badge = (
+        f"<span class='pc-badge {item.support_level}'>{html.escape(item.support_title)}</span>"
+        if item is not None
+        else ""
+    )
+    planned = bool(item is not None and item.is_planned)
+    planned_banner = (
+        (
+            "<div class='callout warn'><b>Интеграция в разработке</b>"
+            f"<p>{html.escape(item.title_ru)} — {html.escape(item.support_title.lower())}. "
+            "Подключение и публикация пока выключены (кнопки недоступны). Доступны обзор, "
+            "роадмап и демо-аналитика; реальные вызовы API не выполняются.</p></div>"
+        )
+        if planned and item is not None
+        else ""
+    )
+    roadmap_extra = (
+        (
+            "<div class='card'><h3>Роадмап интеграции</h3>"
+            f"<p class='muted'>{html.escape(item.notes_short)}</p><ul>"
+            "<li>Подключение аккаунта/токена площадки.</li>"
+            "<li>Безопасный preview/dry-run без реальных вызовов API.</li>"
+            "<li>Публикация по расписанию — после платформенных тестов.</li>"
+            "<li>Демо-аналитика уже доступна по существующим постам.</li>"
+            "</ul></div>"
+        )
+        if item is not None and (item.is_planned or item.support_level == "beta")
+        else ""
+    )
     tabs = [
         ("overview", "Обзор"),
         ("settings", "Настройки"),
@@ -1379,13 +1467,16 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
     body = (
         f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
         "<button class='sec mini'>← К проекту</button></a></div>"
-        f"<div class='pw-head'><span class='big'>{icon}</span>"
+        f"<div class='pw-head'><span class='platform-icon {accent}'>{icon_svg}</span>"
         f"<h2 style='margin:0'>{html.escape(label)}</h2>"
+        f"{support_badge}"
         "<span id='pw-status' class='pill off'>…</span></div>"
+        f"{planned_banner}"
         f"<div class='tabs'>{tabs_bar}</div>"
         # Обзор
         "<div class='tabpane active' id='pane-overview'>"
-        "<div class='card'><div id='pw-overview' class='muted'>Загрузка…</div></div></div>"
+        "<div class='card'><div id='pw-overview' class='muted'>Загрузка…</div></div>"
+        f"{roadmap_extra}</div>"
         # Настройки
         f"<div class='tabpane' id='pane-settings'>{settings_pane}</div>"
         # Гайд
@@ -1656,12 +1747,16 @@ def ui_tariffs() -> HTMLResponse:
 def ui_analytics() -> HTMLResponse:
     economics = UnitEconomicsService()
     depth_prices = {row["depth"]: row["units"] for row in economics.analytics_price_table()}
+    platform_icons = {i.key: i.icon_svg for i in _CATALOG.items()}
     body = (
         # Верхний блок: баланс + подсказка.
         "<div class='card'><div id='an-balance' class='muted'>Баланс: загрузка…</div>"
         "<p class='muted'>Preview бесплатно, запуск отчёта списывает units. Источник метрик "
-        "всегда указывается (internal / manual / estimated / api / demo). Реальные вызовы "
-        "внешних API не выполняются.</p></div>"
+        "всегда указывается (internal / manual / estimated / api / demo). Демо-метрики — "
+        "оценка по тексту и структуре, НЕ реальные API-данные. Реальные вызовы внешних API "
+        "не выполняются.</p></div>"
+        # Summary cards (сводка по проекту).
+        "<div id='an-summary' class='an-summary'></div>"
         # Фильтры
         "<div class='card'><div class='an-filters'>"
         "<div><label>Проект</label><select id='an-project'>"
@@ -1699,6 +1794,11 @@ def ui_analytics() -> HTMLResponse:
         "<span class='an-dot needs_review'></span> needs_review</div>"
         "<div id='an-cal' class='an-cal'></div>"
         "<p class='muted'>Выберите проект — календарь и посты подгрузятся.</p></div>"
+        # Demo-аналитика по существующим публикациям (offline).
+        "<h2>Demo-аналитика постов</h2>"
+        "<p class='muted'>По уже существующим публикациям VK/Telegram: оценка охвата, ER и "
+        "качества. Источник метрик указан на каждой карточке; live-вызовов API нет.</p>"
+        "<div id='an-demo' class='muted'>Выберите проект.</div>"
         # Список постов
         "<h2>Посты</h2>"
         "<div id='an-posts' class='muted'>Выберите проект.</div>"
@@ -1731,8 +1831,34 @@ def ui_analytics() -> HTMLResponse:
     )
     script = (
         f"const AN_PRICES={json.dumps(depth_prices)};"
+        f"const PLATFORM_ICONS={json.dumps(platform_icons, ensure_ascii=False)};"
         "let AN_BAL=0;let AN_POSTS=[];"
+        "function platIco(pt){return PLATFORM_ICONS[pt]?`<span class='an-plat-ico'>${PLATFORM_ICONS[pt]}</span>`:'';}"
         "function pid(){return parseInt(gv('an-project'))||0;}"
+        "function renderSummary(s){const host=document.getElementById('an-summary');if(!host)return;"
+        "if(!s){host.innerHTML='';return;}"
+        "const cell=(k,v)=>`<div class='an-stat'><span class='k'>${esc(k)}</span><span class='v'>${esc(String(v))}</span></div>`;"
+        "host.innerHTML=cell('Всего постов',s.total_posts)+cell('Опубликовано',s.published)+cell('Запланировано',s.scheduled)+cell('Failed',s.failed)"
+        "+cell('Средний quality',s.avg_quality_score)+cell('Средний engagement',s.avg_engagement_score)+cell('Средний ER %',s.avg_er_percent);}"
+        "function demoCard(c){return `<div class='sched-task'><h3>${platIco(c.platform)} ${esc(c.title)} `"
+        "+`<span class='pill ${c.status==='published'?'ok':'off'}'>${esc(c.status)}</span> `"
+        "+`<span class='pill off'>источник: ${esc(c.source)}</span></h3>`"
+        "+`<div class='muted' style='margin:2px 0 6px'>${esc(c.text_preview||'')}</div>`"
+        "+`<div class='sched-grid'>`"
+        "+`<div><span class='k'>Площадка</span><span class='v'>${esc(c.platform)}</span></div>`"
+        "+`<div><span class='k'>quality_score</span><span class='v'>${c.quality_score}</span></div>`"
+        "+`<div><span class='k'>engagement_score</span><span class='v'>${c.engagement_score}</span></div>`"
+        "+`<div><span class='k'>Просмотры (est)</span><span class='v'>${c.estimated_views}</span></div>`"
+        "+`<div><span class='k'>Охват (est)</span><span class='v'>${c.estimated_reach}</span></div>`"
+        "+`<div><span class='k'>Лайки (est)</span><span class='v'>${c.estimated_likes}</span></div>`"
+        "+`<div><span class='k'>ER %</span><span class='v'>${c.er_percent}</span></div>`"
+        "+`<div><span class='k'>CTR %</span><span class='v'>${c.ctr_percent}</span></div>`"
+        "+`<div><span class='k'>media / хэштеги</span><span class='v'>${c.media_count} / ${c.hashtags_count}</span></div>`"
+        "+`</div>`"
+        "+(c.external_url?`<div class='muted'>Ссылка: <a href='${esc(c.external_url)}' target='_blank' rel='noopener'>${esc(c.external_url)}</a></div>`:'')"
+        "+`<div class='acts'><button class='mini sec' onclick='anOpenCard(${c.post_id})'>Открыть анализ</button></div></div>`;}"
+        "function renderDemo(cards){const host=document.getElementById('an-demo');if(!host)return;host.classList.remove('muted');"
+        "host.innerHTML=cards.length?cards.map(demoCard).join(''):\"<div class='card muted'>Публикаций для демо-аналитики нет.</div>\";}"
         "function anEstimate(){const depth=gv('an-depth');const n=Math.max(1,parseInt(gv('an-count'))||1);"
         "const per=AN_PRICES[depth]||AN_PRICES.light||10;const total=per*n;"
         "const el=document.getElementById('an-estimate');if(el)el.textContent=total+' units';"
@@ -1795,6 +1921,8 @@ def ui_analytics() -> HTMLResponse:
         "try{const posts=await api('GET','/analytics/projects/'+p+'/posts?platform='+encodeURIComponent(plat)+(st?('&post_status='+encodeURIComponent(st)):''));"
         "renderPosts(posts);const cnt=document.getElementById('an-count');if(cnt)cnt.value=Math.max(1,posts.length);anEstimate();"
         "const cal=await api('GET','/analytics/projects/'+p+'/calendar?platform='+encodeURIComponent(plat));renderCalendar(cal.days||[]);"
+        "try{const s=await api('GET','/analytics/projects/'+p+'/demo-summary?platform='+encodeURIComponent(plat));renderSummary(s);}catch(e){}"
+        "try{const dm=await api('GET','/analytics/projects/'+p+'/demo?platform='+encodeURIComponent(plat));renderDemo(dm);}catch(e){}"
         "}catch(x){}}"
         "['an-depth','an-count'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener('input',anEstimate);});"
         "['an-project','an-platform','an-status'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener('change',loadProject);});"

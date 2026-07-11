@@ -54,6 +54,8 @@ known-first-party = ["app"]
 "backend/alembic/versions/*" = ["E501", "I001"]
 # UI-модуль встраивает HTML/CSS/JS строками — длинные строки естественны.
 "backend/app/api/ui.py" = ["E501"]
+# Иконки платформ — это inline SVG-данные (длинные path-строки естественны).
+"backend/app/services/platform_icons.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"
