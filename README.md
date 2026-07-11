@@ -1733,3 +1733,12 @@ make vk-browser-publish-live    post_id=44               # публикует Т
 профиль обучения «Чему бот научился» (`/ui/projects/{id}/learning`) и настройки режима
 (`/ui/projects/{id}/automation`). Подробно —
 [Докс/37_Botfleet_Review_Learning_Automation.md](./Докс/37_Botfleet_Review_Learning_Automation.md).
+
+## Импорт метрик и обратная связь обучения (v0.4.1)
+
+Импорт метрик постов (demo/manual/estimated/internal/api), нормализация метрик разных
+площадок к единому формату (ER/CTR, `null` вместо `0`) и пересчёт профиля обучения по
+реальным/ручным/оценочным данным. Клиент видит на `/ui/projects/{id}/metrics`, какой пост
+сработал лучше и какие выводы сделал бот. Реальные API-метрики — за feature flag (по
+умолчанию выключены), demo/manual — без сети. Подробно —
+[Докс/38_Botfleet_Metrics_Import_Learning_Feedback.md](./Докс/38_Botfleet_Metrics_Import_Learning_Feedback.md).

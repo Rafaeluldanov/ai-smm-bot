@@ -27,6 +27,7 @@ from app.repositories import (
     account_repository,
     crm_bot_smm_repository,
     payment_repository,
+    post_publication_repository,
     post_repository,
     project_repository,
 )
@@ -148,6 +149,20 @@ def require_post_access(
     if post is None:
         raise _NOT_FOUND
     _guard_project(db, settings, user, post.project_id)
+
+
+def require_publication_access(
+    publication_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к публикации (через пост → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    publication = post_publication_repository.get_publication_by_id(db, publication_id)
+    if publication is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, publication.project_id)
 
 
 def require_vk_resource_access(

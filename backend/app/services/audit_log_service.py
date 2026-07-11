@@ -90,6 +90,16 @@ ACTION_AUTOMATION_FULL_AUTO_ENABLED = "automation.full_auto.enabled"
 ACTION_AUTOMATION_FULL_AUTO_DISABLED = "automation.full_auto.disabled"
 ACTION_AUTOMATION_AUTO_PUBLISH_BLOCKED = "automation.auto_publish.blocked"
 ACTION_AUTOMATION_AUTO_PUBLISH_SUCCEEDED = "automation.auto_publish.succeeded"
+# Импорт метрик и обратная связь обучения (v0.4.1).
+ACTION_METRICS_IMPORT_PREVIEW = "metrics.import.preview"
+ACTION_METRICS_IMPORT_STARTED = "metrics.import.started"
+ACTION_METRICS_IMPORT_COMPLETED = "metrics.import.completed"
+ACTION_METRICS_IMPORT_FAILED = "metrics.import.failed"
+ACTION_METRICS_IMPORT_BLOCKED = "metrics.import.blocked"
+ACTION_METRICS_MANUAL_SAVED = "metrics.manual.saved"
+ACTION_METRICS_LEARNING_REBUILD_PREVIEW = "metrics.learning.rebuild.preview"
+ACTION_METRICS_LEARNING_REBUILT = "metrics.learning.rebuilt"
+ACTION_METRICS_EXTERNAL_API_DISABLED = "metrics.external_api.disabled"
 
 
 class AuditLogService:

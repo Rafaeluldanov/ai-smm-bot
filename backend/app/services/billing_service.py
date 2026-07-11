@@ -24,6 +24,11 @@ USAGE_LEARNING_PROFILE_REBUILD = "learning_profile_rebuild"
 USAGE_CONTENT_SCORING = "content_scoring"
 USAGE_AUTO_PUBLISH_ACTION = "auto_publish_action"
 
+# Типы usage для импорта метрик и обратной связи обучения (v0.4.1).
+USAGE_METRICS_IMPORT = "metrics_import"
+USAGE_LEARNING_REBUILD = "learning_rebuild"
+USAGE_MANUAL_METRICS_SAVE = "manual_metrics_save"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -38,6 +43,11 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_LEARNING_PROFILE_REBUILD: 5,
     USAGE_REVIEW_PUBLISH_NOW: 5,
     USAGE_AUTO_PUBLISH_ACTION: 5,
+    # v0.4.1: manual/preview — бесплатно; стоимость реального импорта считается по
+    # глубине в unit_economics; пересчёт обучения — 5 units.
+    USAGE_MANUAL_METRICS_SAVE: 0,
+    USAGE_METRICS_IMPORT: 0,
+    USAGE_LEARNING_REBUILD: 5,
 }
 _DEFAULT_ACTION_COST = 1
 

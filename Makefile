@@ -150,6 +150,18 @@ publish-due: ## Опубликовать созревшие публикации
 ingest-analytics: ## Ввести метрики поста: make ingest-analytics post_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.ingest_analytics --post-id "$(post_id)"
 
+metrics-import-preview: ## Превью импорта метрик: make metrics-import-preview project_id=1 [platform=telegram] [source=demo] [depth=standard]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.metrics_import_preview --project-id "$(project_id)" --platform "$(or $(platform),all)" --source "$(or $(source),demo)" --depth "$(or $(depth),standard)"
+
+metrics-import-run: ## Импорт метрик (dry-run по умолчанию): make metrics-import-run project_id=1 [source=demo] [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.metrics_import_run --project-id "$(project_id)" --platform "$(or $(platform),all)" --source "$(or $(source),demo)" --depth "$(or $(depth),standard)" --dry-run "$(or $(dry_run),true)"
+
+manual-metrics: ## Ручной ввод метрик публикации (бесплатно): make manual-metrics publication_id=1 views=1000 likes=50
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.manual_metrics --publication-id "$(publication_id)" $(if $(views),--views $(views),) $(if $(reach),--reach $(reach),) $(if $(impressions),--impressions $(impressions),) $(if $(likes),--likes $(likes),) $(if $(comments),--comments $(comments),) $(if $(shares),--shares $(shares),) $(if $(saves),--saves $(saves),) $(if $(clicks),--clicks $(clicks),) $(if $(followers_delta),--followers-delta $(followers_delta),)
+
+learning-rebuild: ## Пересчёт обучения по метрикам (dry-run по умолчанию): make learning-rebuild project_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.rebuild_learning_from_metrics --project-id "$(project_id)" --platform "$(or $(platform),all)" --depth "$(or $(depth),standard)" --dry-run "$(or $(dry_run),true)"
+
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
 

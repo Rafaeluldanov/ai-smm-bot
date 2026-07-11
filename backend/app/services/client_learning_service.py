@@ -144,8 +144,13 @@ class ClientLearningService:
         post_id: int | None = None,
         project_id: int | None = None,
         platform_key: str | None = None,
+        rebuild: bool = True,
     ) -> Any:
-        """Зафиксировать импорт метрик как событие ``analytics_imported`` и обновить профиль."""
+        """Зафиксировать импорт метрик как событие ``analytics_imported`` и обновить профиль.
+
+        ``rebuild=False`` — не пересчитывать профиль сразу (для батч-импорта: пересчёт
+        делается один раз в конце, чтобы избежать O(n²)).
+        """
         from app.repositories import post_publication_repository
 
         pub = None
@@ -169,7 +174,8 @@ class ClientLearningService:
             metrics_snapshot=self._sanitize(metrics),
             event_metadata=self._sanitize({"source": source}),
         )
-        self.build_learning_profile(db, project_id, platform_key=None)
+        if rebuild:
+            self.build_learning_profile(db, project_id, platform_key=None)
         return event
 
     # ------------------------------------------------------------------ #
@@ -353,6 +359,66 @@ class ClientLearningService:
             "updated_at": profile.updated_at.isoformat() if profile.updated_at else None,
         }
 
+    def explain_learning_changes(
+        self, before_profile: Any | None, after_profile: Any | None
+    ) -> list[str]:
+        """Человеко-читаемые изменения профиля (для блока «как метрики повлияли»).
+
+        ``before``/``after`` — снимки профиля (dict из ``summarize_learning`` или ORM).
+        Показывает, что появилось/усилилось/ослабло, без сырых чисел.
+        """
+        before = self._profile_view(before_profile)
+        after = self._profile_view(after_profile)
+        changes: list[str] = []
+
+        def _new(field: str, label: str) -> None:
+            added = [x for x in after.get(field, []) if x not in set(before.get(field, []))]
+            if added:
+                changes.append(f"{label}: + {', '.join(str(a) for a in added[:5])}")
+
+        _new("high_performing_tags", "Сильные теги")
+        _new("low_performing_tags", "Слабые теги")
+        _new("preferred_cta", "Лучший CTA")
+        _new("preferred_media_types", "Лучший тип медиа")
+        _new("best_publish_times", "Лучшее время")
+        _new("preferred_topics", "Темы, которые заходят")
+
+        conf_before = float(before.get("confidence_score", 0) or 0)
+        conf_after = float(after.get("confidence_score", 0) or 0)
+        if conf_after > conf_before + 0.001:
+            changes.append(
+                "Уверенность профиля выросла: "
+                f"{round(conf_before * 100)}% → {round(conf_after * 100)}%"
+            )
+        perf = after.get("performance_patterns", {}) or {}
+        if perf.get("avg_engagement_rate") is not None:
+            changes.append(
+                f"Средний ER по метрикам: {round(float(perf['avg_engagement_rate']) * 100, 2)}%"
+            )
+        if perf.get("useful_content_signals"):
+            changes.append("Замечен «полезный» контент (сохранения/репосты) — будем усиливать.")
+        if not changes:
+            changes.append("Существенных изменений в профиле пока нет — нужно больше метрик.")
+        return changes
+
+    @staticmethod
+    def _profile_view(profile: Any | None) -> dict[str, Any]:
+        """Привести профиль (ORM или dict) к единому dict-снимку для сравнения."""
+        if profile is None:
+            return {}
+        if isinstance(profile, dict):
+            return profile
+        return {
+            "high_performing_tags": list(getattr(profile, "high_performing_tags", []) or []),
+            "low_performing_tags": list(getattr(profile, "low_performing_tags", []) or []),
+            "preferred_cta": list(getattr(profile, "preferred_cta", []) or []),
+            "preferred_media_types": list(getattr(profile, "preferred_media_types", []) or []),
+            "best_publish_times": list(getattr(profile, "best_publish_times", []) or []),
+            "preferred_topics": list(getattr(profile, "preferred_topics", []) or []),
+            "confidence_score": getattr(profile, "confidence_score", 0.0),
+            "performance_patterns": dict(getattr(profile, "performance_patterns", {}) or {}),
+        }
+
     # ------------------------------------------------------------------ #
     # Внутреннее: вывод полей профиля из событий/аналитики                #
     # ------------------------------------------------------------------ #
@@ -403,26 +469,50 @@ class ClientLearningService:
                     if value:
                         edit_counts[key] += 1
 
-        # Аналитика: усиливаем/ослабляем теги по ER.
+        # Аналитика: усиливаем/ослабляем теги/медиа/время по ER, с учётом доверия к
+        # источнику метрик (api > manual > internal > estimated > demo).
         er_values: list[float] = []
         ctr_values: list[float] = []
         platform_er: dict[str, list[float]] = {}
+        best_hour_weight: Counter[str] = Counter()
+        useful_signals = 0
+        best_post: tuple[float, int | None] = (-1.0, None)
+        worst_post: tuple[float, int | None] = (2.0, None)
         for snap in snapshots:
             er = float(getattr(snap, "engagement_rate", 0.0) or 0.0)
             ctr = float(getattr(snap, "ctr", 0.0) or 0.0)
+            source = str(getattr(snap, "source", "demo"))
+            confidence = _source_confidence(source)
             er_values.append(er)
             ctr_values.append(ctr)
             platform_er.setdefault(snap.platform, []).append(er)
             post = post_repository.get_post_by_id(db, snap.post_id)
-            if post is not None:
+            if post is None:
+                continue
+            boost = max(1, round(2 * confidence))
+            if er >= _HIGH_ER:
                 for tag in post.hashtags or []:
-                    if er >= _HIGH_ER:
-                        tag_weight[_norm_tag(str(tag))] += 2
-                    elif er <= _LOW_ER:
-                        tag_weight[_norm_tag(str(tag))] -= 2
+                    tag_weight[_norm_tag(str(tag))] += boost
+                media_types[self._media_type_for(post)] += 1
+                hour = self._publish_hour_for_snapshot(db, snap, post)
+                if hour is not None:
+                    best_hour_weight[hour] += boost
+                if best_post[0] < er:
+                    best_post = (er, snap.post_id)
+            elif er <= _LOW_ER:
+                for tag in post.hashtags or []:
+                    tag_weight[_norm_tag(str(tag))] -= boost
+                if worst_post[0] > er:
+                    worst_post = (er, snap.post_id)
+            # «Полезный» контент: высокие сохранения/репосты относительно охвата.
+            base = getattr(snap, "reach", 0) or getattr(snap, "impressions", 0) or 0
+            useful = (getattr(snap, "saves", 0) or 0) + (getattr(snap, "shares", 0) or 0)
+            if base and useful / base >= 0.02:
+                useful_signals += 1
 
         high_tags = [t for t, w in tag_weight.most_common() if w > 0]
         low_tags = [t for t, w in sorted(tag_weight.items(), key=lambda kv: kv[1]) if w < 0]
+        best_times = [f"{h}:00" for h, _ in best_hour_weight.most_common(3)]
 
         approvals = counts[EVENT_APPROVED] + counts[EVENT_AUTO_PUBLISHED]
         rejections = counts[EVENT_REJECTED] + counts[EVENT_AUTO_BLOCKED]
@@ -443,11 +533,20 @@ class ClientLearningService:
         performance: dict[str, Any] = {}
         if er_values:
             performance["avg_engagement_rate"] = round(sum(er_values) / len(er_values), 4)
+            performance["snapshots_count"] = len(er_values)
         if ctr_values:
             performance["avg_ctr"] = round(sum(ctr_values) / len(ctr_values), 4)
         if platform_er:
             best_platform = max(platform_er.items(), key=lambda kv: sum(kv[1]) / len(kv[1]))[0]
             performance["best_platform"] = best_platform
+        if best_post[1] is not None:
+            performance["best_post_id"] = best_post[1]
+            performance["best_post_er"] = round(best_post[0], 4)
+        if worst_post[1] is not None:
+            performance["worst_post_id"] = worst_post[1]
+            performance["worst_post_er"] = round(worst_post[0], 4)
+        if useful_signals:
+            performance["useful_content_signals"] = useful_signals
 
         editing_patterns = dict(edit_counts)
 
@@ -469,7 +568,7 @@ class ClientLearningService:
             "preferred_media_types": [m for m, _ in media_types.most_common(5)],
             "high_performing_tags": high_tags[:15],
             "low_performing_tags": low_tags[:15],
-            "best_publish_times": [],
+            "best_publish_times": best_times,
             "approval_patterns": {
                 "approved": approvals,
                 "rejected": rejections,
@@ -589,6 +688,29 @@ class ClientLearningService:
         return ""
 
     @staticmethod
+    def _media_type_for(post: Post) -> str:
+        """Тип медиа поста для агрегации (text_only | with_media | media_group)."""
+        notes = post.generation_notes or {}
+        if isinstance(notes, dict) and notes.get("media_asset_ids"):
+            return "media_group" if len(notes["media_asset_ids"]) > 1 else "with_media"
+        return "with_media" if post.media_asset_id else "text_only"
+
+    @staticmethod
+    def _publish_hour_for_snapshot(db: Session, snap: Any, post: Post) -> str | None:
+        """Час публикации: публикация (published_at → scheduled_at) → пост. '0'..'23' или None."""
+        pub_id = getattr(snap, "post_publication_id", None)
+        if pub_id is not None:
+            from app.repositories import post_publication_repository
+
+            pub = post_publication_repository.get_publication_by_id(db, pub_id)
+            if pub is not None:
+                moment = pub.published_at or pub.scheduled_at
+                if moment is not None:
+                    return str(moment.hour)
+        moment = post.published_at or post.scheduled_at
+        return str(moment.hour) if moment is not None else None
+
+    @staticmethod
     def _hash(text: str | None) -> str | None:
         if text is None:
             return None
@@ -637,6 +759,13 @@ class ClientLearningService:
 def _norm_tag(tag: str) -> str:
     """Нормализовать тег: без ведущей решётки, в нижнем регистре."""
     return tag.strip().lstrip("#").lower()
+
+
+def _source_confidence(source: str) -> float:
+    """Доверие к источнику метрик (api > manual > internal > estimated > demo)."""
+    from app.services.metrics_normalization_service import SOURCE_CONFIDENCE
+
+    return SOURCE_CONFIDENCE.get(str(source), 0.2)
 
 
 def get_client_learning_service() -> ClientLearningService:

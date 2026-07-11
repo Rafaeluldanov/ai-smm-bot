@@ -237,3 +237,12 @@ base URL не HTTPS. Ссылки `/media/public/{token}` временные, о
 чек-лист safety gates + подтверждение `ENABLE_FULL_AUTO`). Кнопка «Опубликовать» показывает
 причину, если live недоступен, и ничего не списывает. Подробно —
 [37_Botfleet_Review_Learning_Automation.md](37_Botfleet_Review_Learning_Automation.md).
+
+## Метрики и обучение (v0.4.1)
+
+Новый пункт sidebar **Метрики** и страницы `/ui/metrics`, `/ui/projects/{id}/metrics`
+(«Метрики и обучение»: фильтры источник/платформа/глубина, сводка, Preview/Run demo import,
+ручной ввод), `/ui/projects/{id}/metrics/import`, `/ui/projects/{id}/metrics/manual`,
+`/ui/projects/{id}/learning/metrics` («как метрики повлияли на обучение»). Demo/estimated
+явно помечены как не реальные показатели; реальные API — за feature flag. Подробно —
+[38_Botfleet_Metrics_Import_Learning_Feedback.md](38_Botfleet_Metrics_Import_Learning_Feedback.md).

@@ -52,6 +52,15 @@ ANALYTICS_DEPTH_TITLES: dict[str, str] = {
 ANALYTICS_MANUAL_METRICS_UNITS = 0
 ANALYTICS_PREVIEW_UNITS = 0
 
+# --- Импорт метрик (v0.4.1) ---
+# Реальный API-импорт платный по глубине (фиксированная цена за прогон проекта);
+# demo/manual/estimated/internal — бесплатны. Пересчёт обучения — фикс. цена.
+METRICS_IMPORT_SOURCES: tuple[str, ...] = ("internal", "manual", "estimated", "api", "demo")
+METRICS_IMPORT_DEPTH_UNITS: dict[str, int] = {"light": 5, "standard": 10, "deep": 20}
+# Источники, за которые НЕ списываем units (demo может стать платным через конфиг).
+METRICS_FREE_SOURCES: tuple[str, ...] = ("manual", "estimated", "internal", "demo")
+LEARNING_REBUILD_UNITS = 5
+
 # Оценка токенов «по умолчанию» для генерации короткого поста (input/output).
 DEFAULT_POST_INPUT_TOKENS = 2000
 DEFAULT_POST_OUTPUT_TOKENS = 500
@@ -182,6 +191,40 @@ class UnitEconomicsService:
                 "depth": d,
                 "title": ANALYTICS_DEPTH_TITLES[d],
                 "units": self.analytics_depth_price(d),
+            }
+            for d in ANALYTICS_DEPTHS
+        ]
+
+    # --- Импорт метрик и пересчёт обучения (v0.4.1) ----------------------- #
+
+    def estimate_metrics_import_units(
+        self, source: str, depth: str = "standard", publication_count: int = 1
+    ) -> int:
+        """units за импорт метрик: бесплатно для demo/manual/…; для api — цена по глубине.
+
+        Цена api-импорта фиксирована за прогон проекта (не за пост). demo-импорт может
+        стать платным при ``metrics_demo_import_paid=true`` (по умолчанию бесплатный).
+        """
+        src = (source or "demo").strip().lower()
+        if src == "demo" and getattr(self._settings, "metrics_demo_import_paid", False):
+            return METRICS_IMPORT_DEPTH_UNITS.get(depth, METRICS_IMPORT_DEPTH_UNITS["standard"])
+        if src in METRICS_FREE_SOURCES:
+            return 0
+        if src == "api":
+            return METRICS_IMPORT_DEPTH_UNITS.get(depth, METRICS_IMPORT_DEPTH_UNITS["standard"])
+        return 0
+
+    def estimate_learning_rebuild_units(self, depth: str = "standard") -> int:
+        """units за явный пересчёт профиля обучения (dry-run — бесплатно на уровне сервиса)."""
+        return LEARNING_REBUILD_UNITS
+
+    def metrics_import_price_table(self) -> list[dict[str, object]]:
+        """Таблица цен импорта метрик по глубине (для UI/подсказок)."""
+        return [
+            {
+                "depth": d,
+                "title": ANALYTICS_DEPTH_TITLES[d],
+                "api_units": METRICS_IMPORT_DEPTH_UNITS[d],
             }
             for d in ANALYTICS_DEPTHS
         ]

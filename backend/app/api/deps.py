@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.services.automation_settings_service import AutomationSettingsService
     from app.services.client_learning_service import ClientLearningService
     from app.services.content_scoring_service import ContentScoringService
+    from app.services.metrics_import_service import MetricsImportService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
     from app.services.review_workflow_service import ReviewWorkflowService
@@ -201,6 +202,17 @@ def get_automation_settings_service() -> "AutomationSettingsService":
     from app.services.automation_settings_service import AutomationSettingsService
 
     return AutomationSettingsService()
+
+
+def get_metrics_import_service() -> "MetricsImportService":
+    """Построить сервис импорта метрик и обратной связи обучения (без сети по умолчанию)."""
+    from app.services.metrics_import_service import MetricsImportService
+
+    return MetricsImportService(
+        learning_service=get_client_learning_service(),
+        billing_service=get_billing_service(),
+        settings=get_settings(),
+    )
 
 
 def get_review_workflow_service() -> "ReviewWorkflowService":

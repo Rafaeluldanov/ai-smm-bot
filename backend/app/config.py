@@ -210,6 +210,16 @@ class Settings(BaseSettings):
     analytics_standard_units: int = 20
     analytics_deep_units: int = 40
 
+    # --- Импорт метрик из платформенных API (v0.4.1). ВЫКЛЮЧЕНО по умолчанию: ---
+    # без явного флага реальные внешние вызовы не выполняются (demo/manual/estimated —
+    # всегда без сети). Глобальный рубильник + переключатели по площадкам.
+    platform_metrics_api_enabled: bool = False
+    telegram_metrics_api_enabled: bool = False
+    vk_metrics_api_enabled: bool = False
+    instagram_metrics_api_enabled: bool = False
+    # Платный ли demo-импорт (по умолчанию бесплатный).
+    metrics_demo_import_paid: bool = False
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров

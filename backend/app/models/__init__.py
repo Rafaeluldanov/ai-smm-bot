@@ -26,6 +26,7 @@ from app.models.crm_bot_smm import (
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.media_asset import MediaAsset
 from app.models.media_asset_variant import MediaAssetVariant
+from app.models.metric_import_run import MetricImportRun
 from app.models.payment import (
     BillingProfile,
     PaymentInvoice,
@@ -66,6 +67,7 @@ __all__ = [
     "BillingProfile",
     "MediaAsset",
     "MediaAssetVariant",
+    "MetricImportRun",
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",

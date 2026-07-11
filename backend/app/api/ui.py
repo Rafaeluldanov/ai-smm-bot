@@ -480,6 +480,7 @@ def _sidebar(active: str = "") -> str:
         f"<a class='sb-link{cls('tariffs')}' href='/ui/tariffs'>Тарифы</a>"
         f"<a class='sb-link{cls('review')}' href='/ui/review'>Ревью</a>"
         f"<a class='sb-link{cls('learning')}' href='/ui/learning'>Обучение</a>"
+        f"<a class='sb-link{cls('metrics')}' href='/ui/metrics'>Метрики</a>"
         f"<a class='sb-link{cls('analytics')}' href='/ui/analytics'>Аналитика</a>"
         f"<a class='sb-link{cls('scheduler')}' href='/ui/scheduler'>Автоматизация</a>"
         f"<a class='sb-link{cls('guide')}' href='/ui/guide'>Гайд</a>"
@@ -2139,7 +2140,9 @@ def ui_analytics() -> HTMLResponse:
         "<p class='muted'>Preview бесплатно, запуск отчёта списывает units. Источник метрик "
         "всегда указывается (internal / manual / estimated / api / demo). Демо-метрики — "
         "оценка по тексту и структуре, НЕ реальные API-данные. Реальные вызовы внешних API "
-        "не выполняются.</p></div>"
+        "не выполняются.</p>"
+        "<p class='muted'>Импорт метрик, ручной ввод и влияние на обучение — на странице "
+        "<a href='/ui/metrics'>«Метрики и обучение»</a>.</p></div>"
         # Summary cards (сводка по проекту).
         "<div id='an-summary' class='an-summary'></div>"
         # Фильтры
@@ -2775,8 +2778,12 @@ def ui_project_review(project_id: int) -> HTMLResponse:
         f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
         "<button class='sec mini'>← К проекту</button></a>"
         f"<a href='/ui/projects/{project_id}/learning'><button class='ghost mini'>Чему бот научился</button></a>"
+        f"<a href='/ui/projects/{project_id}/metrics'><button class='ghost mini'>Метрики</button></a>"
         f"<a href='/ui/projects/{project_id}/automation'><button class='ghost mini'>Автоматизация</button></a></div>"
         "<h2>Очередь постов на ревью</h2>"
+        "<p class='muted'>Метрики опубликованных постов и их влияние на обучение — на "
+        f"<a href='/ui/projects/{project_id}/metrics'>странице «Метрики и обучение»</a> "
+        "(ER, CTR, источник).</p>"
         "<div class='callout warn'><b>Живая публикация выключена.</b> Кнопка «Опубликовать» "
         "отправит пост только при включённых safety gates (подключение платформы, live-флаг, "
         "баланс). Иначе — покажем причину и ничего не спишем.</div>"
@@ -2869,7 +2876,9 @@ def ui_project_learning(project_id: int) -> HTMLResponse:
     body = (
         f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
         "<button class='sec mini'>← К проекту</button></a>"
-        f"<a href='/ui/projects/{project_id}/review'><button class='ghost mini'>Очередь ревью</button></a></div>"
+        f"<a href='/ui/projects/{project_id}/review'><button class='ghost mini'>Очередь ревью</button></a>"
+        f"<a href='/ui/projects/{project_id}/metrics'><button class='ghost mini'>Метрики</button></a>"
+        f"<a href='/ui/projects/{project_id}/learning/metrics'><button class='ghost mini'>Влияние метрик</button></a></div>"
         "<h2>Чему бот научился</h2>"
         "<div class='card'><div class='kv'>"
         "<div>Уверенность профиля</div><div id='ln-confidence'>—</div>"
@@ -2967,3 +2976,278 @@ def ui_project_automation(project_id: int) -> HTMLResponse:
         "window.setMode=setMode;load();"
     )
     return _page("Автоматизация проекта", body, script, active="scheduler", active_pid=project_id)
+
+
+# --------------------------------------------------------------------------- #
+# v0.4.1: Метрики и обучение (импорт метрик, ручной ввод, влияние на обучение)  #
+# --------------------------------------------------------------------------- #
+
+# Общий блок предупреждений (нужен и как справка, и как якорь для тестов).
+_METRICS_WARNING_HTML = (
+    "<div class='callout warn'><b>Реальные API-метрики выключены.</b> "
+    "Demo/estimated метрики <b>не являются реальными показателями</b> площадки. "
+    "Live-публикации не выполняются, внешние вызовы по умолчанию отключены.</div>"
+)
+
+# Селектор источника метрик (все источники — для фильтров и форм).
+_SOURCE_OPTIONS_HTML = (
+    "<option value='demo'>demo</option>"
+    "<option value='manual'>manual</option>"
+    "<option value='estimated'>estimated</option>"
+    "<option value='internal'>internal</option>"
+    "<option value='api'>api</option>"
+)
+
+
+@router.get("/metrics", response_class=HTMLResponse)
+def ui_metrics_index() -> HTMLResponse:
+    """Лендинг метрик: выбрать проект и открыть «Метрики и обучение»."""
+    body = (
+        "<h2>Метрики и обучение</h2>"
+        + _METRICS_WARNING_HTML
+        + "<div class='card'><h3>Проекты</h3><div id='mx-projects' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "(async()=>{const a=needAccount(eEl);if(!a)return;try{"
+        "const ps=await api('GET','/saas/accounts/'+a+'/projects');"
+        "const host=document.getElementById('mx-projects');host.classList.remove('muted');"
+        "host.innerHTML=ps.length?ps.map(p=>`<div class='sched-task'><b>${esc(p.name)}</b> "
+        "<a href='/ui/projects/${p.id}/metrics'><button class='mini'>Метрики</button></a> "
+        "<a href='/ui/projects/${p.id}/learning/metrics'><button class='mini sec'>Влияние на обучение</button></a></div>`).join('')"
+        ":\"<div class='muted'>Нет проектов.</div>\";}catch(x){err(eEl,x)}})();"
+    )
+    return _page("Метрики", body, script, active="metrics")
+
+
+@router.get("/projects/{project_id}/metrics", response_class=HTMLResponse)
+def ui_project_metrics(project_id: int) -> HTMLResponse:
+    """Страница «Метрики и обучение»: сводка, фильтры, импорт, ручной ввод."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/learning/metrics'><button class='ghost mini'>Влияние на обучение</button></a>"
+        f"<a href='/ui/projects/{project_id}/learning'><button class='ghost mini'>Чему бот научился</button></a></div>"
+        "<h2>Метрики и обучение</h2>"
+        + _METRICS_WARNING_HTML
+        # Фильтры
+        + "<div class='card'><div class='an-filters'>"
+        "<div><label>Платформа</label><select id='mx-platform'>"
+        "<option value=''>Все</option><option value='telegram'>Telegram</option>"
+        "<option value='vk'>VK</option><option value='instagram'>Instagram</option></select></div>"
+        "<div><label>Источник</label><select id='mx-source'>"
+        "<option value=''>Все</option>" + _SOURCE_OPTIONS_HTML + "</select></div>"
+        "<div><label>Глубина</label><select id='mx-depth'>"
+        "<option value='light'>light</option><option value='standard' selected>standard</option>"
+        "<option value='deep'>deep</option></select></div>"
+        "<div><label>Период с</label><input id='mx-from' placeholder='YYYY-MM-DD' style='width:130px'></div>"
+        "<div><label>Период по</label><input id='mx-to' placeholder='YYYY-MM-DD' style='width:130px'></div>"
+        "</div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='mini sec' onclick='mxPreview()'>Preview import</button>"
+        "<button class='mini' onclick='mxRunDemo()'>Run demo import</button>"
+        "<button class='mini ghost' onclick=\"document.getElementById('mx-manual').scrollIntoView()\">Внести метрики вручную</button>"
+        "<button class='mini ghost' onclick='mxRebuild()'>Пересчитать обучение</button>"
+        "</div></div>"
+        # Summary cards
+        "<div class='grid'>"
+        "<div class='pcard'><div class='muted'>Постов с метриками</div><div id='mx-with' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Средний ER</div><div id='mx-er' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Средний CTR</div><div id='mx-ctr' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Лучший пост</div><div id='mx-best' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Лучший тег</div><div id='mx-tag' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Лучшее время</div><div id='mx-time' class='an-big'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Посты и метрики</h3><div id='mx-posts' class='muted'>Загрузка…</div></div>"
+        # Ручной ввод метрик
+        "<div class='card' id='mx-manual'><h3>Внести метрики вручную "
+        "<span class='badge'>бесплатно</span></h3>"
+        "<p class='muted'>Источник: <b>manual</b>. Метрики сохранятся как снимок и повлияют на обучение.</p>"
+        "<div class='an-filters'>"
+        "<div><label>publication_id</label><input id='mm-pub' type='number' style='width:120px'></div>"
+        "<div><label>views</label><input id='mm-views' type='number' style='width:100px'></div>"
+        "<div><label>reach</label><input id='mm-reach' type='number' style='width:100px'></div>"
+        "<div><label>impressions</label><input id='mm-impr' type='number' style='width:100px'></div>"
+        "<div><label>likes</label><input id='mm-likes' type='number' style='width:100px'></div>"
+        "<div><label>comments</label><input id='mm-comments' type='number' style='width:100px'></div>"
+        "<div><label>shares</label><input id='mm-shares' type='number' style='width:100px'></div>"
+        "<div><label>saves</label><input id='mm-saves' type='number' style='width:100px'></div>"
+        "<div><label>clicks</label><input id='mm-clicks' type='number' style='width:100px'></div>"
+        "<div><label>followers_delta</label><input id='mm-fd' type='number' style='width:100px'></div>"
+        "</div>"
+        "<div class='inline' style='margin-top:8px'><button class='mini' onclick='mxManualSave()'>Сохранить метрики</button></div>"
+        "</div>"
+        "<div id='mx-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('mx-msg');"
+        "function q(){return {platform_key:gv('mx-platform')||null,source:gv('mx-source')||'demo',"
+        "depth:gv('mx-depth')||'standard',period_start:gv('mx-from')||null,period_end:gv('mx-to')||null};}"
+        "async function loadDash(){try{let url='/metrics/projects/'+PID+'/dashboard?';"
+        "const p=gv('mx-platform');const s=gv('mx-source');if(p)url+='platform='+encodeURIComponent(p)+'&';if(s)url+='source='+encodeURIComponent(s);"
+        "const d=await api('GET',url);"
+        "document.getElementById('mx-with').textContent=d.with_metrics_count+' / '+d.posts_count;"
+        "document.getElementById('mx-er').textContent=(d.avg_er_percent!=null?d.avg_er_percent+'%':'—');"
+        "document.getElementById('mx-ctr').textContent=(d.avg_ctr_percent!=null?d.avg_ctr_percent+'%':'—');"
+        "document.getElementById('mx-best').textContent=d.best_post?('#'+d.best_post.post_id+' · '+d.best_post.er_percent+'%'):'—';"
+        "document.getElementById('mx-tag').textContent=(d.best_tags&&d.best_tags[0])?('#'+d.best_tags[0]):'—';"
+        "document.getElementById('mx-time').textContent=(d.best_times&&d.best_times[0])||'—';"
+        "const host=document.getElementById('mx-posts');host.classList.remove('muted');"
+        "host.innerHTML=d.posts.length?`<table class='price-table'><thead><tr><th>Пост</th><th>Платформа</th><th>Источник</th>"
+        "<th>ER</th><th>CTR</th><th>Reach</th><th>Лайки</th><th>Сохр.</th><th>Клики</th></tr></thead><tbody>`"
+        "+d.posts.map(r=>`<tr><td>#${r.post_id}</td><td>${esc(r.platform)}</td><td><span class='badge'>${esc(r.source)}</span></td>"
+        "<td>${r.er_percent}%</td><td>${r.ctr_percent}%</td><td>${r.reach}</td><td>${r.likes}</td><td>${r.saves}</td><td>${r.clicks}</td></tr>`).join('')+`</tbody></table>`"
+        ":\"<div class='muted'>Метрик пока нет — запустите demo-импорт или внесите вручную.</div>\";"
+        "}catch(x){err(eEl,x)}}"
+        "async function mxPreview(){try{const r=await api('POST','/metrics/projects/'+PID+'/preview',q());"
+        "msg.textContent='Preview: публикаций '+r.publications_found+', оценка '+r.estimated_units+' units ('+esc(r.source)+').';}catch(x){err(eEl,x)}}"
+        "async function mxRunDemo(){try{const b=q();b.source='demo';b.idempotency_key='ui-demo-'+PID+'-'+Date.now();"
+        "const r=await api('POST','/metrics/projects/'+PID+'/run',b);"
+        "msg.textContent='Импорт demo: '+esc(r.status)+', снимков '+r.snapshots_created+', списано '+r.units_charged+' units.';loadDash();}catch(x){err(eEl,x)}}"
+        "async function mxRebuild(){try{const r=await api('POST','/metrics/projects/'+PID+'/learning/rebuild-preview',{});"
+        "msg.textContent='Пересчёт (превью): версия '+r.profile_version+'. '+((r.changes||[]).slice(0,2).join(' · '));loadDash();}catch(x){err(eEl,x)}}"
+        "async function mxManualSave(){try{const pub=parseInt(gv('mm-pub'));if(!pub){msg.textContent='Укажите publication_id';return;}"
+        "const body={};[['views','mm-views'],['reach','mm-reach'],['impressions','mm-impr'],['likes','mm-likes'],"
+        "['comments','mm-comments'],['shares','mm-shares'],['saves','mm-saves'],['clicks','mm-clicks'],['followers_delta','mm-fd']]"
+        ".forEach(([k,id])=>{const v=gv(id);if(v!=='')body[k]=parseInt(v);});"
+        "const r=await api('POST','/metrics/publications/'+pub+'/manual',body);"
+        "msg.textContent='Метрики сохранены: ER '+(r.er_percent!=null?r.er_percent+'%':'—')+', CTR '+(r.ctr_percent!=null?r.ctr_percent+'%':'—')+' (бесплатно).';loadDash();}catch(x){err(eEl,x)}}"
+        "window.mxPreview=mxPreview;window.mxRunDemo=mxRunDemo;window.mxRebuild=mxRebuild;window.mxManualSave=mxManualSave;"
+        "['mx-platform','mx-source'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener('change',loadDash);});"
+        "loadDash();"
+    )
+    return _page("Метрики проекта", body, script, active="metrics", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/metrics/import", response_class=HTMLResponse)
+def ui_project_metrics_import(project_id: int) -> HTMLResponse:
+    """Импорт метрик: preview / demo-run + история прогонов."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/metrics'>"
+        "<button class='sec mini'>← Метрики</button></a></div>"
+        "<h2>Импорт метрик</h2>"
+        + _METRICS_WARNING_HTML
+        + "<div class='card'><div class='an-filters'>"
+        "<div><label>Платформа</label><select id='mi-platform'>"
+        "<option value=''>Все</option><option value='telegram'>Telegram</option>"
+        "<option value='vk'>VK</option><option value='instagram'>Instagram</option></select></div>"
+        "<div><label>Источник</label><select id='mi-source'>"
+        + _SOURCE_OPTIONS_HTML
+        + "</select></div>"
+        "<div><label>Глубина</label><select id='mi-depth'>"
+        "<option value='light'>light</option><option value='standard' selected>standard</option>"
+        "<option value='deep'>deep</option></select></div></div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='mini sec' onclick='miPreview()'>Preview import</button>"
+        "<button class='mini' onclick='miRun()'>Run demo import</button></div></div>"
+        "<div class='card'><h3>История импортов</h3><div id='mi-list' class='muted'>Загрузка…</div></div>"
+        "<div id='mi-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');const msg=document.getElementById('mi-msg');"
+        "async function loadRuns(){try{const rows=await api('GET','/metrics/projects/'+PID+'/imports');"
+        "const host=document.getElementById('mi-list');host.classList.remove('muted');"
+        "host.innerHTML=rows.length?`<table class='price-table'><thead><tr><th>ID</th><th>Источник</th><th>Платформа</th>"
+        "<th>Статус</th><th>Снимков</th><th>units</th></tr></thead><tbody>`"
+        "+rows.map(r=>`<tr><td>#${r.id}</td><td><span class='badge'>${esc(r.source)}</span></td><td>${esc(r.platform_key||'все')}</td>"
+        "<td>${esc(r.status)}</td><td>${r.snapshots_created}</td><td>${r.units_charged}</td></tr>`).join('')+`</tbody></table>`"
+        ":\"<div class='muted'>Импортов ещё нет.</div>\";}catch(x){err(eEl,x)}}"
+        "function q(){return {platform_key:gv('mi-platform')||null,source:gv('mi-source')||'demo',depth:gv('mi-depth')||'standard'};}"
+        "async function miPreview(){try{const r=await api('POST','/metrics/projects/'+PID+'/preview',q());"
+        "msg.textContent='Preview: публикаций '+r.publications_found+', '+r.estimated_units+' units.';}catch(x){err(eEl,x)}}"
+        "async function miRun(){try{const b=q();b.idempotency_key='ui-imp-'+PID+'-'+Date.now();"
+        "const r=await api('POST','/metrics/projects/'+PID+'/run',b);"
+        "msg.textContent='Импорт: '+esc(r.status)+', снимков '+r.snapshots_created+'.';loadRuns();}catch(x){err(eEl,x)}}"
+        "window.miPreview=miPreview;window.miRun=miRun;loadRuns();"
+    )
+    return _page("Импорт метрик", body, script, active="metrics", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/metrics/manual", response_class=HTMLResponse)
+def ui_project_metrics_manual(project_id: int) -> HTMLResponse:
+    """Отдельная страница ручного ввода метрик публикации (source=manual, бесплатно)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/metrics'>"
+        "<button class='sec mini'>← Метрики</button></a></div>"
+        "<h2>Ручной ввод метрик <span class='badge'>бесплатно</span></h2>"
+        "<p class='muted'>Источник: <b>manual</b>. Введите publication_id и известные метрики "
+        "(неизвестные оставьте пустыми — они не считаются нулём).</p>"
+        "<div class='card'><div class='an-filters'>"
+        "<div><label>publication_id</label><input id='mm-pub' type='number' style='width:120px'></div>"
+        "<div><label>views</label><input id='mm-views' type='number' style='width:100px'></div>"
+        "<div><label>reach</label><input id='mm-reach' type='number' style='width:100px'></div>"
+        "<div><label>impressions</label><input id='mm-impr' type='number' style='width:100px'></div>"
+        "<div><label>likes</label><input id='mm-likes' type='number' style='width:100px'></div>"
+        "<div><label>comments</label><input id='mm-comments' type='number' style='width:100px'></div>"
+        "<div><label>shares</label><input id='mm-shares' type='number' style='width:100px'></div>"
+        "<div><label>saves</label><input id='mm-saves' type='number' style='width:100px'></div>"
+        "<div><label>clicks</label><input id='mm-clicks' type='number' style='width:100px'></div>"
+        "<div><label>followers_delta</label><input id='mm-fd' type='number' style='width:100px'></div>"
+        "</div>"
+        "<div class='inline' style='margin-top:8px'><button class='mini' onclick='mmSave()'>Сохранить метрики</button></div></div>"
+        "<div id='mm-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');const msg=document.getElementById('mm-msg');"
+        "async function mmSave(){try{const pub=parseInt(gv('mm-pub'));if(!pub){msg.textContent='Укажите publication_id';return;}"
+        "const body={};[['views','mm-views'],['reach','mm-reach'],['impressions','mm-impr'],['likes','mm-likes'],"
+        "['comments','mm-comments'],['shares','mm-shares'],['saves','mm-saves'],['clicks','mm-clicks'],['followers_delta','mm-fd']]"
+        ".forEach(([k,id])=>{const v=gv(id);if(v!=='')body[k]=parseInt(v);});"
+        "const r=await api('POST','/metrics/publications/'+pub+'/manual',body);"
+        "msg.textContent='Сохранено: ER '+(r.er_percent!=null?r.er_percent+'%':'—')+' (бесплатно).';}catch(x){err(eEl,x)}}"
+        "window.mmSave=mmSave;"
+    )
+    return _page("Ручной ввод метрик", body, script, active="metrics", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/learning/metrics", response_class=HTMLResponse)
+def ui_project_learning_metrics(project_id: int) -> HTMLResponse:
+    """«Как метрики повлияли на обучение»: сводка профиля + пересчёт по метрикам."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/metrics'>"
+        "<button class='sec mini'>← Метрики</button></a>"
+        f"<a href='/ui/projects/{project_id}/learning'><button class='ghost mini'>Чему бот научился</button></a></div>"
+        "<h2>Как метрики повлияли на обучение</h2>"
+        + _METRICS_WARNING_HTML
+        + "<div class='card'><div class='kv'>"
+        "<div>Уверенность профиля</div><div id='lm-conf'>—</div>"
+        "<div>Версия профиля</div><div id='lm-ver'>—</div>"
+        "<div>Средний ER (метрики)</div><div id='lm-er'>—</div></div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='mini sec' onclick='lmPreview()'>Пересчитать (превью)</button>"
+        "<button class='mini' onclick='lmRebuild()'>Пересчитать обучение</button></div></div>"
+        "<div class='grid'>"
+        "<div class='card'><h3>Лучшие темы</h3><div id='lm-topics' class='muted'>—</div></div>"
+        "<div class='card'><h3>Слабые темы</h3><div id='lm-weak' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучший CTA</h3><div id='lm-cta' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучший тип медиа</h3><div id='lm-media' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучшее время</h3><div id='lm-time' class='muted'>—</div></div>"
+        "<div class='card'><h3>Сильные теги</h3><div id='lm-tags' class='muted'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Что изменилось после метрик</h3><div id='lm-changes' class='muted'>—</div></div>"
+        "<div class='card'><h3>Последние импорты метрик</h3><div id='lm-events' class='muted'>—</div></div>"
+        "<div id='lm-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');const msg=document.getElementById('lm-msg');"
+        "function fill(id,arr,pre){const el=document.getElementById(id);el.classList.remove('muted');"
+        "el.innerHTML=(arr&&arr.length)?arr.map(v=>`<span class='badge'>${(pre||'')+esc(''+v)}</span>`).join(' '):\"<span class='muted'>пока нет данных</span>\";}"
+        "async function load(){try{const s=await api('GET','/learning/projects/'+PID+'/summary');"
+        "document.getElementById('lm-conf').textContent=Math.round((s.confidence_score||0)*100)+'%';"
+        "document.getElementById('lm-ver').textContent=s.profile_version||0;"
+        "const perf=s.performance_patterns||{};document.getElementById('lm-er').textContent=(perf.avg_engagement_rate!=null?Math.round(perf.avg_engagement_rate*10000)/100+'%':'—');"
+        "fill('lm-topics',s.preferred_topics);fill('lm-weak',s.rejected_topics);fill('lm-cta',s.preferred_cta);"
+        "fill('lm-media',s.preferred_media_types);fill('lm-time',s.best_publish_times);fill('lm-tags',s.high_performing_tags,'#');"
+        "const ev=(s.recent_events||[]).filter(e=>e.event_type==='analytics_imported');"
+        "document.getElementById('lm-events').innerHTML=ev.length?ev.map(e=>`<div class='muted'>#${e.post_id} · импорт метрик</div>`).join(''):\"<span class='muted'>Импортов метрик пока нет.</span>\";"
+        "}catch(x){err(eEl,x)}}"
+        "async function lmPreview(){try{const r=await api('POST','/metrics/projects/'+PID+'/learning/rebuild-preview',{});"
+        "document.getElementById('lm-changes').innerHTML=(r.changes||[]).map(c=>`<div>• ${esc(c)}</div>`).join('')||'—';load();}catch(x){err(eEl,x)}}"
+        "async function lmRebuild(){try{const r=await api('POST','/metrics/projects/'+PID+'/learning/rebuild',{});"
+        "msg.textContent='Профиль пересчитан (версия '+r.profile_version+', списано '+r.units_charged+' units).';"
+        "document.getElementById('lm-changes').innerHTML=(r.changes||[]).map(c=>`<div>• ${esc(c)}</div>`).join('')||'—';load();}catch(x){err(eEl,x)}}"
+        "window.lmPreview=lmPreview;window.lmRebuild=lmRebuild;load();"
+    )
+    return _page("Обучение по метрикам", body, script, active="metrics", active_pid=project_id)

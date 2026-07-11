@@ -156,3 +156,13 @@ invoice.created/paid и analytics.run. См.
 источник (`internal`/`estimated`/`demo`) всегда указан и НЕ выдаётся за реальные
 API-метрики. UI `/ui/analytics`: summary-cards, календарь, demo-карточки с иконками
 площадок. Стоимость анализа (light/standard/deep) и правила списаний не изменились.
+
+## Импорт метрик и обучение (v0.4.1)
+
+Отдельный слой импорта метрик (`/metrics/...`, страница `/ui/projects/{id}/metrics`):
+источники `internal/manual/estimated/api/demo`, нормализация метрик площадок к единому
+формату (ER/CTR, `null` вместо `0`), снимки `PostAnalyticsSnapshot` и пересчёт профиля
+обучения. Биллинг: preview/manual/demo — бесплатно; api-импорт — по глубине (5/10/20 units),
+пересчёт обучения — 5 units; неуспешный/дублирующий импорт не списывает. Реальные API —
+за feature flag (выключены). Подробно —
+[38_Botfleet_Metrics_Import_Learning_Feedback.md](38_Botfleet_Metrics_Import_Learning_Feedback.md).
