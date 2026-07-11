@@ -9,6 +9,7 @@ BIN := $(VENV)/bin
         enhance-media enhance-project-media media-enhancement-summary \
         media-proxy-link media-proxy-cleanup \
         schedule-due-preview schedule-due-run \
+        scheduler-tick scheduler-loop scheduler-loop-dry \
         generate-post generate-weekly-posts \
         media-groups media-group-post publish-preview media-platform-preview \
         review-post approve-post reject-post \
@@ -94,6 +95,15 @@ schedule-due-preview: ## Preview due-задач: make schedule-due-preview accou
 
 schedule-due-run: ## Обработать due-задачи: make schedule-due-run account_id=1 project_id=1 platform=telegram [date=today] [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.schedule_due_run --account-id "$(account_id)" --project-id "$(project_id)" --platform "$(platform)" --date "$(or $(date),today)" --dry-run "$(or $(dry_run),true)"
+
+scheduler-tick: ## Один тик scheduler-worker: make scheduler-tick [dry_run=true] [force=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.scheduler_worker_tick --dry-run "$(or $(dry_run),true)" --force "$(or $(force),true)"
+
+scheduler-loop: ## Цикл scheduler-worker: make scheduler-loop [force=false]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.scheduler_worker_loop --force "$(or $(force),false)"
+
+scheduler-loop-dry: ## Безопасный цикл dry-run: make scheduler-loop-dry [force=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.scheduler_worker_loop --dry-run true --force "$(or $(force),true)"
 
 select-topics: ## Выбрать темы проекта: make select-topics project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.select_topics --project-slug "$(project_slug)"

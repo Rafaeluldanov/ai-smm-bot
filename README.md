@@ -1459,6 +1459,29 @@ Foundation публичных HTTPS-ссылок на медиа — нужен 
 
 Миграция **0020** (schedule runs). Live/payments off; секреты/токены не печатаются.
 
+### Background scheduler worker (v0.3.9)
+
+Фоновый процесс сам периодически создаёт **draft/needs_review** по due-задачам расписаний
+(подробно — [Докс/36](Докс/36_Botfleet_Background_Scheduler_Worker.md)). **Живой публикации
+нет**, внешние API не вызываются, `publish-due` не используется. По умолчанию worker
+**выключен** (`SCHEDULER_WORKER_ENABLED=false`) и в dry-run.
+
+- **Lease** `SchedulerWorkerLease` (миграция **0021**): DB-lock, один активный worker;
+  истёкшая lease (умерший процесс) перехватывается по TTL. Без Redis/Celery на MVP.
+- **Сервис** (`scheduler_worker_service.py`): `tick` (lease → discover_due_targets →
+  process_target → release), `run_loop` (Ctrl+C — graceful), `build_owner_id`
+  (host:pid:suffix, без секретов). Идемпотентность — через `run_due` (ключ слота).
+- **Режимы**: `SCHEDULER_WORKER_DRY_RUN=true` → только preview/log; `false` +
+  `CREATE_DRAFTS=true` → создаёт черновики (всё равно без live).
+- **API** `/scheduler-worker/status|leases|tick-dry|tick` (в production — суперпользователь).
+  **UI** `/ui/scheduler` (статус, lease, Preview tick / Run one safe tick) + мини-статус в
+  workspace + пункт «Автоматизация» в sidebar. **CLI**: `make scheduler-tick`,
+  `make scheduler-loop-dry`. **Docker**: сервис `scheduler-worker` (отдельный контейнер).
+  Audit `scheduler.worker.*` без секретов.
+
+Миграция **0021** (scheduler worker leases). Live/payments off; worker создаёт только
+draft/needs_review; токены/секреты не печатаются.
+
 ### Личный кабинет v0.2.3
 
 Кабинет переработан в нормальную раскладку **header + sidebar** на всех страницах

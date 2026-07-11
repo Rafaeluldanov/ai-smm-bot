@@ -176,3 +176,20 @@ make restore-db backup_path=backups/... confirm=RESTORE understand=true
 - [ ] reverse-proxy/CDN, чтобы `/media/public/{token}` был доступен из интернета;
 - [ ] `make media-proxy-cleanup` по cron (помечать истёкшие ссылки);
 - [ ] реализовать live Instagram `media_publish` (сейчас выключено).
+
+## 20. Фоновый scheduler-worker (v0.3.9)
+
+Worker сам периодически создаёт **draft/needs_review** по due-задачам расписаний (детали —
+[36_Botfleet_Background_Scheduler_Worker.md](36_Botfleet_Background_Scheduler_Worker.md)).
+**Живой публикации нет.** Запуск:
+
+- worker — **отдельный контейнер** `scheduler-worker` (в `docker-compose.prod.example.yml`),
+  НЕ внутри web app; команда `python -m app.scripts.scheduler_worker_loop`;
+- по умолчанию выключен: `SCHEDULER_WORKER_ENABLED=false`, `SCHEDULER_WORKER_DRY_RUN=true`;
+- проверка статуса: UI `/ui/scheduler`, API `GET /scheduler-worker/status`, audit
+  `scheduler.worker.*`;
+- чтобы не включить live случайно: worker не использует live-флаги и `publish-due` —
+  создаёт только черновики; но всё равно держите `*_LIVE_PUBLISHING_ENABLED=false`.
+
+Один активный worker гарантирует DB-lease (миграция 0021); повтор идемпотентен (без
+дублей черновиков).

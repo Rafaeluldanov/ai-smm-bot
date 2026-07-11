@@ -38,6 +38,7 @@ from app.models.post_review_action import PostReviewAction
 from app.models.project import Project
 from app.models.public_media_link import PublicMediaLink
 from app.models.schedule_run import ScheduleRun
+from app.models.scheduler_worker_lease import SchedulerWorkerLease
 from app.models.topic import Topic
 from app.models.user import User
 
@@ -72,6 +73,7 @@ __all__ = [
     "Project",
     "PublicMediaLink",
     "ScheduleRun",
+    "SchedulerWorkerLease",
     "TariffPlan",
     "Topic",
     "UsageEvent",

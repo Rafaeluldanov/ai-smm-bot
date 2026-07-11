@@ -479,6 +479,7 @@ def _sidebar(active: str = "") -> str:
         "<div id='sb-projects' class='sb-projects'><div class='muted sb-hint'>…</div></div></div>"
         f"<a class='sb-link{cls('tariffs')}' href='/ui/tariffs'>Тарифы</a>"
         f"<a class='sb-link{cls('analytics')}' href='/ui/analytics'>Аналитика</a>"
+        f"<a class='sb-link{cls('scheduler')}' href='/ui/scheduler'>Автоматизация</a>"
         f"<a class='sb-link{cls('guide')}' href='/ui/guide'>Гайд</a>"
         f"<a class='sb-link{cls('settings')}' href='/ui/settings'>Настройки</a>"
         "</aside>"
@@ -1621,7 +1622,10 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         "<button class='mini' onclick='saRunDue()'>Создать drafts сейчас</button>"
         "<a id='sa-runs-link' href='#'><button class='mini ghost'>История запусков</button></a>"
         "</div>"
-        "<div id='sa-result' class='muted' style='margin-top:8px'></div></div></div>"
+        "<div id='sa-result' class='muted' style='margin-top:8px'></div>"
+        # Мини-статус фонового worker-а.
+        "<p class='muted' style='margin-top:8px'>Фоновый worker: <span id='sa-worker'>—</span> · "
+        "<a href='/ui/scheduler'>Открыть автоматизацию →</a></p></div></div>"
         # Preview
         "<div class='tabpane' id='pane-preview'>"
         "<div class='card'><h3>Preview (dry-run)</h3>"
@@ -1773,7 +1777,10 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         "+`<div class='muted'>`+(r.entries||[]).map(e=>esc((e.platform_key||PLATFORM)+' → '+(e.outcome||e.status))).join('<br>')+`</div>`;"
         "initShell();}catch(x){err(eEl,x)}}"
         "window.saPreviewDue=saPreviewDue;window.saRunDue=saRunDue;"
-        "saLoadTasks();"
+        "async function saWorker(){const el=document.getElementById('sa-worker');if(!el)return;"
+        "try{const s=await api('GET','/scheduler-worker/status');"
+        "el.innerHTML=s.enabled?\"<span class='pill ok'>включён</span>\":\"<span class='pill off'>выключен</span>\";}catch(e){}}"
+        "saLoadTasks();saWorker();"
     )
     return _page(
         label,
@@ -1888,6 +1895,70 @@ def ui_schedule_runs(project_id: int) -> HTMLResponse:
         "loadRuns();"
     )
     return _page("Запуски расписания", body, script, active="projects", active_pid=project_id)
+
+
+@router.get("/scheduler", response_class=HTMLResponse)
+def ui_scheduler() -> HTMLResponse:
+    """Страница фонового scheduler-worker: статус, безопасный tick, lease."""
+    body = (
+        "<h2>Фоновый worker расписаний</h2>"
+        "<div class='callout warn'><b>Живые публикации выключены</b>"
+        "<p>Worker создаёт только <b>draft/needs_review</b> посты по due-задачам расписаний "
+        "и списывает units за успех. Реальные публикации и внешние вызовы платформ НЕ "
+        "выполняются. В production worker должен идти <b>отдельным процессом/контейнером</b> "
+        "(не внутри web-приложения).</p></div>"
+        # Статус
+        "<div class='card'><h3>Статус</h3><div id='sw-status' class='kv'>"
+        "<div class='muted'>Загрузка…</div></div>"
+        "<div id='sw-warnings' class='muted' style='margin-top:6px'></div></div>"
+        # Действия
+        "<div class='card'><h3>Безопасный запуск</h3>"
+        "<p class='muted'>Preview tick — dry-run (ничего не создаёт). Run one safe tick — "
+        "создаёт draft/needs_review, если включён режим создания черновиков; live не будет.</p>"
+        "<div class='inline'>"
+        "<button class='mini sec' onclick='swTickDry()'>Preview tick</button>"
+        "<button class='mini' onclick='swTick()'>Run one safe tick</button>"
+        "<a href='/ui/projects/1/schedule-runs'><button class='mini ghost'>Открыть запуски расписания</button></a>"
+        "</div>"
+        "<div id='sw-result' class='muted' style='margin-top:8px'></div></div>"
+        # Lease
+        "<div class='card'><h3>Lease (DB-lock)</h3><div id='sw-leases' class='muted'>Загрузка…</div>"
+        "<p class='muted'>Lease гарантирует один активный worker. Если процесс умер — lease "
+        "истекает по TTL и перехватывается.</p></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "function yn(b){return b?\"<span class='pill ok'>да</span>\":\"<span class='pill off'>нет</span>\";}"
+        "async function swStatus(){try{const s=await api('GET','/scheduler-worker/status');"
+        "const host=document.getElementById('sw-status');"
+        "host.innerHTML=`<div><span class='k'>Включён</span><span class='v'>${yn(s.enabled)}</span></div>`"
+        "+`<div><span class='k'>Dry-run</span><span class='v'>${yn(s.dry_run)}</span></div>`"
+        "+`<div><span class='k'>Создаёт черновики</span><span class='v'>${yn(s.create_drafts)}</span></div>`"
+        "+`<div><span class='k'>Live-публикация</span><span class='v'>${yn(s.live_publish)}</span></div>`"
+        "+`<div><span class='k'>Интервал</span><span class='v'>${s.interval_seconds} c</span></div>`"
+        "+`<div><span class='k'>Batch</span><span class='v'>${s.batch_size}</span></div>`;"
+        "document.getElementById('sw-warnings').innerHTML=(s.warnings||[]).map(esc).join('<br>');"
+        "}catch(x){err(eEl,x)}}"
+        "function tickSummary(r){return `<span class='pill ${r.lease_acquired?'ok':'off'}'>lease ${r.lease_acquired?'ok':'занята'}</span> `"
+        "+`dry_run=${r.dry_run} · scanned=${r.targets_scanned} · drafts=${r.drafts_created} · runs=${r.schedule_runs_created} · `"
+        "+`skipped=${r.skipped} · missing_creds=${r.missing_credentials} · low_balance=${r.insufficient_balance}`"
+        "+((r.errors||[]).length?`<div class='muted'>`+r.errors.map(esc).join('<br>')+`</div>`:'');}"
+        "async function swTickDry(){const R=document.getElementById('sw-result');R.textContent='Preview…';"
+        "try{const r=await api('POST','/scheduler-worker/tick-dry',{});R.innerHTML=tickSummary(r);swLeases();}catch(x){err(eEl,x)}}"
+        "async function swTick(){if(!confirm('Запустить один безопасный тик? (live-публикации нет)'))return;"
+        "const R=document.getElementById('sw-result');R.textContent='Тик…';"
+        "try{const r=await api('POST','/scheduler-worker/tick',{force:true});R.innerHTML=tickSummary(r);swStatus();swLeases();}catch(x){err(eEl,x)}}"
+        "async function swLeases(){try{const rows=await api('GET','/scheduler-worker/leases');"
+        "const host=document.getElementById('sw-leases');host.classList.remove('muted');"
+        "host.innerHTML=rows.length?`<table class='price-table'><thead><tr><th>Ключ</th><th>Владелец</th><th>Статус</th><th>Истекает</th></tr></thead><tbody>`"
+        "+rows.map(r=>`<tr><td>${esc(r.lease_key)}</td><td class='muted'>${esc(r.owner_id)}</td>"
+        "<td><span class='pill ${r.status==='active'?'ok':'off'}'>${esc(r.status)}</span></td>"
+        "<td class='muted'>${esc((r.expires_at||'').replace('T',' ').slice(0,19))}</td></tr>`).join('')+`</tbody></table>`"
+        ":\"<div class='muted'>Активных lease нет.</div>\";}catch(e){}}"
+        "swStatus();swLeases();"
+    )
+    return _page("Scheduler", body, script, active="scheduler")
 
 
 # --------------------------------------------------------------------------- #

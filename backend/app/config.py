@@ -270,6 +270,20 @@ class Settings(BaseSettings):
     media_proxy_cache_dir: str = "tmp/media_proxy_cache"
     media_proxy_cache_enabled: bool = True
 
+    # --- Background scheduler worker (движок автоматизации расписаний) ---
+    # По умолчанию worker ВЫКЛЮЧЕН и в dry-run. Даже включённый worker НИКОГДА не делает
+    # live-публикацию: только draft/needs_review. В production worker запускается ОТДЕЛЬНЫМ
+    # процессом/контейнером (не внутри web-приложения). allowlist пустой = все доступные.
+    scheduler_worker_enabled: bool = False
+    scheduler_worker_interval_seconds: int = 60
+    scheduler_worker_batch_size: int = 20
+    scheduler_worker_dry_run: bool = True
+    scheduler_worker_create_drafts: bool = True
+    scheduler_worker_lock_ttl_seconds: int = 300
+    scheduler_worker_max_projects_per_tick: int = 50
+    scheduler_worker_platform_allowlist: str = ""
+    scheduler_worker_account_allowlist: str = ""
+
     # --- Производные свойства (готовность к боевому запуску) ---
 
     @property
@@ -320,6 +334,37 @@ class Settings(BaseSettings):
             for ct in self.media_proxy_allowed_content_types.split(",")
             if ct.strip()
         ]
+
+    # --- Background scheduler worker: производные свойства ---
+
+    @property
+    def scheduler_worker_enabled_effective(self) -> bool:
+        """Включён ли фоновый worker (по умолчанию false)."""
+        return bool(self.scheduler_worker_enabled)
+
+    @property
+    def scheduler_worker_interval_seconds_safe(self) -> int:
+        """Интервал тика в безопасных границах [10, 3600] секунд."""
+        return max(10, min(int(self.scheduler_worker_interval_seconds or 60), 3600))
+
+    @property
+    def scheduler_worker_platform_allowlist_list(self) -> list[str]:
+        """Allowlist платформ (пусто = все доступные)."""
+        return [
+            p.strip().lower()
+            for p in self.scheduler_worker_platform_allowlist.split(",")
+            if p.strip()
+        ]
+
+    @property
+    def scheduler_worker_account_allowlist_list(self) -> list[int]:
+        """Allowlist account_id (пусто = все доступные)."""
+        out: list[int] = []
+        for raw in self.scheduler_worker_account_allowlist.split(","):
+            raw = raw.strip()
+            if raw.isdigit():
+                out.append(int(raw))
+        return out
 
     # --- Auth / session: производные (effective) свойства ---
 
