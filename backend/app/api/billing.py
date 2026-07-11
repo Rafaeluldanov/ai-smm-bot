@@ -7,7 +7,7 @@
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_billing_service, get_db, get_payment_service
@@ -37,8 +37,12 @@ from app.schemas.payment import (
     TopupPreviewResult,
     WebhookResult,
 )
+from app.services.billing_profile_service import BillingProfileService
 from app.services.billing_service import BillingError, BillingService
-from app.services.payments.payment_provider import PaymentProviderError
+from app.services.payments.payment_provider import (
+    PaymentProviderError,
+    WebhookSignatureError,
+)
 from app.services.payments.payment_service import PaymentService
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -214,15 +218,58 @@ def mock_pay(invoice_id: int, db: DbSession, payments: PaymentSvc) -> InvoiceRea
     return InvoiceRead.model_validate(invoice)
 
 
+@router.post(
+    "/invoices/{invoice_id}/mock-fail",
+    response_model=InvoiceRead,
+    dependencies=[Depends(require_invoice_access)],
+)
+def mock_fail(invoice_id: int, db: DbSession, payments: PaymentSvc) -> InvoiceRead:
+    """Отметить счёт неуспешным (failed). Баланс НЕ пополняется. Идемпотентно."""
+    invoice = _payments(lambda: payments.mock_fail(db, invoice_id))
+    return InvoiceRead.model_validate(invoice)
+
+
+@router.post(
+    "/invoices/{invoice_id}/mock-cancel",
+    response_model=InvoiceRead,
+    dependencies=[Depends(require_invoice_access)],
+)
+def mock_cancel(invoice_id: int, db: DbSession, payments: PaymentSvc) -> InvoiceRead:
+    """Отменить счёт (canceled). Баланс НЕ пополняется. Идемпотентно."""
+    invoice = _payments(lambda: payments.mock_cancel(db, invoice_id))
+    return InvoiceRead.model_validate(invoice)
+
+
+@router.post(
+    "/invoices/{invoice_id}/mock-expire",
+    response_model=InvoiceRead,
+    dependencies=[Depends(require_invoice_access)],
+)
+def mock_expire(invoice_id: int, db: DbSession, payments: PaymentSvc) -> InvoiceRead:
+    """Просрочить счёт (expired). Баланс НЕ пополняется. Идемпотентно."""
+    invoice = _payments(lambda: payments.mock_expire(db, invoice_id))
+    return InvoiceRead.model_validate(invoice)
+
+
 @router.post("/webhooks/{provider}", response_model=WebhookResult)
 def payment_webhook(
     provider: str,
+    request: Request,
     db: DbSession,
     payments: PaymentSvc,
     payload: Annotated[dict[str, Any], Body()],
 ) -> WebhookResult:
-    """Вебхук провайдера: логируется, проверяется, идемпотентно пополняет баланс."""
-    result = _payments(lambda: payments.handle_webhook(db, provider, payload))
+    """Вебхук провайдера: логируется, проверяется, идемпотентно пополняет баланс.
+
+    Недоверенная подпись в production → 403 (в local/mock вебхук просто не обрабатывается).
+    """
+    headers = {k.lower(): v for k, v in request.headers.items()}
+    try:
+        result = payments.handle_webhook(db, provider, payload, headers=headers)
+    except WebhookSignatureError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except PaymentProviderError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return WebhookResult(**result)
 
 
@@ -248,3 +295,13 @@ def upsert_billing_profile(
     """Создать/обновить реквизиты плательщика (без секретов платежей)."""
     profile = payment_repository.upsert_profile(db, account_id, payload.model_dump())
     return BillingProfileRead.model_validate(profile)
+
+
+@router.get(
+    "/account/{account_id}/profile/readiness",
+    dependencies=[Depends(require_account_member)],
+)
+def get_profile_readiness(account_id: int, db: DbSession) -> dict[str, Any]:
+    """Готовность реквизитов плательщика к оплате по каждому методу (для UI-чипов)."""
+    profile = payment_repository.get_profile_by_account(db, account_id)
+    return BillingProfileService().readiness(profile)

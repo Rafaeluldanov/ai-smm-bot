@@ -122,3 +122,18 @@ make restore-db backup_path=backups/... confirm=RESTORE understand=true
 - [ ] При необходимости — restore БД из последнего бэкапа (§9), `confirm=RESTORE`.
 - [ ] Проверить `/health` и `/health/security-readiness`.
 - [ ] Проверить логи (request_id) на ошибки.
+
+## 16. Платежи перед боевым запуском (v0.3.4)
+
+Платёжный контур подготовлен как sandbox/mock (`PAYMENTS_LIVE_ENABLED=false`,
+`PAYMENTS_PROVIDER_HTTP_ENABLED=false`). Детали и полный чек-лист —
+[31_Botfleet_Платежи_ЮKassa_СБП_QR.md](31_Botfleet_Платежи_ЮKassa_СБП_QR.md). Перед
+включением боевого эквайринга:
+
+- [ ] договор с провайдером (ЮKassa/банк), shop/merchant id;
+- [ ] webhook URL (HTTPS) + `YOOKASSA_WEBHOOK_SECRET` и проверка подписи;
+- [ ] успешный sandbox-прогон оплаты и вебхука;
+- [ ] реализованный боевой HTTP-клиент, затем аккуратно включить
+      `PAYMENTS_PROVIDER_HTTP_ENABLED`, потом `PAYMENTS_LIVE_ENABLED`;
+- [ ] бухгалтерия/налоги/оферта/privacy/terms/payment policy (вывести из черновиков);
+- [ ] мониторинг платежей и алерты по расхождению баланса.

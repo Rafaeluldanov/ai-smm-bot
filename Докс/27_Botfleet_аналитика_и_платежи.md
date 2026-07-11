@@ -126,3 +126,22 @@ dry-run бесплатно, 402 при нехватке. Счета/вебхук
 аналитика/биллинг доступны только участнику аккаунта (HTTP-гарды). Аудит-лог фиксирует
 invoice.created/paid и analytics.run. См.
 [28_Botfleet_SaaS_безопасность.md](28_Botfleet_SaaS_безопасность.md).
+
+## Обновление v0.3.4: платёжный контур ЮKassa/СБП/QR и идемпотентность вебхуков
+
+Платёжный слой доведён до полноценного sandbox-flow (реальные платежи по-прежнему
+выключены). Полностью описано в
+[31_Botfleet_Платежи_ЮKassa_СБП_QR.md](31_Botfleet_Платежи_ЮKassa_СБП_QR.md):
+
+- **Жизненный цикл счёта** стандартизирован: `draft → pending → paid | canceled | failed
+  | expired`; константы `PAYMENT_STATUS_*`/`PAYMENT_METHOD_*`, статусы транзакций и
+  вебхуков. Сумма счёта неизменяема после `pending`.
+- **Mock-provider hardening**: `mock-pay/mock-fail/mock-cancel/mock-expire` (идемпотентно,
+  с гардом доступа к счёту).
+- **YooKassa sandbox-adapter**: `build_yookassa_payment_payload`, детерминированный
+  fake-счёт без сети (`PAYMENTS_PROVIDER_HTTP_ENABLED=false`), проверка подписи вебхука;
+  в production недоверенный вебхук → 403.
+- **Идемпотентность вебхуков**: дубликат по `provider_event_id` игнорируется, двойного
+  пополнения нет; миграция `0017` (provider_event_id/status/processed_at/error_message).
+- **Реквизиты плательщика**: `BillingProfileService` (validate/mask/readiness) — готовность
+  под метод (карта/СБП/QR/счёт ИП/ООО). Карта в Botfleet не вводится и не хранится.

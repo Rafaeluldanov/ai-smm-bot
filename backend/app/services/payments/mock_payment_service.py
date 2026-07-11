@@ -67,6 +67,8 @@ class MockPaymentProvider:
         event_type = str(payload.get("event", "payment.succeeded"))
         pid = payload.get("provider_payment_id") or payload.get("object_id")
         status = str(payload.get("status", STATUS_PAID))
+        # provider_event_id — для идемпотентности дубликатов (если провайдер прислал id).
+        event_id = payload.get("event_id") or payload.get("id")
         return PaymentWebhookResult(
             provider=self.name,
             event_type=event_type,
@@ -74,4 +76,5 @@ class MockPaymentProvider:
             status=status,
             signature_valid=True,
             payload_sanitized={"event": event_type, "status": status},
+            provider_event_id=str(event_id) if event_id else None,
         )

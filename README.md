@@ -1323,6 +1323,36 @@ Production-grade auth/session-слой (подробно —
 
 Без миграций (0016 — актуальный head). Live/payments off; секреты не печатаются.
 
+### Платежи: sandbox-hardening ЮKassa/СБП/QR (v0.3.4)
+
+Платёжный контур доведён до полноценного sandbox/mock-flow (подробно —
+[Докс/31](Докс/31_Botfleet_Платежи_ЮKassa_СБП_QR.md)). **Реальные платежи выключены**
+(`PAYMENTS_LIVE_ENABLED=false`, `PAYMENTS_PROVIDER_HTTP_ENABLED=false`) — сеть к платёжным
+API не вызывается, карта в Botfleet не вводится и не хранится.
+
+- **Жизненный цикл счёта**: `draft → pending → paid | canceled | failed | expired`;
+  константы `PAYMENT_STATUS_*`/`PAYMENT_METHOD_*`, статусы транзакций
+  (`pending/succeeded/failed/canceled/refunded`) и вебхуков
+  (`received/processed/ignored/failed`). Сумма счёта неизменяема после `pending`.
+- **Mock-provider**: `mock-pay` / `mock-fail` / `mock-cancel` / `mock-expire`
+  (`POST /billing/invoices/{id}/…`) — идемпотентно, с гардом доступа к счёту (чужой → 404).
+- **YooKassa sandbox-adapter**: `build_yookassa_payment_payload` (санитизированный payload
+  amount/confirmation/metadata/payment_method_data), детерминированный fake-счёт без сети
+  при `YOOKASSA_SANDBOX_ENABLED=true`; проверка подписи вебхука (HMAC placeholder). Боевой
+  HTTP не реализован — за флагом `PAYMENTS_PROVIDER_HTTP_ENABLED`.
+- **Идемпотентность вебхуков**: дубликат по `provider_event_id` (уже `processed`) →
+  `ignored`, без двойного пополнения; недоверенная подпись в production → **403**. Миграция
+  **0017** (`provider_event_id`/`status`/`processed_at`/`error_message`).
+- **Реквизиты плательщика**: `BillingProfileService`
+  (`validate_profile_for_method`/`mask_profile`/`readiness`) + эндпоинт
+  `GET /billing/account/{id}/profile/readiness`. UI `/ui/billing`: верхние карточки,
+  таблица счетов с действиями, QR/СБП payload + «Скопировать», чипы готовности реквизитов,
+  предупреждения; `/ui/tariffs`: 1 unit ≈ 1 ₽, наценка ×2, комиссия/НДС — позже.
+
+Миграция **0017** (payments webhook hardening). Feature-flags:
+`PAYMENTS_LIVE_ENABLED=false`, `PAYMENTS_PROVIDER_HTTP_ENABLED=false`,
+`YOOKASSA_SANDBOX_ENABLED=false` (и `*_SANDBOX_ENABLED` для tbank/cloudpayments/robokassa).
+
 ### Личный кабинет v0.2.3
 
 Кабинет переработан в нормальную раскладку **header + sidebar** на всех страницах

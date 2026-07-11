@@ -216,13 +216,27 @@ class Settings(BaseSettings):
     payments_default_provider: str = "mock"
     payments_success_return_url: str = ""
     payments_fail_return_url: str = ""
+    # Реальные сетевые вызовы к платёжным API (эквайринг). По умолчанию ВЫКЛЮЧЕНО:
+    # даже с sandbox-флагом провайдер не ходит в сеть, а строит детерминированный
+    # fake-invoice/payload. Включать только после аудита sandbox/подписей вебхуков.
+    payments_provider_http_enabled: bool = False
+    # YooKassa
+    yookassa_sandbox_enabled: bool = False
     yookassa_shop_id: str = ""
     yookassa_secret_key: str = ""
     yookassa_webhook_secret: str = ""
+    yookassa_return_url: str = ""
+    yookassa_confirmation_type: str = "redirect"
+    # T-Bank / Тинькофф
+    tbank_sandbox_enabled: bool = False
     tbank_terminal_key: str = ""
     tbank_password: str = ""
+    # CloudPayments
+    cloudpayments_sandbox_enabled: bool = False
     cloudpayments_public_id: str = ""
     cloudpayments_api_secret: str = ""
+    # Robokassa
+    robokassa_sandbox_enabled: bool = False
     robokassa_merchant_login: str = ""
     robokassa_password1: str = ""
     robokassa_password2: str = ""
@@ -292,6 +306,27 @@ class Settings(BaseSettings):
     def database_is_sqlite(self) -> bool:
         """Использует ли БД SQLite (для prod ожидается PostgreSQL)."""
         return self.database_url.strip().lower().startswith("sqlite")
+
+    def payment_provider_sandbox_enabled(self, provider: str) -> bool:
+        """Включён ли sandbox-режим у провайдера (можно создавать fake-счета без сети)."""
+        return {
+            "yookassa": self.yookassa_sandbox_enabled,
+            "tbank": self.tbank_sandbox_enabled,
+            "cloudpayments": self.cloudpayments_sandbox_enabled,
+            "robokassa": self.robokassa_sandbox_enabled,
+        }.get((provider or "").strip().lower(), False)
+
+    @property
+    def yookassa_return_url_effective(self) -> str:
+        """Return URL для YooKassa: из настройки, из PAYMENTS_SUCCESS_RETURN_URL или базы."""
+        for candidate in (
+            self.yookassa_return_url,
+            self.payments_success_return_url,
+            (f"{self.app_base_url.rstrip('/')}/ui/billing" if self.app_base_url else ""),
+        ):
+            if candidate.strip():
+                return candidate.strip()
+        return "/ui/billing"
 
     @property
     def telegram_configured(self) -> bool:

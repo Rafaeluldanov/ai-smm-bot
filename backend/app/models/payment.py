@@ -89,7 +89,11 @@ class PaymentTransaction(Base, TimestampMixin):
 
 
 class PaymentWebhookLog(Base, TimestampMixin):
-    """Журнал входящих вебхуков провайдеров (санитизированный, без секретов)."""
+    """Журнал входящих вебхуков провайдеров (санитизированный, без секретов).
+
+    Идемпотентность: ``provider_event_id`` — идентификатор события провайдера;
+    повторное событие с тем же id не пополняет баланс второй раз (status=ignored).
+    """
 
     __tablename__ = "payment_webhook_logs"
 
@@ -97,8 +101,14 @@ class PaymentWebhookLog(Base, TimestampMixin):
     provider: Mapped[str] = mapped_column(String(40), index=True, nullable=False)
     event_type: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     provider_payment_id: Mapped[str | None] = mapped_column(String(255), index=True, default=None)
+    # Идентификатор события провайдера (идемпотентность дубликатов вебхуков).
+    provider_event_id: Mapped[str | None] = mapped_column(String(255), index=True, default=None)
     payload_sanitized: Mapped[dict[str, Any]] = mapped_column(
         JSONType, default=dict, nullable=False
     )
     signature_valid: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     processed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # received | processed | ignored | failed
+    status: Mapped[str] = mapped_column(String(20), default="received", index=True, nullable=False)
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    error_message: Mapped[str | None] = mapped_column(String(1000), default=None)

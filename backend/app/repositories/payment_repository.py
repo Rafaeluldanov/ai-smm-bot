@@ -116,3 +116,33 @@ def create_webhook_log(db: Session, **fields: Any) -> PaymentWebhookLog:
     db.commit()
     db.refresh(log)
     return log
+
+
+def get_processed_webhook_by_event_id(
+    db: Session, provider: str, provider_event_id: str
+) -> PaymentWebhookLog | None:
+    """Вернуть УЖЕ ОБРАБОТАННЫЙ вебхук по (provider, provider_event_id) или None.
+
+    Основа идемпотентности: если такое событие уже обработано (``status=processed``),
+    повторный вебхук игнорируется и баланс не пополняется второй раз.
+    """
+    return db.scalars(
+        select(PaymentWebhookLog).where(
+            PaymentWebhookLog.provider == provider,
+            PaymentWebhookLog.provider_event_id == provider_event_id,
+            PaymentWebhookLog.status == "processed",
+        )
+    ).first()
+
+
+def list_webhook_logs_by_provider(
+    db: Session, provider: str, limit: int = 100
+) -> list[PaymentWebhookLog]:
+    """Журнал вебхуков провайдера (свежие первыми)."""
+    stmt = (
+        select(PaymentWebhookLog)
+        .where(PaymentWebhookLog.provider == provider)
+        .order_by(PaymentWebhookLog.id.desc())
+        .limit(limit)
+    )
+    return list(db.scalars(stmt).all())
