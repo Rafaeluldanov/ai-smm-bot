@@ -233,6 +233,16 @@ class ExperimentSuggestionService:
                 "source": source,
             },
         )
+        if created:
+            self._notify_owner(
+                db,
+                project_id,
+                "experiment_suggestion_created",
+                "Новые A/B-предложения",
+                f"Worker создал предложений: {len(created)}.",
+                current_user_id,
+                action_url=f"/ui/projects/{project_id}/experiment-suggestions",
+            )
         return {
             "project_id": project_id,
             "platform_key": platform_key,
@@ -657,6 +667,34 @@ class ExperimentSuggestionService:
         if project is None:
             raise ExperimentSuggestionError(f"Проект id={project_id} не найден")
         return project.account_id
+
+    def _notify_owner(  # noqa: PLR0913 — единый безопасный хук уведомления
+        self,
+        db: Session,
+        project_id: int,
+        notification_type: str,
+        title: str,
+        message: str,
+        current_user_id: int | None,
+        action_url: str | None = None,
+    ) -> None:
+        """Безопасно уведомить владельца проекта (не роняет основное действие)."""
+        try:
+            from app.services.notification_service import NotificationService
+
+            NotificationService(settings=self._settings).notify_project_owner(
+                db,
+                project_id,
+                notification_type,
+                title,
+                message,
+                actor_user_id=current_user_id,
+                entity_type="project",
+                entity_id=project_id,
+                action_url=action_url,
+            )
+        except Exception:  # noqa: BLE001 — уведомление не критично
+            logger.warning("experiment suggestion notification failed", exc_info=False)
 
     # --- Настройки ---
 

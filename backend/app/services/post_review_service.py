@@ -83,7 +83,27 @@ class PostReviewService:
                 "Нельзя отправить на согласование без прикреплённого медиа"
             )
         self._apply_transition(db, post, "needs_review", ACTION_SUBMIT, request)
+        self._notify_needs_review(db, post)
         return self.build_review_card(db, post_id)
+
+    @staticmethod
+    def _notify_needs_review(db: Session, post: Post) -> None:
+        """Уведомить владельца проекта, что пост ждёт ревью (безопасно; skip если некому)."""
+        try:
+            from app.services.notification_service import NotificationService
+
+            NotificationService().notify_project_owner(
+                db,
+                post.project_id,
+                "post_needs_review",
+                f"Пост #{post.id} ждёт ревью",
+                "Новый пост отправлен на согласование.",
+                entity_type="post",
+                entity_id=post.id,
+                action_url=f"/ui/projects/{post.project_id}/review",
+            )
+        except Exception:  # noqa: BLE001 — уведомление не критично для ревью
+            logger.warning("post needs_review notification failed", exc_info=False)
 
     def approve_post(
         self, db: Session, post_id: int, request: PostReviewDecisionRequest

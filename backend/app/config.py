@@ -355,6 +355,27 @@ class Settings(BaseSettings):
     media_curation_review_auto_apply_after_approval: bool = False
     media_curation_review_external_ai_enabled: bool = False
 
+    # --- Notifications, mentions, reviewer workload (v0.5.0) ---
+    # Внутренние (in-app) уведомления, упоминания и нагрузка ревьюеров. Внешняя доставка
+    # (email/digest/webhook/push) ВЫКЛЮЧЕНА по умолчанию и в MVP не отправляется; worker
+    # выключен; dry-run по умолчанию; live-публикаций/платежей не подразумевает.
+    notifications_enabled: bool = True
+    notifications_in_app_enabled: bool = True
+    notifications_email_enabled: bool = False
+    notifications_digest_enabled: bool = False
+    notifications_webhook_enabled: bool = False
+    notifications_worker_enabled: bool = False
+    notifications_dry_run: bool = True
+    notifications_max_per_user: int = 500
+    notifications_dedup_window_minutes: int = 30
+    notifications_mention_enabled: bool = True
+    notifications_overdue_scan_enabled: bool = True
+    notifications_overdue_grace_hours: int = 24
+    notifications_external_delivery_enabled: bool = False
+    media_curation_review_sla_hours: int = 72
+    post_review_sla_hours: int = 48
+    experiment_review_sla_hours: int = 72
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -773,6 +794,64 @@ class Settings(BaseSettings):
     def media_curation_review_max_comments_per_task_safe(self) -> int:
         """Максимум комментариев на задачу (не меньше 1)."""
         return max(1, int(self.media_curation_review_max_comments_per_task or 1))
+
+    # --- Notifications: производные (effective) свойства (v0.5.0) ---
+
+    @property
+    def notifications_enabled_effective(self) -> bool:
+        """Включены ли уведомления вообще."""
+        return bool(self.notifications_enabled)
+
+    @property
+    def notifications_in_app_enabled_effective(self) -> bool:
+        """Включён ли внутренний (in-app) канал уведомлений."""
+        return bool(self.notifications_enabled and self.notifications_in_app_enabled)
+
+    @property
+    def notifications_external_delivery_enabled_effective(self) -> bool:
+        """Разрешена ли ЛЮБАЯ внешняя доставка (email/digest/webhook). По умолчанию false.
+
+        Требует и общий флаг внешней доставки, и хотя бы один внешний канал. В MVP всегда
+        false — реальная отправка не производится.
+        """
+        return bool(
+            self.notifications_external_delivery_enabled
+            and (
+                self.notifications_email_enabled
+                or self.notifications_digest_enabled
+                or self.notifications_webhook_enabled
+            )
+        )
+
+    @property
+    def notifications_dedup_window_seconds(self) -> int:
+        """Окно дедупликации уведомлений в секундах (из минут; не отрицательное)."""
+        return max(0, int(self.notifications_dedup_window_minutes or 0)) * 60
+
+    @property
+    def notifications_overdue_grace_seconds(self) -> int:
+        """Грейс-период просрочки в секундах (из часов; не отрицательное)."""
+        return max(0, int(self.notifications_overdue_grace_hours or 0)) * 3600
+
+    @property
+    def notifications_max_per_user_safe(self) -> int:
+        """Максимум уведомлений на пользователя (не меньше 1)."""
+        return max(1, int(self.notifications_max_per_user or 1))
+
+    @property
+    def media_curation_review_sla_seconds(self) -> int:
+        """SLA ревью медиатеки в секундах (из часов; не отрицательное)."""
+        return max(1, int(self.media_curation_review_sla_hours or 1)) * 3600
+
+    @property
+    def post_review_sla_seconds(self) -> int:
+        """SLA ревью постов в секундах (из часов; не отрицательное)."""
+        return max(1, int(self.post_review_sla_hours or 1)) * 3600
+
+    @property
+    def experiment_review_sla_seconds(self) -> int:
+        """SLA ревью экспериментов в секундах (из часов; не отрицательное)."""
+        return max(1, int(self.experiment_review_sla_hours or 1)) * 3600
 
     # --- Auth / session: производные (effective) свойства ---
 

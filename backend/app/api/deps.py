@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.services.media_quality_service import MediaQualityService
     from app.services.media_similarity_service import MediaSimilarityService
     from app.services.metrics_import_service import MetricsImportService
+    from app.services.notification_service import NotificationService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
     from app.services.review_workflow_service import ReviewWorkflowService
@@ -294,8 +295,17 @@ def get_media_curation_review_service() -> "MediaCurationReviewService":
     from app.services.media_curation_review_service import MediaCurationReviewService
 
     return MediaCurationReviewService(
-        curation_service=get_media_curation_service(), settings=get_settings()
+        curation_service=get_media_curation_service(),
+        settings=get_settings(),
+        notification_service=get_notification_service(),
     )
+
+
+def get_notification_service() -> "NotificationService":
+    """Построить сервис внутренних уведомлений (in-app; без внешней доставки)."""
+    from app.services.notification_service import NotificationService
+
+    return NotificationService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":

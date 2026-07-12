@@ -344,6 +344,11 @@ def _header(title: str) -> str:
         f"<span class='brand-name'>{BRAND_NAME}</span></a>"
         f"<span class='page-ctx'>{ctx}</span>"
         "<span class='spacer'></span>"
+        "<a id='notif-bell' class='bell' href='/ui/notifications' title='Уведомления' "
+        "aria-label='Уведомления' style='position:relative;text-decoration:none;font-size:18px;"
+        "margin-right:10px;display:none'>🔔<span id='notif-count' style='display:none;position:"
+        "absolute;top:-6px;right:-8px;background:#e5484d;color:#fff;border-radius:10px;font-size:"
+        "10px;padding:0 5px;line-height:16px'>0</span></a>"
         "<button id='themebtn' class='themebtn' onclick='toggleTheme()' "
         "title='Переключить тему: Светлая / Тёмная (День / Ночь)' "
         "aria-label='Переключить тему'><span id='themeicon'>🌙</span></button>"
@@ -448,6 +453,12 @@ async function initShell(){
     const g=box.querySelector('.guest'); if(g) g.style.display='none';
     const w=box.querySelector('.acctwrap'); if(w) w.style.display='';
   }
+  const bell=document.getElementById('notif-bell');
+  if(bell){ bell.style.display='';
+    try{ const uc=await api('GET','/notifications/unread-count'); const nc=document.getElementById('notif-count');
+      if(nc){ if(uc.unread_count>0){ nc.textContent=uc.unread_count>99?'99+':uc.unread_count; nc.style.display=''; } else { nc.style.display='none'; } }
+    }catch(e){}
+  }
   if(sb){
     if(!aid){ sb.innerHTML="<div class='muted sb-hint'>Нет аккаунтов.</div>"; return; }
     try{
@@ -478,6 +489,7 @@ def _sidebar(active: str = "") -> str:
         "<a class='sb-add' href='/ui/projects/new' title='Новый проект'>+</a></div>"
         "<div id='sb-projects' class='sb-projects'><div class='muted sb-hint'>…</div></div></div>"
         f"<a class='sb-link{cls('tariffs')}' href='/ui/tariffs'>Тарифы</a>"
+        f"<a class='sb-link{cls('notifications')}' href='/ui/notifications'>Уведомления</a>"
         f"<a class='sb-link{cls('review')}' href='/ui/review'>Ревью</a>"
         f"<a class='sb-link{cls('learning')}' href='/ui/learning'>Обучение</a>"
         f"<a class='sb-link{cls('metrics')}' href='/ui/metrics'>Метрики</a>"
@@ -2600,6 +2612,18 @@ def ui_settings() -> HTMLResponse:
         "<div id='sess-list' class='muted'>Загрузка…</div>"
         "<div style='margin-top:10px'><button class='mini sec' onclick='logoutAll()'>"
         "Выйти со всех устройств</button></div></div>"
+        # Настройки уведомлений (v0.5.0).
+        "<div class='card' id='notif-prefs'><h3>🔔 Уведомления</h3>"
+        "<div id='np-info' class='muted'>Загрузка…</div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<label><input type='checkbox' id='np-inapp' checked disabled> В приложении (in-app)</label>"
+        "<label><input type='checkbox' id='np-email' disabled> Email</label>"
+        "<label><input type='checkbox' id='np-digest' disabled> Дайджест</label>"
+        "<label><input type='checkbox' id='np-webhook' disabled> Webhook</label>"
+        "</div>"
+        "<p class='muted'>Внешняя доставка (email/дайджест/webhook/push) выключена по умолчанию "
+        "и в MVP не отправляется. Открыть все уведомления: "
+        "<a href='/ui/notifications'>Уведомления →</a></p></div>"
         # Индикаторы безопасности.
         "<div class='card'><h3>🔒 Безопасность</h3><ul class='muted'>"
         "<li>Live-публикации выключены по умолчанию.</li>"
@@ -2633,6 +2657,10 @@ def ui_settings() -> HTMLResponse:
         "try{const ss=await api('GET','/auth/sessions');"
         "sl.innerHTML=ss.length?ss.map(s=>`<div style='margin:4px 0'>#${s.id} · ${esc(s.ip_address||'—')} · ${esc(s.user_agent||'—').slice(0,60)} · <span class='muted'>активна</span></div>`).join(''):'Активных сессий нет.';"
         "}catch(e){sl.textContent='—';}"
+        "try{const pr=await api('GET','/notifications/preferences');"
+        "document.getElementById('np-info').textContent='in-app: '+(pr.in_app_enabled?'вкл':'выкл')+' · внешняя доставка: '+(pr.external_delivery_enabled?'вкл':'выкл (по умолчанию)');"
+        "document.getElementById('np-inapp').checked=!!pr.in_app_enabled;"
+        "}catch(e){document.getElementById('np-info').textContent='—';}"
         "if(location.hash==='#sessions'){document.getElementById('sessions').scrollIntoView();}"
         "}catch(x){err(eEl,x)}})();"
     )
@@ -4431,7 +4459,8 @@ def ui_project_media_curation_review(project_id: int) -> HTMLResponse:
         "<button class='sec mini'>← Курирование</button></a>"
         f"<a href='/ui/projects/{project_id}/media-quality'><button class='ghost mini'>Качество</button></a>"
         f"<a href='/ui/projects/{project_id}/media-duplicates'><button class='ghost mini'>Дубли</button></a>"
-        f"<a href='/ui/projects/{project_id}/automation'><button class='ghost mini'>Автоматизация</button></a></div>"
+        f"<a href='/ui/projects/{project_id}/review-workload'><button class='mini'>Нагрузка ревьюеров</button></a>"
+        f"<a href='/ui/projects/{project_id}/notifications'><button class='ghost mini'>Уведомления</button></a></div>"
         "<h2>Ревью медиатеки</h2>"
         "<div class='callout warn'><b>Файлы НЕ удаляются.</b> Изменения (теги/скрытие) применяются "
         "<b>только после одобрения (approved)</b>. Без внешнего AI; live-публикаций и реальных "
@@ -4601,3 +4630,125 @@ def ui_project_media_curation_review_task(project_id: int, task_id: int) -> HTML
     return _page(
         "Задача ревью медиатеки", body, script, active="optimization", active_pid=project_id
     )
+
+
+@router.get("/notifications", response_class=HTMLResponse)
+def ui_notifications() -> HTMLResponse:
+    """Inbox уведомлений пользователя: фильтры, карточки, прочитать/скрыть."""
+    body = (
+        "<h2>Уведомления</h2>"
+        "<div class='callout'>Внутренние (in-app) уведомления. Внешней доставки (email/SMS/"
+        "push) нет — она выключена по умолчанию.</div>"
+        "<div class='card'><div class='inline'>"
+        "<label>Показать <select id='nf-status' onchange='loadNotif()'>"
+        "<option value='unread'>непрочитанные</option><option value=''>все</option>"
+        "<option value='read'>прочитанные</option></select></label>"
+        "<label>Тип <select id='nf-type' onchange='loadNotif()'>"
+        "<option value=''>все</option><option>review_assigned</option><option>review_mentioned</option>"
+        "<option>review_comment</option><option>review_approved</option><option>review_rejected</option>"
+        "<option>task_overdue</option><option>post_needs_review</option>"
+        "<option>experiment_suggestion_created</option><option>experiment_winner_selected</option>"
+        "<option>learning_profile_updated</option></select></label>"
+        "<label>Приоритет <select id='nf-priority' onchange='loadNotif()'>"
+        "<option value=''>все</option><option>urgent</option><option>high</option>"
+        "<option>normal</option><option>low</option></select></label>"
+        "<button class='mini sec' onclick='readAll()'>Прочитать все</button></div></div>"
+        "<div id='nf-summary' class='muted'></div>"
+        "<div class='card'><div id='nf-list' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "function fv(id){return document.getElementById(id).value;}"
+        "function nfcard(n){"
+        "const url=n.action_url?`<a href='${esc(n.action_url)}'><button class='mini sec'>Открыть</button></a>`:'';"
+        "const rd=n.status==='unread'?`<button class='mini' onclick='markRead(${n.id})'>Прочитано</button>`:'';"
+        "return `<div class='card'><div class='inline'><span class='pill'>${esc(n.notification_type)}</span> "
+        "<b>${esc(''+n.title)}</b> <span class='pill'>${esc(n.priority)}</span> "
+        "<span class='muted'>${esc(n.status)} · ${n.created_at?esc(n.created_at.slice(0,16)):''}</span></div>"
+        "<div class='muted'>${esc(''+(n.message||''))}</div>"
+        "${n.entity_type?`<div class='muted'>${esc(n.entity_type)} #${esc(''+(n.entity_id||''))}</div>`:''}"
+        "<div class='inline' style='margin-top:8px'>${url}${rd}"
+        "<button class='mini ghost' onclick='dismissN(${n.id})'>Скрыть</button></div></div>`;}"
+        "async function loadNotif(){try{"
+        "let qs='?limit=100';const st=fv('nf-status');if(st)qs+='&status_filter='+encodeURIComponent(st);"
+        "const tp=fv('nf-type');if(tp)qs+='&notification_type='+encodeURIComponent(tp);"
+        "const pr=fv('nf-priority');if(pr)qs+='&priority='+encodeURIComponent(pr);"
+        "const d=await api('GET','/notifications'+qs);"
+        "document.getElementById('nf-summary').textContent='Непрочитанных: '+d.unread_count+' · показано: '+d.count;"
+        "const host=document.getElementById('nf-list');host.classList.remove('muted');"
+        "host.innerHTML=d.notifications.length?d.notifications.map(nfcard).join(''):"
+        "\"<div class='muted'>Уведомлений нет.</div>\";}catch(x){err(eEl,x)}}"
+        "async function markRead(id){try{await api('POST','/notifications/'+id+'/read',{});loadNotif();}catch(x){err(eEl,x)}}"
+        "async function dismissN(id){try{await api('POST','/notifications/'+id+'/dismiss',{});loadNotif();}catch(x){err(eEl,x)}}"
+        "async function readAll(){try{await api('POST','/notifications/read-all',{});loadNotif();}catch(x){err(eEl,x)}}"
+        "window.loadNotif=loadNotif;window.markRead=markRead;window.dismissN=dismissN;window.readAll=readAll;loadNotif();"
+    )
+    return _page("Уведомления", body, script, active="notifications")
+
+
+@router.get("/projects/{project_id}/notifications", response_class=HTMLResponse)
+def ui_project_notifications(project_id: int) -> HTMLResponse:
+    """Дашборд уведомлений проекта: непрочитанные, overdue, high/urgent, по типу."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/review-workload'><button class='ghost mini'>Нагрузка ревьюеров</button></a>"
+        f"<a href='/ui/projects/{project_id}/media-curation-review'><button class='ghost mini'>Ревью медиатеки</button></a></div>"
+        "<h2>Уведомления проекта</h2>"
+        "<div class='callout'>Только внутренние уведомления. Внешней доставки нет.</div>"
+        "<div class='grid'>"
+        "<div class='pcard'><div class='muted'>Непрочитанные</div><div id='pn-unread' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Overdue</div><div id='pn-overdue' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>High/Urgent</div><div id='pn-high' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Всего</div><div id='pn-total' class='an-big'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>По типам</h3><div id='pn-types' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "async function load(){try{const d=await api('GET','/notifications/projects/'+PID+'/dashboard');"
+        "document.getElementById('pn-unread').textContent=d.unread;"
+        "document.getElementById('pn-overdue').textContent=d.overdue;"
+        "document.getElementById('pn-high').textContent=d.high_priority;"
+        "document.getElementById('pn-total').textContent=d.total;"
+        "const t=document.getElementById('pn-types');t.classList.remove('muted');"
+        "const es=Object.entries(d.by_type||{});"
+        "t.innerHTML=es.length?es.map(([k,v])=>`<div class='sched-task'><span class='pill'>${esc(k)}</span> ${v}</div>`).join(''):"
+        "\"<div class='muted'>Уведомлений нет.</div>\";}catch(x){err(eEl,x)}}"
+        "load();"
+    )
+    return _page("Уведомления проекта", body, script, active="notifications", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/review-workload", response_class=HTMLResponse)
+def ui_project_review_workload(project_id: int) -> HTMLResponse:
+    """Нагрузка ревьюеров: задачи, overdue, high/urgent, средний возраст, SLA."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/notifications'>"
+        "<button class='sec mini'>← Уведомления проекта</button></a>"
+        f"<a href='/ui/projects/{project_id}/media-curation-review'><button class='ghost mini'>Ревью медиатеки</button></a></div>"
+        "<h2>Нагрузка ревьюеров</h2>"
+        "<div class='callout'>Нагрузка по задачам ревью медиатеки. SLA — из настроек (часы). "
+        "Внешней доставки уведомлений нет.</div>"
+        "<div id='rw-meta' class='muted'></div>"
+        "<div class='card'><div id='rw-table' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "function slaPill(s){const cls=(s==='overdue'||s==='critical')?'warn':(s==='due_soon'?'':'ok');"
+        "return `<span class='pill ${cls}'>${esc(s)}</span>`;}"
+        "async function load(){try{const d=await api('GET','/notifications/projects/'+PID+'/workload');"
+        "document.getElementById('rw-meta').textContent='SLA: '+(d.sla_hours||'—')+' ч · без назначения (активные): '+(d.unassigned_active||0);"
+        "const host=document.getElementById('rw-table');host.classList.remove('muted');"
+        "if(!d.reviewers.length){host.innerHTML=\"<div class='muted'>Назначенных ревьюеров нет.</div>\";return;}"
+        "host.innerHTML=`<table class='tbl'><thead><tr><th>Ревьюер</th><th>Задач</th><th>Overdue</th>"
+        "<th>High/Urgent</th><th>Ср. возраст, ч</th><th>SLA</th></tr></thead><tbody>`+"
+        "d.reviewers.map(r=>`<tr><td>#${r.reviewer_user_id}</td><td>${r.assigned_count}</td>"
+        "<td>${r.overdue_count}</td><td>${r.high_priority_count}</td><td>${r.avg_age_hours}</td>"
+        "<td>${slaPill(r.sla_status)}</td></tr>`).join('')+'</tbody></table>';}catch(x){err(eEl,x)}}"
+        "load();"
+    )
+    return _page("Нагрузка ревьюеров", body, script, active="notifications", active_pid=project_id)

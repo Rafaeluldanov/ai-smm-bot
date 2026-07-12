@@ -158,3 +158,7 @@ id/теги/статусы; сырых токенов и внутренних п
 - SLA/нагрузка ревьюеров (reviewer workload);
 - реальный duplicate cleanup с бэкапами;
 - визуальные AI-подсказки качества.
+
+> **Продолжение (v0.5.0):** уведомления, упоминания (@mentions), inbox и нагрузка ревьюеров с SLA
+> реализованы — assign/comment/mention/approve/reject/apply создают внутренние уведомления. См.
+> [47_Botfleet_Notifications_Mentions_Workload.md](47_Botfleet_Notifications_Mentions_Workload.md).

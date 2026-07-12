@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
 from app.repositories import (
+    account_repository,
     post_feedback_repository,
     post_publication_repository,
     post_repository,
@@ -39,8 +40,17 @@ if TYPE_CHECKING:
     from app.models.post import Post
     from app.services.audit_log_service import AuditLogService
     from app.services.client_learning_service import ClientLearningService
+    from app.services.notification_service import NotificationService
     from app.services.post_publication_service import PostPublicationService
     from app.services.post_review_service import PostReviewService
+
+# Статус поста → тип уведомления (v0.5.0).
+_POST_STATUS_NOTIFICATION_TYPE = {
+    "approved": "post_approved",
+    "rejected": "post_rejected",
+    "changes_requested": "post_needs_review",
+    "needs_review": "post_needs_review",
+}
 
 logger = get_logger(__name__)
 
@@ -217,6 +227,7 @@ class ReviewWorkflowService:
         self._audit_review(
             db, post, user_id, audit_actions.ACTION_REVIEW_POST_APPROVED, {"post_id": post.id}
         )
+        self._notify_post_status(db, post, "approved", user_id)
         return {"card": card.model_dump(), "status": "approved"}
 
     def reject(
@@ -241,6 +252,7 @@ class ReviewWorkflowService:
         self._audit_review(
             db, post, user_id, audit_actions.ACTION_REVIEW_POST_REJECTED, {"post_id": post.id}
         )
+        self._notify_post_status(db, post, "rejected", user_id)
         return {"card": card.model_dump(), "status": "rejected"}
 
     def request_changes(
@@ -269,6 +281,7 @@ class ReviewWorkflowService:
             audit_actions.ACTION_REVIEW_POST_CHANGES_REQUESTED,
             {"post_id": post.id},
         )
+        self._notify_post_status(db, post, "changes_requested", user_id)
         return {"card": card.model_dump(), "status": "changes_requested"}
 
     def approve_and_schedule(
@@ -564,6 +577,44 @@ class ReviewWorkflowService:
     def _account_id(db: Session, project_id: int) -> int | None:
         project = project_repository.get_project_by_id(db, project_id)
         return project.account_id if project is not None else None
+
+    def _notify_post_status(
+        self, db: Session, post: Post, status: str, user_id: int | None
+    ) -> None:
+        """Уведомить владельца проекта о смене статуса поста (безопасно; skip если некому)."""
+        try:
+            ntype = _POST_STATUS_NOTIFICATION_TYPE.get(status)
+            if ntype is None:
+                return
+            account_id = self._account_id(db, post.project_id)
+            recipient = None
+            if account_id is not None:
+                account = account_repository.get_account_by_id(db, account_id)
+                recipient = account.owner_user_id if account is not None else None
+            if recipient is None or recipient == user_id:
+                return  # некому или сам инициатор — пропускаем
+            self._notify().create_notification(
+                db,
+                recipient_user_id=recipient,
+                notification_type=ntype,
+                title=f"Пост #{post.id}: {status}",
+                message=f"Статус поста #{post.id} изменён на «{status}».",
+                account_id=account_id,
+                project_id=post.project_id,
+                actor_user_id=user_id,
+                entity_type="post",
+                entity_id=post.id,
+                action_url=f"/ui/projects/{post.project_id}/review",
+            )
+        except Exception:  # noqa: BLE001 — уведомление не критично для ревью
+            logger.warning("post review notification failed post_id=%s", post.id, exc_info=False)
+
+    def _notify(self) -> NotificationService:
+        if getattr(self, "_notifications", None) is None:
+            from app.services.notification_service import NotificationService
+
+            self._notifications = NotificationService()
+        return self._notifications
 
     # --- Ленивое построение зависимостей (без циклических импортов) ---
 

@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from app.models.media_curation_task import MediaCurationTask
     from app.services.audit_log_service import AuditLogService
     from app.services.media_curation_service import MediaCurationService
+    from app.services.notification_service import NotificationService
 
 logger = get_logger(__name__)
 
@@ -72,10 +73,12 @@ class MediaCurationReviewService:
         curation_service: MediaCurationService | None = None,
         audit_service: AuditLogService | None = None,
         settings: Settings | None = None,
+        notification_service: NotificationService | None = None,
     ) -> None:
         self._curation = curation_service
         self._audit = audit_service
         self._settings = settings
+        self._notifications = notification_service
 
     # ------------------------------------------------------------------ #
     # 1. Список задач ревью                                               #
@@ -170,6 +173,18 @@ class MediaCurationReviewService:
             current_user_id,
             {"comment_id": comment.id, "comment_type": comment_type},
         )
+        # Уведомления (безопасно; не роняют комментарий): ответственный/ревьюер + упоминания.
+        self._notify().notify_comment(db, task, comment, current_user_id)
+        self._notify().notify_mentions(
+            db,
+            "media_curation_task",
+            task.id,
+            comment_text,
+            project_id=task.project_id,
+            account_id=self._account_id(db, task.project_id),
+            actor_user_id=current_user_id,
+            comment_id=comment.id,
+        )
         return self._comment_view(comment)
 
     def list_comments(
@@ -211,6 +226,7 @@ class MediaCurationReviewService:
             current_user_id,
             {"assignee_user_id": assignee_user_id},
         )
+        self._notify().notify_assignee(db, task, current_user_id)
         return {**self._task_view(task), "outcome": "assigned"}
 
     def set_priority(
@@ -281,6 +297,9 @@ class MediaCurationReviewService:
             current_user_id,
             {},
         )
+        self._notify().notify_status_change(
+            db, task, "in_review", "changes_requested", current_user_id
+        )
         return {**self._task_view(task), "outcome": "changes_requested"}
 
     # ------------------------------------------------------------------ #
@@ -313,6 +332,7 @@ class MediaCurationReviewService:
         self._write_audit(
             db, task, audit_actions.ACTION_MEDIA_CURATION_REVIEW_APPROVED, current_user_id, {}
         )
+        self._notify().notify_status_change(db, task, "in_review", "approved", current_user_id)
         result = {**self._task_view(task), "outcome": "approved", "auto_applied": False}
         # Авто-применение после approve выключено по умолчанию (безопасно).
         if self._auto_apply_after_approval() and task.suggested_action in (
@@ -344,6 +364,7 @@ class MediaCurationReviewService:
         self._write_audit(
             db, task, audit_actions.ACTION_MEDIA_CURATION_REVIEW_REJECTED, current_user_id, {}
         )
+        self._notify().notify_status_change(db, task, "in_review", "rejected", current_user_id)
         return {**self._task_view(task), "outcome": "rejected"}
 
     # ------------------------------------------------------------------ #
@@ -412,6 +433,7 @@ class MediaCurationReviewService:
             current_user_id,
             {"action": action, "outcome": outcome},
         )
+        self._notify().notify_status_change(db, task, "approved", "applied", current_user_id)
         return {**self._task_view(task), "outcome": "applied", "action": action}
 
     # ------------------------------------------------------------------ #
@@ -464,6 +486,7 @@ class MediaCurationReviewService:
             current_user_id,
             {"restored_media_asset_ids": restored},
         )
+        self._notify().notify_assignee(db, task, current_user_id)
         return {
             **self._task_view(task),
             "outcome": "restored",
@@ -663,6 +686,13 @@ class MediaCurationReviewService:
 
             self._audit = AuditLogService()
         return self._audit
+
+    def _notify(self) -> NotificationService:
+        if self._notifications is None:
+            from app.services.notification_service import NotificationService
+
+            self._notifications = NotificationService(settings=self._settings)
+        return self._notifications
 
 
 def get_media_curation_review_service() -> MediaCurationReviewService:

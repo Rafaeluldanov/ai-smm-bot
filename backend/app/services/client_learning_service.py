@@ -234,6 +234,23 @@ class ClientLearningService:
             "learning.profile.rebuilt",
             {"version": profile.profile_version},
         )
+        try:
+            from app.services.notification_service import NotificationService
+
+            NotificationService().notify_project_owner(
+                db,
+                project_id,
+                "learning_profile_updated",
+                "Профиль обучения обновлён",
+                f"Профиль проекта пересчитан (версия {profile.profile_version}).",
+                actor_user_id=None,
+                entity_type="learning_profile",
+                entity_id=project_id,
+                priority="low",
+                action_url=f"/ui/projects/{project_id}/learning",
+            )
+        except Exception:  # noqa: BLE001 — уведомление не критично
+            logger.warning("learning profile notification failed", exc_info=False)
         return profile
 
     # ------------------------------------------------------------------ #

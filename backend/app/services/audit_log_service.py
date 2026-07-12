@@ -196,6 +196,16 @@ ACTION_MEDIA_CURATION_REVIEW_APPLIED = "media_curation_review.applied"
 ACTION_MEDIA_CURATION_REVIEW_IGNORED = "media_curation_review.ignored"
 ACTION_MEDIA_CURATION_REVIEW_RESTORED = "media_curation_review.restored"
 ACTION_MEDIA_CURATION_REVIEW_OVERDUE = "media_curation_review.overdue"
+# Notifications, mentions, reviewer workload (v0.5.0).
+ACTION_NOTIFICATION_CREATED = "notification.created"
+ACTION_NOTIFICATION_READ = "notification.read"
+ACTION_NOTIFICATION_DISMISSED = "notification.dismissed"
+ACTION_NOTIFICATION_PREFERENCE_UPDATED = "notification.preference.updated"
+ACTION_MENTION_CREATED = "mention.created"
+ACTION_MENTION_RESOLVED = "mention.resolved"
+ACTION_NOTIFICATION_OVERDUE_SCAN_PREVIEWED = "notification.overdue_scan.previewed"
+ACTION_NOTIFICATION_OVERDUE_SCAN_CREATED = "notification.overdue_scan.created"
+ACTION_WORKLOAD_VIEWED = "workload.viewed"
 
 
 class AuditLogService:

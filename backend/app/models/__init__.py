@@ -3,6 +3,8 @@
 from app.db.base import Base
 from app.models.account import Account
 from app.models.account_membership import AccountMembership
+from app.models.app_mention import AppMention
+from app.models.app_notification import AppNotification
 from app.models.audit_log import AuditLogEntry
 from app.models.auth_session import AuthSession
 from app.models.autonomous_run import AutonomousRun
@@ -35,6 +37,7 @@ from app.models.media_duplicate_cluster import MediaDuplicateCluster
 from app.models.media_fingerprint import MediaFingerprint
 from app.models.media_quality_snapshot import MediaQualitySnapshot
 from app.models.metric_import_run import MetricImportRun
+from app.models.notification_preference import NotificationPreference
 from app.models.payment import (
     BillingProfile,
     PaymentInvoice,
@@ -58,6 +61,8 @@ from app.models.user import User
 __all__ = [
     "Account",
     "AccountMembership",
+    "AppMention",
+    "AppNotification",
     "AuditLogEntry",
     "AuthSession",
     "AutonomousRun",
@@ -88,6 +93,7 @@ __all__ = [
     "MediaFingerprint",
     "MediaQualitySnapshot",
     "MetricImportRun",
+    "NotificationPreference",
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",

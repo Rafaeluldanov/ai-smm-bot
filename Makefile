@@ -32,6 +32,7 @@ BIN := $(VENV)/bin
         admin-create-user admin-grant-role audit-export \
         media-curation-review-dashboard media-curation-review-comment \
         media-curation-review-approve media-curation-review-apply \
+        notifications-inbox notifications-overdue-scan notifications-workload \
         smoke
 
 help: ## Показать список команд
@@ -256,6 +257,15 @@ media-curation-review-approve: ## Одобрить задачу ревью (dry-
 
 media-curation-review-apply: ## Применить одобренную задачу ревью (dry-run по умолчанию): make media-curation-review-apply task_id=1 action=approve_tags [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_review_apply --task-id "$(task_id)" --action "$(or $(action),mark_reviewed)" --dry-run "$(or $(dry_run),true)"
+
+notifications-inbox: ## Inbox уведомлений пользователя: make notifications-inbox user_id=1 [status=unread]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notifications_inbox --user-id "$(user_id)" $(if $(status),--status "$(status)",)
+
+notifications-overdue-scan: ## Скан просроченных задач ревью (dry-run по умолчанию): make notifications-overdue-scan project_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notifications_overdue_scan $(if $(project_id),--project-id "$(project_id)",) --dry-run "$(or $(dry_run),true)"
+
+notifications-workload: ## Нагрузка ревьюеров проекта: make notifications-workload project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notifications_workload --project-id "$(project_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

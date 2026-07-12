@@ -414,6 +414,22 @@ class ABTestingService:
             audit_actions.ACTION_EXPERIMENT_COMPLETED,
             {"experiment_id": experiment_id, "winner_variant_id": winner.id},
         )
+        try:
+            from app.services.notification_service import NotificationService
+
+            NotificationService(settings=self._settings).notify_project_owner(
+                db,
+                experiment.project_id,
+                "experiment_winner_selected",
+                "Выбран победитель A/B-теста",
+                f"Эксперимент #{experiment_id}: выбран вариант #{winner.id}.",
+                actor_user_id=current_user_id,
+                entity_type="content_experiment",
+                entity_id=experiment_id,
+                action_url=f"/ui/projects/{experiment.project_id}/experiments",
+            )
+        except Exception:  # noqa: BLE001 — уведомление не критично
+            logger.warning("experiment winner notification failed", exc_info=False)
         return self.build_experiment_summary(db, experiment_id)
 
     def cancel_experiment(

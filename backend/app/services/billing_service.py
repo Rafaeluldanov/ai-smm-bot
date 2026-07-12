@@ -75,6 +75,11 @@ USAGE_MEDIA_CURATION_REVIEW_COMMENT = "media_curation_review_comment"
 USAGE_MEDIA_CURATION_REVIEW_APPROVE = "media_curation_review_approve"
 USAGE_MEDIA_CURATION_REVIEW_APPLY = "media_curation_review_apply"
 
+# Типы usage для внутренних уведомлений (v0.5.0). Бесплатны в MVP (без внешней доставки).
+USAGE_NOTIFICATION_CREATE = "notification_create"
+USAGE_NOTIFICATION_OVERDUE_SCAN = "notification_overdue_scan"
+USAGE_NOTIFICATION_DIGEST = "notification_digest"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -133,6 +138,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_MEDIA_CURATION_REVIEW_COMMENT: 0,
     USAGE_MEDIA_CURATION_REVIEW_APPROVE: 0,
     USAGE_MEDIA_CURATION_REVIEW_APPLY: 0,
+    # v0.5.0: внутренние уведомления — бесплатно в MVP (без внешней доставки).
+    USAGE_NOTIFICATION_CREATE: 0,
+    USAGE_NOTIFICATION_OVERDUE_SCAN: 0,
+    USAGE_NOTIFICATION_DIGEST: 0,
 }
 _DEFAULT_ACTION_COST = 1
 
