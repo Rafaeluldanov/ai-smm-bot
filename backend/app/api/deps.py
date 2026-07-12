@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.services.client_learning_service import ClientLearningService
     from app.services.content_scoring_service import ContentScoringService
     from app.services.experiment_suggestion_service import ExperimentSuggestionService
+    from app.services.media_curation_service import MediaCurationService
     from app.services.media_fingerprint_service import MediaFingerprintService
     from app.services.media_quality_service import MediaQualityService
     from app.services.media_similarity_service import MediaSimilarityService
@@ -278,6 +279,13 @@ def get_media_similarity_service() -> "MediaSimilarityService":
     from app.services.media_similarity_service import MediaSimilarityService
 
     return MediaSimilarityService(settings=get_settings())
+
+
+def get_media_curation_service() -> "MediaCurationService":
+    """Построить сервис курирования медиатеки (без внешнего AI; без авто-apply/hide/delete)."""
+    from app.services.media_curation_service import MediaCurationService
+
+    return MediaCurationService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":

@@ -172,6 +172,18 @@ ACTION_WORKER_MEDIA_FINGERPRINT_CREATED = "scheduler.worker.media_fingerprint.cr
 ACTION_WORKER_MEDIA_FINGERPRINT_FAILED = "scheduler.worker.media_fingerprint.failed"
 ACTION_WORKER_DUPLICATE_CLUSTER_PREVIEWED = "scheduler.worker.duplicate_cluster.previewed"
 ACTION_WORKER_DUPLICATE_CLUSTER_CREATED = "scheduler.worker.duplicate_cluster.created"
+# Курирование медиатеки (v0.4.8).
+ACTION_MEDIA_CURATION_PREVIEWED = "media_curation.previewed"
+ACTION_MEDIA_CURATION_TASK_CREATED = "media_curation.task_created"
+ACTION_MEDIA_CURATION_TASK_APPLIED = "media_curation.task_applied"
+ACTION_MEDIA_CURATION_TASK_REJECTED = "media_curation.task_rejected"
+ACTION_MEDIA_CURATION_TASK_IGNORED = "media_curation.task_ignored"
+ACTION_MEDIA_CURATION_MEDIA_HIDDEN = "media_curation.media_hidden"
+ACTION_MEDIA_CURATION_MEDIA_RESTORED = "media_curation.media_restored"
+ACTION_MEDIA_CURATION_TAGS_APPLIED = "media_curation.tags_applied"
+ACTION_WORKER_MEDIA_CURATION_PREVIEWED = "scheduler.worker.media_curation.previewed"
+ACTION_WORKER_MEDIA_CURATION_CREATED = "scheduler.worker.media_curation.created"
+ACTION_WORKER_MEDIA_CURATION_FAILED = "scheduler.worker.media_curation.failed"
 
 
 class AuditLogService:

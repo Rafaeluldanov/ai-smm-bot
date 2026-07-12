@@ -49,3 +49,14 @@ class MediaAsset(Base, TimestampMixin):
     # Статус: "new" | "approved" | "approved_video" | "needs_license_review" | "used" ...
     status: Mapped[str] = mapped_column(String(50), default="new", index=True, nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+
+    # --- Курирование медиатеки (v0.4.8) ---
+    # Видимость для авто-подбора: selectable | hidden_duplicate | hidden_weak | hidden_manual |
+    # archived | restored. Скрытые НЕ выбираются auto media selection; ФАЙЛ не удаляется.
+    selection_visibility: Mapped[str] = mapped_column(
+        String(30), default="selectable", index=True, nullable=False
+    )
+    # Статус курирования медиа: new | reviewed | duplicate | retag_pending | replaced ...
+    curation_status: Mapped[str] = mapped_column(String(30), default="new", nullable=False)
+    # Заметки курирования (без секретов/путей): причина скрытия, canonical id и т. п.
+    curation_notes: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)

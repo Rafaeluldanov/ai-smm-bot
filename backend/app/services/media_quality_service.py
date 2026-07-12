@@ -43,6 +43,8 @@ _HEIC_EXTS = ("heic", "heif")
 _VIDEO_EXTS = ("mov", "mp4", "m4v", "avi", "mkv", "webm")
 _TAG_GROUPS = ("products", "technologies", "details", "categories", "use_cases", "topics")
 _USABLE_STATUSES = ("approved", "approved_video")
+# Видимости, скрытые из авто-подбора (v0.4.8): низкая пригодность/overall для quality.
+_HIDDEN_VISIBILITIES = ("hidden_duplicate", "hidden_weak", "hidden_manual", "archived")
 # Границы размеров изображения (пиксели по меньшей стороне), если известны из варианта.
 _MIN_SIDE = 600
 _MAX_SIDE = 6000
@@ -310,6 +312,9 @@ class MediaQualityService:
             "duplicate_candidates": merged_dupes,
             "visual_similarity_type": visual_type,
             "media_proxy_ready": self._media_proxy_ready(),
+            # v0.4.8: видимость/статус курирования (скрытые — не для авто-подбора).
+            "selection_visibility": str(getattr(media_asset, "selection_visibility", "selectable")),
+            "curation_status": str(getattr(media_asset, "curation_status", "new")),
         }
 
     def _visual_similarity(
@@ -512,6 +517,11 @@ class MediaQualityService:
             issues.append("missing_technology_tags")
         if int(features.get("recent_usage_count") or 0) >= 1:
             issues.append("recently_used")
+        # v0.4.8: медиа скрыто из подбора курированием.
+        if features.get("selection_visibility") in _HIDDEN_VISIBILITIES:
+            issues.append("hidden_from_selection")
+        if features.get("curation_status") == "duplicate":
+            issues.append("duplicate_candidate")
         # v0.4.7: визуальная похожесть уточняет тип проблемы дублей.
         visual = features.get("visual_similarity_type")
         if visual in ("exact_duplicate", "near_duplicate", "same_yandex_path", "heic_jpeg_pair"):
@@ -572,6 +582,8 @@ class MediaQualityService:
             actions.append("Видео пока не публикуется — подготовьте изображение.")
         if "recently_used" in issue_set:
             actions.append("Медиа недавно использовалось — не повторяйте в ближайшее время.")
+        if "hidden_from_selection" in issue_set:
+            actions.append("Медиа скрыто из подбора — восстановите или замените в курировании.")
         if "duplicate_candidate" in issue_set:
             actions.append("Похоже на дубль — оставьте canonical, остальное скройте/замените.")
         if "visually_similar" in issue_set:
@@ -749,9 +761,14 @@ class MediaQualityService:
         freshness = self.calculate_freshness_score(features)
         uniqueness = self.calculate_uniqueness_score(features)
         platform_fit = self.calculate_platform_fit_score(features, platform_key)
+        # v0.4.8: скрытое из подбора медиа — сильно ниже по пригодности/overall.
+        if features.get("selection_visibility") in _HIDDEN_VISIBILITIES:
+            platform_fit = min(platform_fit, 20)
         overall = self.calculate_overall_score(
             quality, relevance, freshness, uniqueness, platform_fit
         )
+        if features.get("selection_visibility") in _HIDDEN_VISIBILITIES:
+            overall = min(overall, 30)
         scores = {
             "quality": quality,
             "relevance": relevance,

@@ -33,6 +33,9 @@ from app.services.audit_log_service import (
     ACTION_WORKER_DUPLICATE_CLUSTER_PREVIEWED,
     ACTION_WORKER_LEASE_ACQUIRED,
     ACTION_WORKER_LEASE_SKIPPED,
+    ACTION_WORKER_MEDIA_CURATION_CREATED,
+    ACTION_WORKER_MEDIA_CURATION_FAILED,
+    ACTION_WORKER_MEDIA_CURATION_PREVIEWED,
     ACTION_WORKER_MEDIA_DECISION_CREATED,
     ACTION_WORKER_MEDIA_DECISION_FAILED,
     ACTION_WORKER_MEDIA_DECISION_PREVIEWED,
@@ -126,6 +129,14 @@ class SchedulerWorkerTickResult:
     duplicate_clusters_previewed: int = 0
     duplicate_clusters_created: int = 0
     duplicate_cluster_errors: list[str] = field(default_factory=list)
+    # Курирование медиатеки (v0.4.8). Worker предлагает задачи, но НЕ применяет/не удаляет.
+    media_curation_enabled: bool = False
+    media_curation_dry_run: bool = False
+    media_curation_tasks_previewed: int = 0
+    media_curation_tasks_created: int = 0
+    media_curation_hidden_count: int = 0
+    media_curation_retag_count: int = 0
+    media_curation_errors: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     started_at: str | None = None
     finished_at: str | None = None
@@ -156,6 +167,8 @@ class SchedulerWorkerService:
         # v0.4.7: сервисы fingerprint/дедупликации медиа (ленивые; без внешнего AI/сети/live).
         self._fingerprint: Any | None = None
         self._similarity: Any | None = None
+        # v0.4.8: сервис курирования медиатеки (ленивый; без внешнего AI; без авто-apply/delete).
+        self._curation: Any | None = None
 
     # ------------------------------------------------------------------ #
     # Идентификация                                                      #
@@ -414,6 +427,8 @@ class SchedulerWorkerService:
             self._process_media_quality(db, targets, owner_id, effective_dry, result)
             # v0.4.7: fingerprint + кластеры дублей медиатеки (локально, без AI/сети/live).
             self._process_media_fingerprints(db, targets, owner_id, effective_dry, result)
+            # v0.4.8: задачи курирования медиатеки (без авто-apply/hide/delete, без live).
+            self._process_media_curation(db, targets, owner_id, effective_dry, result)
         except Exception as exc:  # noqa: BLE001 — тик не роняет процесс
             result.errors.append(f"tick error: {type(exc).__name__}")
             self._audit.record(
@@ -714,6 +729,81 @@ class SchedulerWorkerService:
             )
 
     # ------------------------------------------------------------------ #
+    # Курирование медиатеки (v0.4.8, без авто-apply/hide/delete/live)      #
+    # ------------------------------------------------------------------ #
+
+    def _curation_svc(self) -> Any:
+        if self._curation is None:
+            from app.services.media_curation_service import MediaCurationService
+
+            self._curation = MediaCurationService(settings=self._settings)
+        return self._curation
+
+    def _process_media_curation(
+        self,
+        db: Session,
+        targets: list[ScheduleWorkerTarget],
+        owner_id: str,
+        schedule_dry_run: bool,
+        result: SchedulerWorkerTickResult,
+    ) -> None:
+        """Предложить задачи курирования медиатеки проектов. Без авто-apply/hide/delete/live.
+
+        Управляется MEDIA_CURATION_WORKER_ENABLED (выключено по умолчанию); dry-run = worker
+        dry-run ИЛИ MEDIA_CURATION_DRY_RUN. Теги применяются только после подтверждения клиента.
+        """
+        s = self._settings
+        enabled = s.media_curation_worker_enabled_effective
+        result.media_curation_enabled = enabled
+        dry_run = bool(schedule_dry_run or s.media_curation_dry_run)
+        result.media_curation_dry_run = dry_run
+        if not enabled:
+            return
+        seen: set[int] = set()
+        for target in targets:
+            if target.project_id in seen:
+                continue
+            seen.add(target.project_id)
+            try:
+                summary = self._curation_svc().generate_curation_tasks(
+                    db, target.project_id, platform_key=target.platform_key, dry_run=dry_run
+                )
+                dash = self._curation_svc().build_curation_dashboard(db, target.project_id)
+            except Exception as exc:  # noqa: BLE001 — курирование не роняет тик
+                result.media_curation_errors.append(f"p{target.project_id}: {type(exc).__name__}")
+                continue
+            if dry_run:
+                result.media_curation_tasks_previewed += int(summary.get("tasks_found", 0))
+            else:
+                result.media_curation_tasks_created += int(summary.get("tasks_created", 0))
+            result.media_curation_hidden_count += int(dash.get("hidden_media_count", 0))
+            result.media_curation_retag_count += int(dash.get("retag_tasks", 0))
+        action = (
+            ACTION_WORKER_MEDIA_CURATION_PREVIEWED
+            if dry_run
+            else ACTION_WORKER_MEDIA_CURATION_CREATED
+        )
+        base_meta = {
+            "owner_id": owner_id,
+            "dry_run": dry_run,
+            "tasks_previewed": result.media_curation_tasks_previewed,
+            "tasks_created": result.media_curation_tasks_created,
+            "hidden_media": result.media_curation_hidden_count,
+            "auto_apply": False,
+            "auto_delete": False,
+            "external_ai": False,
+            "live_publish": False,
+        }
+        self._audit.record(db, action, entity_type="scheduler_worker", metadata=base_meta)
+        if result.media_curation_errors:
+            self._audit.record(
+                db,
+                ACTION_WORKER_MEDIA_CURATION_FAILED,
+                entity_type="scheduler_worker",
+                metadata={**base_meta, "errors": len(result.media_curation_errors)},
+            )
+
+    # ------------------------------------------------------------------ #
     # Предложения экспериментов (v0.4.3, без live-публикации)             #
     # ------------------------------------------------------------------ #
 
@@ -886,6 +976,16 @@ class SchedulerWorkerService:
                 "external_ai": s.media_fingerprinting_external_ai_enabled,
                 "yandex_download": s.media_fingerprinting_use_yandex_download,
                 "auto_delete": s.media_duplicate_auto_delete_enabled,
+                "live_publish": False,
+            },
+            "media_curation": {
+                "enabled": s.media_curation_enabled_effective,
+                "worker_enabled": s.media_curation_worker_enabled_effective,
+                "dry_run": s.media_curation_dry_run,
+                "auto_apply_tags": s.media_curation_auto_apply_tags,
+                "auto_hide_duplicates": s.media_curation_auto_hide_duplicates,
+                "auto_delete": s.media_curation_auto_delete_enabled,
+                "external_ai": s.media_curation_external_ai_enabled,
                 "live_publish": False,
             },
             "lease": self._mask_lease(lease),

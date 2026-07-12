@@ -28,6 +28,7 @@ from app.repositories import (
     content_experiment_repository,
     crm_bot_smm_repository,
     experiment_suggestion_repository,
+    media_curation_repository,
     media_duplicate_cluster_repository,
     media_fingerprint_repository,
     media_quality_repository,
@@ -282,6 +283,20 @@ def require_media_cluster_access(
     if cluster is None:
         raise _NOT_FOUND
     _guard_project(db, settings, user, cluster.project_id)
+
+
+def require_media_curation_task_access(
+    task_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к задаче курирования (через проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    task = media_curation_repository.get_task_by_id(db, task_id)
+    if task is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, task.project_id)
 
 
 def require_vk_resource_access(

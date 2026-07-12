@@ -231,6 +231,18 @@ media-duplicate-calculate: ## Построить кластеры дублей (
 media-duplicate-dashboard: ## Сводка дублей медиа: make media-duplicate-dashboard project_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_duplicate_dashboard --project-id "$(project_id)"
 
+media-curation-preview: ## Предпросмотр задач курирования: make media-curation-preview project_id=1 [limit=50]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_preview --project-id "$(project_id)" --platform "$(or $(platform),all)" --limit "$(or $(limit),50)"
+
+media-curation-generate: ## Сгенерировать задачи курирования (dry-run по умолчанию): make media-curation-generate project_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_generate --project-id "$(project_id)" --platform "$(or $(platform),all)" --dry-run "$(or $(dry_run),true)"
+
+media-curation-apply: ## Применить задачу курирования (dry-run по умолчанию): make media-curation-apply task_id=1 action=approve_tags [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_apply --task-id "$(task_id)" --action "$(or $(action),mark_reviewed)" --dry-run "$(or $(dry_run),true)"
+
+media-curation-dashboard: ## Сводка курирования медиатеки: make media-curation-dashboard project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_dashboard --project-id "$(project_id)"
+
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
 

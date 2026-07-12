@@ -1816,3 +1816,16 @@ signature, через Pillow) и группирует их в **кластеры
 удаления файлов** (`MEDIA_DUPLICATE_AUTO_DELETE_ENABLED=false`); fingerprint worker-ом выключен
 по умолчанию (dry-run). Клиент видит дубли на `/ui/projects/{id}/media-duplicates`. Подробно —
 [Докс/44_Botfleet_Media_Fingerprints_Dedup.md](./Докс/44_Botfleet_Media_Fingerprints_Dedup.md).
+
+## Очистка и разметка медиатеки (v0.4.8)
+
+Поверх качества и дедупликации Botfleet даёт клиенту **workflow очистки медиатеки**: задачи
+`duplicate_review` / `retag_suggestion` / `weak_media_review` / `missing_tags` /
+`heic_conversion_needed` и др. (`MediaCurationTask`). Теги предлагаются **без внешнего AI**
+(из имени файла, тегов, canonical-дубля, CRM/обучения) и применяются **только после
+подтверждения** клиента; дубли **скрываются, а не удаляются** (`selection_visibility`); скрытые
+медиа исключаются из авто-подбора и их можно вернуть. **Файлы никогда не удаляются**
+(`MEDIA_CURATION_AUTO_DELETE_ENABLED=false`), авто-применение/скрытие выключены, курирование
+worker-ом выключено по умолчанию (dry-run). Клиент работает на
+`/ui/projects/{id}/media-curation`. Подробно —
+[Докс/45_Botfleet_Media_Curation_Workflow.md](./Докс/45_Botfleet_Media_Curation_Workflow.md).

@@ -323,6 +323,24 @@ class Settings(BaseSettings):
     media_duplicate_auto_hide_enabled: bool = False
     media_duplicate_auto_delete_enabled: bool = False
 
+    # --- Курирование медиатеки (v0.4.8) ---
+    # Задачи очистки/разметки медиатеки (дубли, ретегинг, слабые медиа). Теги применяются
+    # ТОЛЬКО после подтверждения клиента; файлы НЕ удаляются; внешнего AI нет. Курирование
+    # worker-ом ВЫКЛЮЧЕНО по умолчанию; dry-run; авто-применение/скрытие/удаление выключены.
+    media_curation_enabled: bool = True
+    media_curation_worker_enabled: bool = False
+    media_curation_dry_run: bool = True
+    media_curation_auto_apply_tags: bool = False
+    media_curation_auto_hide_duplicates: bool = False
+    media_curation_auto_delete_enabled: bool = False
+    media_curation_max_tasks_per_run: int = 100
+    media_curation_min_confidence: float = 0.55
+    media_curation_task_expire_days: int = 30
+    media_curation_use_fingerprints: bool = True
+    media_curation_use_quality: bool = True
+    media_curation_use_learning: bool = True
+    media_curation_external_ai_enabled: bool = False
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -672,6 +690,41 @@ class Settings(BaseSettings):
     def media_duplicate_cluster_min_score_safe(self) -> float:
         """Минимальный similarity для кластера дублей в границах [0..1]."""
         return max(0.0, min(1.0, float(self.media_duplicate_cluster_min_score or 0.0)))
+
+    # --- Курирование медиатеки: производные свойства (v0.4.8) ---
+
+    @property
+    def media_curation_enabled_effective(self) -> bool:
+        """Доступно ли курирование медиатеки (preview/UI/API/CLI)."""
+        return bool(self.media_curation_enabled)
+
+    @property
+    def media_curation_worker_enabled_effective(self) -> bool:
+        """Может ли worker сам создавать задачи курирования (по умолчанию false).
+
+        Даже при true теги применяются только после подтверждения; файлы не удаляются.
+        """
+        return bool(self.media_curation_enabled and self.media_curation_worker_enabled)
+
+    @property
+    def media_curation_dry_run_effective(self) -> bool:
+        """Dry-run курирования (по умолчанию true — без записи задач)."""
+        return bool(self.media_curation_dry_run)
+
+    @property
+    def media_curation_min_confidence_safe(self) -> float:
+        """Порог уверенности задачи курирования в границах [0..1]."""
+        return max(0.0, min(1.0, float(self.media_curation_min_confidence or 0.0)))
+
+    @property
+    def media_curation_max_tasks_per_run_safe(self) -> int:
+        """Максимум задач за один прогон курирования (не отрицательное)."""
+        return max(1, int(self.media_curation_max_tasks_per_run or 1))
+
+    @property
+    def media_curation_task_expire_seconds(self) -> int:
+        """Срок жизни proposed-задачи в секундах (из дней; не отрицательное)."""
+        return max(1, int(self.media_curation_task_expire_days or 1)) * 86400
 
     # --- Auth / session: производные (effective) свойства ---
 

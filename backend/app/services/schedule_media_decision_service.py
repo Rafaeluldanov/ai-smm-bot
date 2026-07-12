@@ -273,6 +273,11 @@ class ScheduleMediaDecisionService:
                 f"Пропущено похожих фото: {diversity_summary['similar_media_skipped_count']} "
                 "(для разнообразия подборки)."
             )
+        # v0.4.8: сводка курирования (скрытые медиа, доступные ретег-подсказки, слабые медиа).
+        curation_summary = self._media_curation_summary(db, project_id, context, quality_summary)
+        hidden_skipped = curation_summary.get("hidden_media_skipped_count")
+        if hidden_skipped:
+            reasons.append(f"Скрытых курированием медиа пропущено: {hidden_skipped}.")
         return {
             "project_id": project_id,
             "platform_key": platform_key,
@@ -295,6 +300,7 @@ class ScheduleMediaDecisionService:
             "reasons": reasons[:8],
             "media_quality_summary": quality_summary,
             "media_diversity_summary": diversity_summary,
+            "media_curation_summary": curation_summary,
             "decision_metadata": {
                 "candidate_count": len(scored),
                 "image_candidates": len(images),
@@ -303,7 +309,33 @@ class ScheduleMediaDecisionService:
                 "max_images": self._max_images(platform_key),
                 "media_quality_summary": quality_summary,
                 "media_diversity_summary": diversity_summary,
+                "media_curation_summary": curation_summary,
             },
+        }
+
+    def _media_curation_summary(
+        self,
+        db: Session,
+        project_id: int,
+        context: dict[str, Any],
+        quality_summary: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Свод курирования (v0.4.8): скрытые медиа, доступные ретег-подсказки, слабые медиа."""
+        from app.repositories import media_curation_repository
+
+        retag = 0
+        try:
+            for task in media_curation_repository.list_active_tasks_for_project(
+                db, project_id, limit=500
+            ):
+                if task.task_type in ("retag_suggestion", "missing_tags"):
+                    retag += 1
+        except Exception:  # noqa: BLE001 — курирование не должно ронять подбор
+            retag = 0
+        return {
+            "hidden_media_skipped_count": int(context.get("hidden_media_skipped_count", 0)),
+            "retag_suggestions_available": retag,
+            "weak_media_warning": bool(quality_summary.get("weak_selected_count")),
         }
 
     def _diversify_images(
@@ -467,11 +499,14 @@ class ScheduleMediaDecisionService:
         context = context or self._build_context(
             db, project_id, platform_key, topic_decision, category
         )
-        assets = [
+        # v0.4.8: скрытые курированием медиа (hidden_*/archived) НЕ участвуют в подборе.
+        all_approved = [
             a
             for a in media_asset_repository.list_media_assets_by_project(db, project_id)
             if a.status in _USABLE_STATUSES
         ]
+        assets = [a for a in all_approved if _is_selectable(a)]
+        context["hidden_media_skipped_count"] = len(all_approved) - len(assets)
         quality_on = self._media_quality_enabled()
         media_tags = sorted(context["wanted_tags"]) if context.get("wanted_tags") else None
         scored: list[dict[str, Any]] = []
@@ -664,6 +699,7 @@ class ScheduleMediaDecisionService:
                 "needs_public_image_url": bool(decision.get("needs_public_image_url")),
                 "media_quality_summary": decision.get("media_quality_summary") or {},
                 "media_diversity_summary": decision.get("media_diversity_summary") or {},
+                "media_curation_summary": decision.get("media_curation_summary") or {},
             }
         )
         payload["generation_notes"] = notes
@@ -977,6 +1013,9 @@ class ScheduleMediaDecisionService:
             "media_diversity_summary": (decision.decision_metadata or {}).get(
                 "media_diversity_summary", {}
             ),
+            "media_curation_summary": (decision.decision_metadata or {}).get(
+                "media_curation_summary", {}
+            ),
             "created_at": decision.created_at.isoformat() if decision.created_at else None,
         }
 
@@ -1125,6 +1164,11 @@ class ScheduleMediaDecisionService:
 
 def _norm(value: Any) -> str:
     return str(value or "").strip().lower().lstrip("#")
+
+
+def _is_selectable(asset: Any) -> bool:
+    """Доступно ли медиа авто-подбору (v0.4.8): не скрыто курированием."""
+    return str(getattr(asset, "selection_visibility", "selectable") or "selectable") == "selectable"
 
 
 def _asset_tags(asset: Any) -> set[str]:

@@ -65,6 +65,11 @@ USAGE_MEDIA_FINGERPRINT_CALCULATE = "media_fingerprint_calculate"
 USAGE_MEDIA_DUPLICATE_PREVIEW = "media_duplicate_preview"
 USAGE_MEDIA_DUPLICATE_CALCULATE = "media_duplicate_calculate"
 
+# Типы usage для курирования медиатеки (v0.4.8). Все бесплатны в MVP (без внешнего AI).
+USAGE_MEDIA_CURATION_PREVIEW = "media_curation_preview"
+USAGE_MEDIA_CURATION_GENERATE = "media_curation_generate"
+USAGE_MEDIA_CURATION_APPLY = "media_curation_apply"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -115,6 +120,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_MEDIA_FINGERPRINT_CALCULATE: 0,
     USAGE_MEDIA_DUPLICATE_PREVIEW: 0,
     USAGE_MEDIA_DUPLICATE_CALCULATE: 0,
+    # v0.4.8: курирование медиатеки — бесплатно в MVP (без внешнего AI).
+    USAGE_MEDIA_CURATION_PREVIEW: 0,
+    USAGE_MEDIA_CURATION_GENERATE: 0,
+    USAGE_MEDIA_CURATION_APPLY: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

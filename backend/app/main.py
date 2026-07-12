@@ -17,6 +17,7 @@ from app.api.external_images import router as external_images_router
 from app.api.health import router as health_router
 from app.api.integrations_vk import router as integrations_vk_router
 from app.api.media_assets import router as media_assets_router
+from app.api.media_curation import router as media_curation_router
 from app.api.media_decisions import router as media_decisions_router
 from app.api.media_enhancements import router as media_enhancements_router
 from app.api.media_fingerprints import router as media_fingerprints_router
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(media_decisions_router)
     app.include_router(media_quality_router)
     app.include_router(media_fingerprints_router)
+    app.include_router(media_curation_router)
     app.include_router(post_publications_router)
     app.include_router(analytics_router)
     app.include_router(platform_connections_router)

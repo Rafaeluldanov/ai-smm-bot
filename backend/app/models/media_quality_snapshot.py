@@ -48,6 +48,8 @@ MEDIA_QUALITY_ISSUES: tuple[str, ...] = (
     # v0.4.7: визуальная похожесть (fingerprint/dedup).
     "visually_similar",
     "same_series",
+    # v0.4.8: скрыто из подбора курированием.
+    "hidden_from_selection",
 )
 MEDIA_QUALITY_SIGNAL_SOURCES: tuple[str, ...] = (
     "metadata",
