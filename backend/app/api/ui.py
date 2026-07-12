@@ -1261,9 +1261,11 @@ def ui_project_dashboard(project_id: int) -> HTMLResponse:
         "постов A/B. Live-публикаций нет — варианты идут в очередь ревью.</p>"
         "<div id='opt-hint' class='muted'>Лучший CTA / лучшая тема — загрузка…</div>"
         "<div id='sugg-hint' class='muted'>Новые рекомендации — загрузка…</div>"
+        "<div id='td-hint' class='muted'>Следующая тема · почему бот её выберет — загрузка…</div>"
         "<div class='inline' style='margin-top:8px'>"
         f"<a href='/ui/projects/{project_id}/recommendations'><button class='mini'>Рекомендации контента</button></a>"
         f"<a href='/ui/projects/{project_id}/experiment-suggestions'><button class='mini sec'>A/B предложения</button></a>"
+        f"<a href='/ui/projects/{project_id}/topic-decisions'><button class='mini sec'>Следующая тема</button></a>"
         f"<a href='/ui/projects/{project_id}/experiments'><button class='mini ghost'>A/B тесты</button></a>"
         f"<a href='/ui/projects/{project_id}/optimization'><button class='mini ghost'>Оптимизация</button></a>"
         "</div></div>"
@@ -1287,6 +1289,10 @@ def ui_project_dashboard(project_id: int) -> HTMLResponse:
         "(async()=>{try{const d=await api('GET','/experiment-suggestions/projects/'+PID+'/dashboard');"
         "const el=document.getElementById('sugg-hint');if(!el)return;el.classList.remove('muted');"
         "el.innerHTML='Новые рекомендации: <b>'+d.active_count+'</b> · экспериментов: <b>'+d.experiments_created+'</b>';}catch(e){}})();"
+        # Подсказка «Следующая тема» (автовыбор темы, preview — без записи).
+        "(async()=>{try{const r=await api('POST','/topic-decisions/projects/'+PID+'/preview',{});"
+        "const el=document.getElementById('td-hint');if(!el)return;el.classList.remove('muted');"
+        "el.innerHTML='Следующая тема: <b>'+esc(''+r.selected_topic)+'</b> · '+Math.round((r.confidence_score||0)*100)+'% ('+esc(''+r.decision_source)+')';}catch(e){}})();"
         f"const IG_CFG={json.dumps(ig_cfg)};"
         "function toggleSchedPicker(){const p=document.getElementById('sched-picker');"
         "if(p)p.style.display=(p.style.display==='none'||!p.style.display)?'block':'none';}"
@@ -1943,6 +1949,11 @@ def ui_scheduler() -> HTMLResponse:
         "Генерация worker-ом и авто-создание экспериментов выключены по умолчанию.</p>"
         "<div id='sw-exp' class='kv'><div class='muted'>Загрузка…</div></div>"
         "<div id='sw-exp-tick' class='muted' style='margin-top:6px'></div></div>"
+        # Автовыбор тем в worker (v0.4.4)
+        "<div class='card'><h3>Автовыбор тем в worker</h3>"
+        "<p class='muted'>Worker сам выбирает тему/CTA/формат для слота по обучению (без "
+        "live-публикации). Автовыбор worker-ом выключен по умолчанию; dry-run по умолчанию.</p>"
+        "<div id='sw-topic' class='kv'><div class='muted'>Загрузка…</div></div></div>"
         # Действия
         "<div class='card'><h3>Безопасный запуск</h3>"
         "<p class='muted'>Preview tick — dry-run (ничего не создаёт). Run one safe tick — "
@@ -1977,11 +1988,18 @@ def ui_scheduler() -> HTMLResponse:
         "+`<div><span class='k'>EXPERIMENT_SUGGESTIONS_AUTO_CREATE</span><span class='v'>${yn(es.auto_create)}</span></div>`"
         "+`<div><span class='k'>SCHEDULE_EXPERIMENTS_ENABLED</span><span class='v'>${yn(es.schedule_experiments_enabled)}</span></div>`"
         "+`<div><span class='k'>Live-публикация</span><span class='v'>${yn(false)}</span></div>`;}"
+        "const ts=s.auto_topic_selection||{};const th=document.getElementById('sw-topic');"
+        "if(th){th.innerHTML=`<div><span class='k'>AUTO_TOPIC_SELECTION_WORKER_ENABLED</span><span class='v'>${yn(ts.worker_enabled)}</span></div>`"
+        "+`<div><span class='k'>AUTO_TOPIC_SELECTION_DRY_RUN</span><span class='v'>${yn(ts.dry_run)}</span></div>`"
+        "+`<div><span class='k'>AUTO_TOPIC_SELECTION_ENABLED</span><span class='v'>${yn(ts.enabled)}</span></div>`"
+        "+`<div><span class='k'>min confidence</span><span class='v'>${ts.min_confidence}</span></div>`"
+        "+`<div><span class='k'>Live-публикация</span><span class='v'>${yn(false)}</span></div>`;}"
         "}catch(x){err(eEl,x)}}"
         "function tickSummary(r){return `<span class='pill ${r.lease_acquired?'ok':'off'}'>lease ${r.lease_acquired?'ok':'занята'}</span> `"
         "+`dry_run=${r.dry_run} · scanned=${r.targets_scanned} · drafts=${r.drafts_created} · runs=${r.schedule_runs_created} · `"
         "+`skipped=${r.skipped} · missing_creds=${r.missing_credentials} · low_balance=${r.insufficient_balance}`"
         "+`<div class='muted'>Предложения: enabled=${r.experiment_suggestions_enabled} · created=${r.experiment_suggestions_created} · experiments=${r.experiments_created} · no live publish</div>`"
+        "+`<div class='muted'>Автовыбор тем: enabled=${r.auto_topic_selection_enabled} · previewed=${r.topic_decisions_previewed} · created=${r.topic_decisions_created} · low_conf=${r.low_confidence_decisions} · no live publish</div>`"
         "+((r.errors||[]).length?`<div class='muted'>`+r.errors.map(esc).join('<br>')+`</div>`:'');}"
         "async function swTickDry(){const R=document.getElementById('sw-result');R.textContent='Preview…';"
         "try{const r=await api('POST','/scheduler-worker/tick-dry',{});R.innerHTML=tickSummary(r);swLeases();}catch(x){err(eEl,x)}}"
@@ -2964,6 +2982,26 @@ def ui_project_learning(project_id: int) -> HTMLResponse:
 @router.get("/projects/{project_id}/automation", response_class=HTMLResponse)
 def ui_project_automation(project_id: int) -> HTMLResponse:
     """Настройки режима автоматизации проекта: semi_auto / full_auto + safety gates."""
+    _s = get_settings()
+
+    def _yn(value: bool) -> str:
+        return "вкл" if value else "выкл"
+
+    auto_topic_block = (
+        "<div class='card'><h3>Автовыбор тем (v0.4.4)</h3>"
+        "<p class='muted'>Worker сам выбирает тему/CTA/формат/медиа для слота по обучению, "
+        "метрикам, A/B winners и предложениям. Создаётся только draft/needs_review — "
+        "<b>live-публикаций нет</b>; при низкой уверенности пост уходит в ревью.</p>"
+        "<ul>"
+        f"<li>AUTO_TOPIC_SELECTION_ENABLED: <b>{_yn(_s.auto_topic_selection_enabled)}</b></li>"
+        f"<li>AUTO_TOPIC_SELECTION_WORKER_ENABLED: <b>{_yn(_s.auto_topic_selection_worker_enabled)}</b> "
+        "(по умолчанию выкл)</li>"
+        f"<li>AUTO_TOPIC_SELECTION_DRY_RUN: <b>{_yn(_s.auto_topic_selection_dry_run)}</b></li>"
+        f"<li>min confidence: <b>{_s.auto_topic_selection_min_confidence_safe}</b></li>"
+        "</ul>"
+        f"<a href='/ui/projects/{project_id}/topic-decisions'>"
+        "<button class='mini'>Открыть «Выбор тем по обучению»</button></a></div>"
+    )
     body = (
         f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
         "<button class='sec mini'>← К проекту</button></a>"
@@ -2991,6 +3029,7 @@ def ui_project_automation(project_id: int) -> HTMLResponse:
         "<li>Профиль обучения готов</li>"
         "<li>Медиа доступно</li>"
         "</ul></div>"
+        f"{auto_topic_block}"
         "<div class='card'><h3>Текущие планы</h3><div id='ag-plans' class='muted'>Загрузка…</div></div>"
         "<div id='ag-msg' class='muted'></div><div id='error' class='err'></div>"
     )
@@ -3602,3 +3641,124 @@ def ui_project_experiment_suggestions(project_id: int) -> HTMLResponse:
         "loadDash();"
     )
     return _page("Предложения worker-а", body, script, active="optimization", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/topic-decisions", response_class=HTMLResponse)
+def ui_project_topic_decisions(project_id: int) -> HTMLResponse:
+    """Выбор тем по обучению: решения worker-а «почему бот выбрал эту тему»."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/optimization'>"
+        "<button class='sec mini'>← Оптимизация</button></a>"
+        f"<a href='/ui/projects/{project_id}/automation'><button class='ghost mini'>Автоматизация</button></a>"
+        f"<a href='/ui/review'><button class='ghost mini'>Очередь ревью</button></a></div>"
+        "<h2>Выбор тем по обучению</h2>"
+        "<div class='callout warn'><b>Решение создаёт draft/needs_review, live не выполняется.</b> "
+        "Автовыбор worker-ом выключен по умолчанию; при низкой уверенности пост уходит в ревью с "
+        "пометкой low_confidence. Обучение строго по проекту.</div>"
+        "<div class='card'><div class='an-filters'>"
+        "<div><label>Платформа</label><select id='td-platform'>"
+        "<option value=''>Все</option><option value='telegram'>Telegram</option>"
+        "<option value='vk'>VK</option><option value='instagram'>Instagram</option></select></div>"
+        "<div><label>Статус</label><select id='td-status'>"
+        "<option value=''>Любой</option><option value='selected'>selected</option>"
+        "<option value='draft_created'>draft_created</option><option value='preview'>preview</option>"
+        "</select></div>"
+        "<div><label>Источник</label><select id='td-source'>"
+        "<option value=''>Любой</option><option value='learning_profile'>learning_profile</option>"
+        "<option value='ab_winner'>ab_winner</option>"
+        "<option value='experiment_suggestion'>experiment_suggestion</option>"
+        "<option value='metrics'>metrics</option><option value='crm_category'>crm_category</option>"
+        "</select></div></div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='mini sec' onclick='tdPreview()'>Preview следующей темы</button>"
+        "<button class='mini' onclick='tdCreate()'>Создать решение</button></div></div>"
+        "<div class='grid'>"
+        "<div class='pcard'><div class='muted'>Всего</div><div id='td-total' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Низкая уверенность</div><div id='td-low' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Средняя уверенность</div><div id='td-conf' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Автовыбор worker</div><div id='td-worker' class='an-big'>—</div></div>"
+        "</div>"
+        "<div id='td-preview' class='muted'></div>"
+        "<div class='card'><h3>Решения</h3><div id='td-list' class='muted'>Загрузка…</div></div>"
+        "<div id='td-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('td-msg');"
+        "function tdcard(d){"
+        "const risks=(d.risk_flags||[]).map(esc).join(', ');"
+        "const reasons=(d.reasons||[]).slice(0,3).map(esc).join(' · ');"
+        "return `<div class='card'><div class='inline'><span class='pill'>${esc(d.decision_source)}</span> "
+        "<b>${esc(''+d.selected_topic)}</b> <span class='muted'>${Math.round(d.confidence_score*100)}% · ${esc(d.status)}</span></div>"
+        "<div class='muted'>CTA: ${esc(''+(d.selected_cta||'—'))} · формат: ${esc(''+(d.selected_format||'—'))} · медиа: ${esc(''+(d.selected_media_strategy||'—'))}</div>"
+        "${reasons?`<div class='muted'>${reasons}</div>`:''}${risks?`<div class='muted'>⚠ ${risks}</div>`:''}"
+        "<div class='inline' style='margin-top:8px'>"
+        "<a href='/ui/projects/'+PID+'/topic-decisions/'+d.id><button class='mini sec'>Почему эта тема</button></a>"
+        "${d.schedule_run_id?`<span class='muted'>run #${d.schedule_run_id}</span>`:''}"
+        "</div></div>`;}"
+        "async function loadTD(){try{const d=await api('GET','/topic-decisions/projects/'+PID+'/dashboard');"
+        "document.getElementById('td-total').textContent=d.total;"
+        "document.getElementById('td-low').textContent=d.low_confidence_count;"
+        "document.getElementById('td-conf').textContent=Math.round((d.avg_confidence||0)*100)+'%';"
+        "document.getElementById('td-worker').textContent=d.worker_enabled?'вкл':'выкл';"
+        "const q=[];const st=gv('td-status');const sr=gv('td-source');const pf=gv('td-platform');"
+        "if(pf)q.push('platform_key='+pf);if(st)q.push('decision_status='+st);if(sr)q.push('source='+sr);"
+        "const rows=await api('GET','/topic-decisions/projects/'+PID+(q.length?'?'+q.join('&'):''));"
+        "const host=document.getElementById('td-list');host.classList.remove('muted');"
+        "host.innerHTML=rows.length?rows.map(tdcard).join(''):"
+        "\"<div class='muted'>Решений нет — нажмите «Создать решение».</div>\";}catch(x){err(eEl,x)}}"
+        "async function tdPreview(){try{const p=gv('td-platform');"
+        "const r=await api('POST','/topic-decisions/projects/'+PID+'/preview',{platform_key:p||null});"
+        "document.getElementById('td-preview').innerHTML=`<div class='card'><b>Preview:</b> ${esc(''+r.selected_topic)} "
+        "(${Math.round((r.confidence_score||0)*100)}%, ${esc(r.decision_source)})<div class='muted'>${(r.reasons||[]).slice(0,3).map(esc).join(' · ')}</div>"
+        "${(r.risk_flags||[]).length?`<div class='muted'>⚠ ${(r.risk_flags||[]).map(esc).join(', ')}</div>`:''}</div>`;}catch(x){err(eEl,x)}}"
+        "async function tdCreate(){try{const p=gv('td-platform');"
+        "const r=await api('POST','/topic-decisions/projects/'+PID+'/create',{platform_key:p||null});"
+        "msg.textContent='Решение #'+r.id+': '+r.selected_topic+' ('+r.outcome+'). Пост не создан, live нет.';loadTD();}catch(x){err(eEl,x)}}"
+        "window.tdPreview=tdPreview;window.tdCreate=tdCreate;window.loadTD=loadTD;"
+        "['td-platform','td-status','td-source'].forEach(i=>{const el=document.getElementById(i);if(el)el.addEventListener('change',loadTD);});"
+        "loadTD();"
+    )
+    return _page(
+        "Выбор тем по обучению", body, script, active="optimization", active_pid=project_id
+    )
+
+
+@router.get("/projects/{project_id}/topic-decisions/{decision_id}", response_class=HTMLResponse)
+def ui_project_topic_decision_detail(project_id: int, decision_id: int) -> HTMLResponse:
+    """Детали решения: тема, альтернативы, разбор оценки, причины, риски, связанный пост."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/topic-decisions'>"
+        "<button class='sec mini'>← Решения</button></a></div>"
+        "<h2>Почему бот выбрал эту тему</h2>"
+        "<div class='callout warn'>Решение влияет только на draft/needs_review — live-публикаций нет.</div>"
+        "<div id='td-detail' class='muted'>Загрузка…</div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const DID={decision_id};const eEl=document.getElementById('error');"
+        "async function load(){try{const d=await api('GET','/topic-decisions/'+DID);"
+        "const alts=(d.alternatives||[]).map(a=>`<div class='sched-task'>${esc(''+a.topic)} · ${Math.round((a.confidence_score||0)*100)}% (${esc(''+a.decision_source)})</div>`).join('')||'<span class=muted>нет</span>';"
+        "const reasons=(d.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join('');"
+        "const risks=(d.risk_flags||[]).map(esc).join(', ')||'—';"
+        "const sig=(d.source_signals||[]).map(esc).join(', ')||'—';"
+        "document.getElementById('td-detail').classList.remove('muted');"
+        "document.getElementById('td-detail').innerHTML=`"
+        "<div class='card'><div class='inline'><span class='pill'>${esc(d.decision_source)}</span> <b>${esc(''+d.selected_topic)}</b> "
+        "<span class='muted'>${Math.round(d.confidence_score*100)}% · ${esc(d.status)}</span></div>"
+        "<div class='muted'>CTA: ${esc(''+(d.selected_cta||'—'))} · формат: ${esc(''+(d.selected_format||'—'))} · "
+        "медиа: ${esc(''+(d.selected_media_strategy||'—'))} · время: ${esc(''+(d.selected_publish_time||'—'))}</div>"
+        "<div class='muted'>Ожидаемое качество: ${d.expected_quality_score??'—'} · вовлечённость: ${d.expected_engagement_score??'—'} · "
+        "версия профиля: ${d.learning_profile_version??'—'}</div></div>"
+        "<div class='card'><h3>Причины</h3><ul>${reasons}</ul></div>"
+        "<div class='card'><h3>Риски</h3><div class='muted'>${risks}</div></div>"
+        "<div class='card'><h3>Сигналы источников</h3><div class='muted'>${sig}</div></div>"
+        "<div class='card'><h3>Альтернативы</h3>${alts}</div>"
+        "<div class='card'><h3>Связанный прогон/пост</h3><div class='muted'>run: ${d.schedule_run_id??'—'} · план: ${d.publishing_plan_id??'—'}</div>"
+        "<div class='inline' style='margin-top:8px'><button class='mini sec' onclick='applyDry()'>Показать влияние на draft</button></div>"
+        "<div id='td-apply' class='muted'></div></div>`;}catch(x){err(eEl,x)}}"
+        "async function applyDry(){try{const r=await api('POST','/topic-decisions/'+DID+'/apply-dry',{});"
+        "document.getElementById('td-apply').textContent='generation_notes: '+JSON.stringify(r.draft_payload.generation_notes);}catch(x){err(eEl,x)}}"
+        "window.applyDry=applyDry;load();"
+    )
+    return _page("Решение о теме", body, script, active="optimization", active_pid=project_id)

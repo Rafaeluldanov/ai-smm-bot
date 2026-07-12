@@ -248,6 +248,24 @@ class Settings(BaseSettings):
     experiment_suggestions_expire_days: int = 14
     experiment_suggestions_require_review: bool = True
 
+    # --- Автовыбор темы worker-ом (v0.4.4) ---
+    # Worker сам выбирает тему/CTA/формат/медиа-стратегию для ближайшего слота по
+    # learning profile + метрикам + feedback + A/B winners + suggestions, но НЕ публикует
+    # live. Автовыбор worker-ом ВЫКЛЮЧЕН по умолчанию; dry-run по умолчанию.
+    auto_topic_selection_enabled: bool = True
+    auto_topic_selection_worker_enabled: bool = False
+    auto_topic_selection_dry_run: bool = True
+    auto_topic_selection_min_confidence: float = 0.55
+    auto_topic_selection_max_alternatives: int = 5
+    auto_topic_selection_recency_days: int = 60
+    auto_topic_selection_fatigue_window_days: int = 14
+    auto_topic_selection_require_media_for_media_plans: bool = False
+    auto_topic_selection_use_ab_winners: bool = True
+    auto_topic_selection_use_experiment_suggestions: bool = True
+    auto_topic_selection_use_metrics: bool = True
+    auto_topic_selection_use_client_feedback: bool = True
+    auto_topic_selection_fallback_to_crm_category: bool = True
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -439,6 +457,41 @@ class Settings(BaseSettings):
     def experiment_suggestions_expire_seconds(self) -> int:
         """Срок жизни предложения (в секундах)."""
         return max(0, int(self.experiment_suggestions_expire_days or 0)) * 86400
+
+    # --- Автовыбор темы: производные свойства (v0.4.4) ---
+
+    @property
+    def auto_topic_selection_enabled_effective(self) -> bool:
+        """Доступен ли автовыбор тем (preview/UI/API/CLI)."""
+        return bool(self.auto_topic_selection_enabled)
+
+    @property
+    def auto_topic_selection_worker_enabled_effective(self) -> bool:
+        """Может ли worker сам создавать решения о теме (по умолчанию false).
+
+        Даже при true пост создаётся только как draft/needs_review; live-публикаций нет.
+        """
+        return bool(self.auto_topic_selection_enabled and self.auto_topic_selection_worker_enabled)
+
+    @property
+    def auto_topic_selection_dry_run_effective(self) -> bool:
+        """Dry-run автовыбора (по умолчанию true — без записи решений)."""
+        return bool(self.auto_topic_selection_dry_run)
+
+    @property
+    def auto_topic_selection_min_confidence_safe(self) -> float:
+        """Порог уверенности решения в безопасных границах [0..1]."""
+        return max(0.0, min(1.0, float(self.auto_topic_selection_min_confidence or 0.0)))
+
+    @property
+    def auto_topic_selection_recency_days_safe(self) -> int:
+        """Окно «недавних» постов для новизны (не отрицательное)."""
+        return max(1, int(self.auto_topic_selection_recency_days or 1))
+
+    @property
+    def auto_topic_selection_fatigue_window_days_safe(self) -> int:
+        """Окно усталости тем (не отрицательное)."""
+        return max(1, int(self.auto_topic_selection_fatigue_window_days or 1))
 
     # --- Auth / session: производные (effective) свойства ---
 

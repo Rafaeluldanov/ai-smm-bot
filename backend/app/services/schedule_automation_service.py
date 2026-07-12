@@ -95,6 +95,8 @@ class ScheduleAutomationService:
         learning_service: Any | None = None,
         publication_service: Any | None = None,
         review_service: Any | None = None,
+        topic_decision_service: Any | None = None,
+        settings: Any | None = None,
     ) -> None:
         self._billing = billing_service or BillingService()
         self._economics = economics or UnitEconomicsService()
@@ -105,6 +107,9 @@ class ScheduleAutomationService:
         self._learning = learning_service
         self._publication = publication_service
         self._review = review_service
+        # v0.4.4: автовыбор темы (learning-driven). Ленивое построение; выключено по умолчанию.
+        self._topic_decision = topic_decision_service
+        self._settings = settings
 
     # ------------------------------------------------------------------ #
     # Планы / due-логика                                                 #
@@ -303,6 +308,8 @@ class ScheduleAutomationService:
             entity_type="schedule_preview",
             metadata={"run_date": run_date, "due_count": len(due), "platform": platform_key},
         )
+        # v0.4.4: превью решений автовыбора темы (только при включённом worker-флаге; без записи).
+        topic_decisions_previewed = self._preview_topic_decisions(db, project_id, due)
         return {
             "dry_run": True,
             "run_date": run_date,
@@ -312,7 +319,24 @@ class ScheduleAutomationService:
             "affordable": balance >= total_units,
             "entries": entries,
             "live_calls": False,
+            "topic_decisions_previewed": topic_decisions_previewed,
         }
+
+    def _preview_topic_decisions(self, db: Session, project_id: int, due: list[_DueEntry]) -> int:
+        """Число слотов, для которых worker предпросмотрит тему (без записи). 0 если выключено."""
+        if not self._topic_selection_preview_active():
+            return 0
+        count = 0
+        for entry in due:
+            try:
+                self._topic_decision_svc().preview_decision_for_plan(
+                    db, project_id, entry.platform, plan_id=entry.plan.id
+                )
+                count += 1
+            except Exception:  # noqa: BLE001 — превью не должно ронять preview расписания
+                with contextlib.suppress(Exception):
+                    db.rollback()
+        return count
 
     def run_due_dry(
         self,
@@ -345,6 +369,7 @@ class ScheduleAutomationService:
         due = self._find_due(db, project_id, run_date, now, platform_key)
         results: list[dict[str, Any]] = []
         created = skipped = 0
+        topic_decisions_created = low_confidence_decisions = 0
         for entry in due:
             existing = schedule_run_repository.get_by_idempotency_key(db, entry.idempotency_key)
             if existing is not None and existing.status == "draft_created":
@@ -365,9 +390,14 @@ class ScheduleAutomationService:
                 run_metadata={"category_id": entry.plan.category_id, "mode": entry.plan.mode},
             )
             self._audit_run(db, ACTION_SCHEDULE_RUN_STARTED, run)
-            results.append(self._process_entry(db, account_id, project_id, entry, run))
+            entry_result = self._process_entry(db, account_id, project_id, entry, run)
+            results.append(entry_result)
             if run.status == "draft_created":
                 created += 1
+            if entry_result.get("topic_decision_created"):
+                topic_decisions_created += 1
+            if entry_result.get("topic_decision_low_confidence"):
+                low_confidence_decisions += 1
         return {
             "dry_run": False,
             "run_date": run_date,
@@ -376,6 +406,9 @@ class ScheduleAutomationService:
             "skipped": skipped,
             "entries": results,
             "live_calls": False,
+            # v0.4.4: автовыбор темы (worker агрегирует в TickResult).
+            "topic_decisions_created": topic_decisions_created,
+            "low_confidence_decisions": low_confidence_decisions,
         }
 
     def _process_entry(
@@ -409,9 +442,13 @@ class ScheduleAutomationService:
             self._audit_run(db, ACTION_SCHEDULE_RUN_INSUFFICIENT_BALANCE, run, units=units)
             return {**self.mask_run(run), "outcome": "insufficient_balance"}
 
+        # 2b) Автовыбор темы (v0.4.4): решение о теме/CTA/формате/медиа. Никогда не роняет
+        # прогон и не публикует live; при выключенном флаге — обычный CRM-драфт.
+        decision = self._select_topic_decision(db, project_id, entry, run)
+
         # 3) Создание draft + publication (без live-публикации).
         try:
-            post = self.build_post_for_schedule(db, entry, media_ids)
+            post = self.build_post_for_schedule(db, entry, media_ids, decision)
             pub = post_publication_repository.create_publication(
                 db,
                 PostPublicationCreate(
@@ -427,6 +464,12 @@ class ScheduleAutomationService:
             schedule_run_repository.mark_failed(
                 db, run, f"draft build failed: {type(exc).__name__}"
             )
+            # Не оставляем решение висеть в 'selected' — помечаем failed (без секретов).
+            if decision is not None and decision.get("id") is not None:
+                with contextlib.suppress(Exception):
+                    self._topic_decision_svc().mark_decision_failed(
+                        db, decision["id"], f"draft build failed: {type(exc).__name__}"
+                    )
             self._audit_run(db, ACTION_SCHEDULE_RUN_FAILED, run)
             return {**self.mask_run(run), "outcome": "failed"}
 
@@ -453,6 +496,14 @@ class ScheduleAutomationService:
         self._audit_run(db, ACTION_SCHEDULE_RUN_DRAFT_CREATED, run, units=charged)
 
         outcome: dict[str, Any] = {"outcome": "draft_created", "post_id": post.id}
+        # Привязать решение о теме к прогону/посту (+ счётчики для worker/TickResult).
+        if decision is not None:
+            self._link_topic_decision(db, decision, run, post.id)
+            outcome["topic_decision_created"] = True
+            outcome["topic_decision_id"] = decision.get("id")
+            outcome["topic_decision_low_confidence"] = "low_confidence" in (
+                decision.get("risk_flags") or []
+            )
         # 5) Полностью автоматический режим: попытка авто-публикации под safety gates.
         if automation_mode == AUTOMATION_FULL_AUTO and getattr(
             entry.plan, "auto_publish_enabled", False
@@ -469,14 +520,30 @@ class ScheduleAutomationService:
     # Построение поста и медиа                                            #
     # ------------------------------------------------------------------ #
 
-    def build_post_for_schedule(self, db: Session, entry: _DueEntry, media_ids: list[int]) -> Post:
-        """Создать draft/needs_review пост по due-слоту (без AI/сети, без live)."""
+    def build_post_for_schedule(
+        self,
+        db: Session,
+        entry: _DueEntry,
+        media_ids: list[int],
+        decision: dict[str, Any] | None = None,
+    ) -> Post:
+        """Создать draft/needs_review пост по due-слоту (без AI/сети, без live).
+
+        При наличии ``decision`` (v0.4.4) тема/CTA/медиа-стратегия берутся из него, иначе —
+        из CRM-категории (обратная совместимость).
+        """
         category = crm_repo.get_category_by_id(db, entry.plan.category_id)
         title = (category.title if category is not None else None) or "Публикация по расписанию"
         cta = (category.cta if category is not None else "") or ""
         tag = ""
         if category is not None and category.media_tags:
             tag = str(category.media_tags[0])
+        # Автовыбор темы: тема/CTA перекрывают CRM-дефолт (пост остаётся needs_review).
+        if decision is not None:
+            if str(decision.get("selected_topic") or "").strip():
+                title = str(decision["selected_topic"]).strip()
+            if decision.get("selected_cta"):
+                cta = str(decision["selected_cta"])
         text = f"[Черновик расписания] {title}. {cta}".strip()
         notes: dict[str, Any] = {
             "source": "schedule_automation",
@@ -486,6 +553,21 @@ class ScheduleAutomationService:
             "primary_tag": tag,
             "live": False,
         }
+        if decision is not None:
+            notes.update(
+                {
+                    "schedule_topic_decision_id": decision.get("id"),
+                    "selected_topic": decision.get("selected_topic"),
+                    "selected_cta": decision.get("selected_cta"),
+                    "selected_format": decision.get("selected_format"),
+                    "selected_media_strategy": decision.get("selected_media_strategy"),
+                    "topic_decision_confidence": decision.get("confidence_score"),
+                    "topic_decision_reasons": (decision.get("reasons") or [])[:8],
+                    "topic_decision_source_signals": (decision.get("source_signals") or [])[:8],
+                    "topic_decision_risk_flags": (decision.get("risk_flags") or [])[:8],
+                    "topic_decision_source": decision.get("decision_source"),
+                }
+            )
         if not media_ids:
             notes["warning"] = "no_media_text_only"
         if entry.platform == "instagram" and media_ids:
@@ -788,6 +870,92 @@ class ScheduleAutomationService:
 
             self._review = PostReviewService()
         return self._review
+
+    # ------------------------------------------------------------------ #
+    # Автовыбор темы (v0.4.4, без live-публикации)                        #
+    # ------------------------------------------------------------------ #
+
+    def _resolve_settings(self) -> Any:
+        if self._settings is None:
+            from app.config import get_settings
+
+            self._settings = get_settings()
+        return self._settings
+
+    def _topic_selection_active(self) -> bool:
+        """Пишет ли решения автовыбор темы (worker включён И НЕ dry-run). По умолчанию false.
+
+        При выключенном флаге или dry-run — обычный CRM-драфт (обратная совместимость).
+        """
+        s = self._resolve_settings()
+        return bool(
+            s.auto_topic_selection_worker_enabled_effective and not s.auto_topic_selection_dry_run
+        )
+
+    def _topic_selection_preview_active(self) -> bool:
+        """Доступен ли read-only preview решения (worker включён; dry-run не важен)."""
+        return bool(self._resolve_settings().auto_topic_selection_worker_enabled_effective)
+
+    def _topic_decision_svc(self) -> Any:
+        if self._topic_decision is None:
+            from app.services.schedule_topic_decision_service import (
+                ScheduleTopicDecisionService,
+            )
+
+            self._topic_decision = ScheduleTopicDecisionService(settings=self._settings)
+        return self._topic_decision
+
+    def _select_topic_decision(
+        self, db: Session, project_id: int, entry: _DueEntry, run: Any
+    ) -> dict[str, Any] | None:
+        """Выбрать тему для слота (запись решения). None — если выключено или ошибка.
+
+        Никогда не роняет прогон: при сбое откатываемся к обычному CRM-драфту.
+        """
+        if not self._topic_selection_active():
+            return None
+        automation_mode = getattr(entry.plan, "automation_mode", AUTOMATION_SEMI_AUTO) or (
+            AUTOMATION_SEMI_AUTO
+        )
+        decision_mode = (
+            AUTOMATION_FULL_AUTO
+            if automation_mode == AUTOMATION_FULL_AUTO
+            else AUTOMATION_SEMI_AUTO
+        )
+        try:
+            result: dict[str, Any] = self._topic_decision_svc().create_decision_for_plan(
+                db,
+                project_id,
+                entry.platform,
+                plan_id=entry.plan.id,
+                decision_mode=decision_mode,
+                schedule_run_id=run.id,
+            )
+        except Exception:  # noqa: BLE001 — автовыбор не должен ронять прогон расписания
+            with contextlib.suppress(Exception):
+                db.rollback()
+            return None
+        return result
+
+    def _link_topic_decision(
+        self, db: Session, decision: dict[str, Any], run: Any, post_id: int
+    ) -> None:
+        """Пометить решение как использованное для драфта и записать в run_metadata."""
+        decision_id = decision.get("id")
+        with contextlib.suppress(Exception):
+            if decision_id is not None:
+                self._topic_decision_svc().mark_decision_draft_created(
+                    db, decision_id, run.id, post_id
+                )
+            meta = dict(run.run_metadata or {})
+            meta["topic_decision"] = {
+                "id": decision_id,
+                "selected_topic": decision.get("selected_topic"),
+                "decision_source": decision.get("decision_source"),
+                "confidence_score": decision.get("confidence_score"),
+                "risk_flags": (decision.get("risk_flags") or [])[:8],
+            }
+            schedule_run_repository.update_run(db, run, run_metadata=meta)
 
     # ------------------------------------------------------------------ #
     # Внутреннее                                                         #

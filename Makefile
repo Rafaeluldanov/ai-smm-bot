@@ -189,6 +189,15 @@ experiment-suggestion-accept: ## Принять предложение: make exp
 experiment-suggestion-create: ## Создать A/B из предложения (dry-run по умолчанию): make experiment-suggestion-create suggestion_id=1 [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.experiment_suggestion_create --suggestion-id "$(suggestion_id)" --dry-run "$(or $(dry_run),true)"
 
+topic-decision-preview: ## Предпросмотр решения автовыбора темы: make topic-decision-preview project_id=1 [platform=telegram] [plan_id=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.topic_decision_preview --project-id "$(project_id)" --platform "$(or $(platform),all)" $(if $(plan_id),--plan-id $(plan_id),) $(if $(category_id),--category-id $(category_id),)
+
+topic-decision-create: ## Создать решение автовыбора темы (dry-run по умолчанию): make topic-decision-create project_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.topic_decision_create --project-id "$(project_id)" --platform "$(or $(platform),all)" $(if $(plan_id),--plan-id $(plan_id),) --dry-run "$(or $(dry_run),true)"
+
+topic-decision-dashboard: ## Сводка решений автовыбора темы: make topic-decision-dashboard project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.topic_decision_dashboard --project-id "$(project_id)" --platform "$(or $(platform),all)"
+
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
 

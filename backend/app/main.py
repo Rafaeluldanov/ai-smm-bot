@@ -36,6 +36,7 @@ from app.api.security_middleware import (
     SecurityHeadersMiddleware,
 )
 from app.api.seo import router as seo_router
+from app.api.topic_decisions import router as topic_decisions_router
 from app.api.topics import router as topics_router
 from app.api.ui import router as ui_router
 from app.config import get_settings, production_security_errors
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     app.include_router(metrics_import_router)
     app.include_router(experiments_router)
     app.include_router(experiment_suggestions_router)
+    app.include_router(topic_decisions_router)
     app.include_router(post_publications_router)
     app.include_router(analytics_router)
     app.include_router(platform_connections_router)

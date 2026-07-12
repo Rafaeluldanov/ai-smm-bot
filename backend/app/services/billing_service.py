@@ -42,6 +42,12 @@ USAGE_EXPERIMENT_SUGGESTION_ACCEPT = "experiment_suggestion_accept"
 USAGE_EXPERIMENT_SUGGESTION_CREATE_EXPERIMENT = "experiment_suggestion_create_experiment"
 USAGE_EXPERIMENT_SUGGESTION_WORKER_TICK = "experiment_suggestion_worker_tick"
 
+# Типы usage для автовыбора темы (v0.4.4). Все бесплатны: применение решения к драфту
+# включено в обычную генерацию draft по расписанию (USAGE_SCHEDULE_GENERATION).
+USAGE_TOPIC_DECISION_PREVIEW = "topic_decision_preview"
+USAGE_TOPIC_DECISION_CREATE = "topic_decision_create"
+USAGE_TOPIC_DECISION_APPLY_TO_DRAFT = "topic_decision_apply_to_draft"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -74,6 +80,11 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_EXPERIMENT_SUGGESTION_ACCEPT: 0,
     USAGE_EXPERIMENT_SUGGESTION_WORKER_TICK: 0,
     USAGE_EXPERIMENT_SUGGESTION_CREATE_EXPERIMENT: 10,
+    # v0.4.4: автовыбор темы — бесплатно (preview/создание решения/применение к драфту).
+    # Реальная стоимость — только за создание draft по расписанию (USAGE_SCHEDULE_GENERATION).
+    USAGE_TOPIC_DECISION_PREVIEW: 0,
+    USAGE_TOPIC_DECISION_CREATE: 0,
+    USAGE_TOPIC_DECISION_APPLY_TO_DRAFT: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

@@ -32,6 +32,7 @@ from app.repositories import (
     post_publication_repository,
     post_repository,
     project_repository,
+    schedule_topic_decision_repository,
 )
 from app.services import saas_security_service as security
 
@@ -207,6 +208,20 @@ def require_suggestion_access(
     if suggestion is None:
         raise _NOT_FOUND
     _guard_project(db, settings, user, suggestion.project_id)
+
+
+def require_topic_decision_access(
+    decision_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к решению о теме (через проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    decision = schedule_topic_decision_repository.get_by_id(db, decision_id)
+    if decision is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, decision.project_id)
 
 
 def require_vk_resource_access(

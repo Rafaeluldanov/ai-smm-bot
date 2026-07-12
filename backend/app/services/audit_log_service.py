@@ -126,6 +126,17 @@ ACTION_WORKER_EXP_SUGGESTIONS_CREATED = "scheduler.worker.experiment_suggestions
 ACTION_WORKER_EXP_SUGGESTIONS_SKIPPED = "scheduler.worker.experiment_suggestions.skipped"
 ACTION_WORKER_EXPERIMENT_CREATED = "scheduler.worker.experiment_created"
 ACTION_WORKER_EXP_SUGGESTIONS_FAILED = "scheduler.worker.experiment_suggestions.failed"
+# Автовыбор темы worker-ом (v0.4.4).
+ACTION_TOPIC_DECISION_PREVIEWED = "topic_decision.previewed"
+ACTION_TOPIC_DECISION_CREATED = "topic_decision.created"
+ACTION_TOPIC_DECISION_APPLIED_TO_DRAFT = "topic_decision.applied_to_draft"
+ACTION_TOPIC_DECISION_FAILED = "topic_decision.failed"
+ACTION_TOPIC_DECISION_LOW_CONFIDENCE = "topic_decision.low_confidence"
+ACTION_TOPIC_DECISION_FALLBACK_USED = "topic_decision.fallback_used"
+ACTION_WORKER_TOPIC_DECISION_PREVIEWED = "scheduler.worker.topic_decision.previewed"
+ACTION_WORKER_TOPIC_DECISION_CREATED = "scheduler.worker.topic_decision.created"
+ACTION_WORKER_TOPIC_DECISION_SKIPPED = "scheduler.worker.topic_decision.skipped"
+ACTION_WORKER_TOPIC_DECISION_FAILED = "scheduler.worker.topic_decision.failed"
 
 
 class AuditLogService:

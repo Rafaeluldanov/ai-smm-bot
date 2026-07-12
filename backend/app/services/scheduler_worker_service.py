@@ -35,6 +35,10 @@ from app.services.audit_log_service import (
     ACTION_WORKER_TICK_FAILED,
     ACTION_WORKER_TICK_FINISHED,
     ACTION_WORKER_TICK_STARTED,
+    ACTION_WORKER_TOPIC_DECISION_CREATED,
+    ACTION_WORKER_TOPIC_DECISION_FAILED,
+    ACTION_WORKER_TOPIC_DECISION_PREVIEWED,
+    ACTION_WORKER_TOPIC_DECISION_SKIPPED,
     AuditLogService,
 )
 from app.services.schedule_automation_service import ScheduleAutomationService
@@ -79,6 +83,13 @@ class SchedulerWorkerTickResult:
     experiment_suggestions_skipped: int = 0
     experiments_created: int = 0
     experiment_suggestion_errors: list[str] = field(default_factory=list)
+    # Автовыбор темы (v0.4.4). Worker сам выбирает тему для слота, но НЕ публикует live.
+    auto_topic_selection_enabled: bool = False
+    auto_topic_selection_dry_run: bool = False
+    topic_decisions_previewed: int = 0
+    topic_decisions_created: int = 0
+    low_confidence_decisions: int = 0
+    topic_decision_errors: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     started_at: str | None = None
     finished_at: str | None = None
@@ -98,7 +109,9 @@ class SchedulerWorkerService:
         suggestion_service: Any | None = None,
     ) -> None:
         self._settings = settings or get_settings()
-        self._automation = automation_service or ScheduleAutomationService()
+        # Пробрасываем settings в движок автоматизации, чтобы автовыбор темы (v0.4.4)
+        # управлялся теми же флагами, что и worker.
+        self._automation = automation_service or ScheduleAutomationService(settings=self._settings)
         self._audit = audit_service or AuditLogService(self._settings)
         # v0.4.3: сервис предложений экспериментов (ленивое построение; без live).
         self._suggestions = suggestion_service
@@ -190,11 +203,15 @@ class SchedulerWorkerService:
             "insufficient_balance": 0,
             "missing_credentials": 0,
             "schedule_runs_created": 0,
+            "topic_decisions_previewed": 0,
+            "topic_decisions_created": 0,
+            "low_confidence_decisions": 0,
         }
         if dry_run:
             result = self._automation.run_due_dry(
                 db, target.account_id, target.project_id, now=now, platform_key=target.platform_key
             )
+            deltas["topic_decisions_previewed"] = int(result.get("topic_decisions_previewed", 0))
             for entry in result.get("entries", []):
                 outcome = entry.get("outcome")
                 if outcome == "missing_credentials":
@@ -210,6 +227,8 @@ class SchedulerWorkerService:
         )
         deltas["drafts_created"] = int(result.get("created", 0))
         deltas["skipped"] = int(result.get("skipped", 0))
+        deltas["topic_decisions_created"] = int(result.get("topic_decisions_created", 0))
+        deltas["low_confidence_decisions"] = int(result.get("low_confidence_decisions", 0))
         for entry in result.get("entries", []):
             outcome = entry.get("outcome") or entry.get("status")
             if outcome == "missing_credentials":
@@ -325,8 +344,13 @@ class SchedulerWorkerService:
                 result.insufficient_balance += deltas["insufficient_balance"]
                 result.missing_credentials += deltas["missing_credentials"]
                 result.schedule_runs_created += deltas["schedule_runs_created"]
+                result.topic_decisions_previewed += deltas.get("topic_decisions_previewed", 0)
+                result.topic_decisions_created += deltas.get("topic_decisions_created", 0)
+                result.low_confidence_decisions += deltas.get("low_confidence_decisions", 0)
             # v0.4.3: предложения экспериментов по проектам (без live-публикации).
             self._process_experiment_suggestions(db, targets, owner_id, effective_dry, result)
+            # v0.4.4: сводка автовыбора темы (решения создаются внутри run_due).
+            self._annotate_topic_selection(db, owner_id, effective_dry, result)
         except Exception as exc:  # noqa: BLE001 — тик не роняет процесс
             result.errors.append(f"tick error: {type(exc).__name__}")
             self._audit.record(
@@ -351,6 +375,60 @@ class SchedulerWorkerService:
                 },
             )
         return result
+
+    # ------------------------------------------------------------------ #
+    # Автовыбор темы (v0.4.4, без live-публикации)                        #
+    # ------------------------------------------------------------------ #
+
+    def _annotate_topic_selection(
+        self,
+        db: Session,
+        owner_id: str,
+        schedule_dry_run: bool,
+        result: SchedulerWorkerTickResult,
+    ) -> None:
+        """Проставить флаги автовыбора темы + аудит. Решения создаются внутри run_due.
+
+        Управляется флагом AUTO_TOPIC_SELECTION_WORKER_ENABLED (выключен по умолчанию);
+        dry-run = worker dry-run ИЛИ AUTO_TOPIC_SELECTION_DRY_RUN. Live-публикаций нет.
+        """
+        s = self._settings
+        enabled = s.auto_topic_selection_worker_enabled_effective
+        result.auto_topic_selection_enabled = enabled
+        result.auto_topic_selection_dry_run = bool(
+            schedule_dry_run or s.auto_topic_selection_dry_run
+        )
+        if not enabled:
+            return
+        action = (
+            ACTION_WORKER_TOPIC_DECISION_PREVIEWED
+            if result.auto_topic_selection_dry_run
+            else ACTION_WORKER_TOPIC_DECISION_CREATED
+        )
+        base_meta = {
+            "owner_id": owner_id,
+            "dry_run": result.auto_topic_selection_dry_run,
+            "topic_decisions_previewed": result.topic_decisions_previewed,
+            "topic_decisions_created": result.topic_decisions_created,
+            "low_confidence_decisions": result.low_confidence_decisions,
+            "live_publish": False,
+        }
+        self._audit.record(db, action, entity_type="scheduler_worker", metadata=base_meta)
+        # Отдельные события: ничего не создано (не dry) → skipped; были ошибки → failed.
+        if not result.auto_topic_selection_dry_run and result.topic_decisions_created == 0:
+            self._audit.record(
+                db,
+                ACTION_WORKER_TOPIC_DECISION_SKIPPED,
+                entity_type="scheduler_worker",
+                metadata=base_meta,
+            )
+        if result.topic_decision_errors:
+            self._audit.record(
+                db,
+                ACTION_WORKER_TOPIC_DECISION_FAILED,
+                entity_type="scheduler_worker",
+                metadata={**base_meta, "errors": len(result.topic_decision_errors)},
+            )
 
     # ------------------------------------------------------------------ #
     # Предложения экспериментов (v0.4.3, без live-публикации)             #
@@ -493,6 +571,13 @@ class SchedulerWorkerService:
                 "auto_create": s.experiment_suggestions_auto_create_effective,
                 "schedule_experiments_enabled": s.schedule_experiments_enabled,
                 "max_per_tick": s.experiment_suggestions_max_per_tick,
+                "live_publish": False,
+            },
+            "auto_topic_selection": {
+                "enabled": s.auto_topic_selection_enabled_effective,
+                "worker_enabled": s.auto_topic_selection_worker_enabled_effective,
+                "dry_run": s.auto_topic_selection_dry_run,
+                "min_confidence": s.auto_topic_selection_min_confidence_safe,
                 "live_publish": False,
             },
             "lease": self._mask_lease(lease),

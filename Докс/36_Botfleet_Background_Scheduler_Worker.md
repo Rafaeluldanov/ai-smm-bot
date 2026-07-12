@@ -119,3 +119,10 @@ Worker делегирует в `ScheduleAutomationService.run_due`, которы
 умолчанию) анализирует проекты целей и **предлагает** эксперименты/темы без live-публикации;
 `SchedulerWorkerTickResult` расширен счётчиками предложений. См.
 [40_Botfleet_Worker_Experiment_Suggestions.md](40_Botfleet_Worker_Experiment_Suggestions.md).
+
+## Продолжение: автовыбор темы (v0.4.4)
+
+`process_target` → `run_due` создаёт решения о теме (за флагом
+`AUTO_TOPIC_SELECTION_WORKER_ENABLED`, выключено по умолчанию), а `SchedulerWorkerTickResult`
+получает счётчики `topic_decisions_previewed/created`, `low_confidence_decisions`. Live-
+публикаций нет. См. [41_Botfleet_Auto_Topic_Selection.md](41_Botfleet_Auto_Topic_Selection.md).
