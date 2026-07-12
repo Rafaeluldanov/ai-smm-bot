@@ -11,6 +11,7 @@ from app.api.automation import router as automation_router
 from app.api.autonomous_runs import router as autonomous_runs_router
 from app.api.billing import router as billing_router
 from app.api.crm_bot_smm import router as crm_bot_smm_router
+from app.api.experiment_suggestions import router as experiment_suggestions_router
 from app.api.experiments import router as experiments_router
 from app.api.external_images import router as external_images_router
 from app.api.health import router as health_router
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(automation_router)
     app.include_router(metrics_import_router)
     app.include_router(experiments_router)
+    app.include_router(experiment_suggestions_router)
     app.include_router(post_publications_router)
     app.include_router(analytics_router)
     app.include_router(platform_connections_router)

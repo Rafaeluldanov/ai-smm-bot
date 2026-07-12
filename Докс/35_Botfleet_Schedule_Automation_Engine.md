@@ -116,3 +116,9 @@ make schedule-due-run     account_id=1 project_id=1 platform=telegram date=today
 gates (иначе `auto_publish_blocked_reason`). Живая публикация возможна только при всех гейтах;
 в тестах — через `FakePublishingClient`. Workflow одобрения и очередь ревью реализованы в
 [37_Botfleet_Review_Learning_Automation.md](37_Botfleet_Review_Learning_Automation.md).
+
+## Продолжение: предложения экспериментов (v0.4.3)
+
+`SCHEDULE_EXPERIMENTS_ENABLED` остаётся выключенным; worker лишь **предлагает** эксперименты/
+темы (без live). См.
+[40_Botfleet_Worker_Experiment_Suggestions.md](40_Botfleet_Worker_Experiment_Suggestions.md).

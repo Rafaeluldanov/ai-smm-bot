@@ -70,6 +70,15 @@ class SchedulerWorkerTickResult:
     insufficient_balance: int = 0
     missing_credentials: int = 0
     schedule_runs_created: int = 0
+    # Предложения экспериментов (v0.4.3). Worker может предлагать эксперименты/темы,
+    # но НЕ публикует live.
+    experiment_suggestions_enabled: bool = False
+    experiment_suggestions_dry_run: bool = False
+    experiment_suggestions_scanned: int = 0
+    experiment_suggestions_created: int = 0
+    experiment_suggestions_skipped: int = 0
+    experiments_created: int = 0
+    experiment_suggestion_errors: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     started_at: str | None = None
     finished_at: str | None = None
@@ -86,10 +95,13 @@ class SchedulerWorkerService:
         settings: Settings | None = None,
         automation_service: ScheduleAutomationService | None = None,
         audit_service: AuditLogService | None = None,
+        suggestion_service: Any | None = None,
     ) -> None:
         self._settings = settings or get_settings()
         self._automation = automation_service or ScheduleAutomationService()
         self._audit = audit_service or AuditLogService(self._settings)
+        # v0.4.3: сервис предложений экспериментов (ленивое построение; без live).
+        self._suggestions = suggestion_service
 
     # ------------------------------------------------------------------ #
     # Идентификация                                                      #
@@ -313,6 +325,8 @@ class SchedulerWorkerService:
                 result.insufficient_balance += deltas["insufficient_balance"]
                 result.missing_credentials += deltas["missing_credentials"]
                 result.schedule_runs_created += deltas["schedule_runs_created"]
+            # v0.4.3: предложения экспериментов по проектам (без live-публикации).
+            self._process_experiment_suggestions(db, targets, owner_id, effective_dry, result)
         except Exception as exc:  # noqa: BLE001 — тик не роняет процесс
             result.errors.append(f"tick error: {type(exc).__name__}")
             self._audit.record(
@@ -337,6 +351,62 @@ class SchedulerWorkerService:
                 },
             )
         return result
+
+    # ------------------------------------------------------------------ #
+    # Предложения экспериментов (v0.4.3, без live-публикации)             #
+    # ------------------------------------------------------------------ #
+
+    def _process_experiment_suggestions(
+        self,
+        db: Session,
+        targets: list[ScheduleWorkerTarget],
+        owner_id: str,
+        schedule_dry_run: bool,
+        result: SchedulerWorkerTickResult,
+    ) -> None:
+        """По проектам из целей предложить эксперименты/темы. Никаких live-публикаций.
+
+        Управляется флагами: выключено по умолчанию; suggestions dry-run = worker dry-run
+        ИЛИ EXPERIMENT_SUGGESTIONS_DRY_RUN. Ошибки одного проекта не роняют тик.
+        """
+        s = self._settings
+        enabled = s.experiment_suggestions_worker_enabled_effective
+        result.experiment_suggestions_enabled = enabled
+        suggestions_dry = bool(schedule_dry_run or s.experiment_suggestions_dry_run)
+        result.experiment_suggestions_dry_run = suggestions_dry
+        if not enabled:
+            return
+        seen: set[int] = set()
+        for target in targets:
+            if target.project_id in seen:
+                continue
+            seen.add(target.project_id)
+            try:
+                out = self._suggestion_svc().run_worker_suggestions_for_project(
+                    db,
+                    target.project_id,
+                    platform_key=None,
+                    worker_owner_id=owner_id,
+                    dry_run=suggestions_dry,
+                )
+            except Exception as exc:  # noqa: BLE001 — один проект не роняет тик
+                result.experiment_suggestion_errors.append(
+                    f"suggestions p{target.project_id}: {type(exc).__name__}"
+                )
+                continue
+            result.experiment_suggestions_scanned += int(out.get("scanned", 0))
+            result.experiment_suggestions_created += int(out.get("created", 0))
+            result.experiment_suggestions_skipped += int(out.get("skipped", 0))
+            result.experiments_created += int(out.get("experiments_created", 0))
+            for err in out.get("errors", []):
+                result.experiment_suggestion_errors.append(str(err))
+
+    def _suggestion_svc(self) -> Any:
+        if self._suggestions is None:
+            from app.services.experiment_suggestion_service import ExperimentSuggestionService
+
+            self._suggestions = ExperimentSuggestionService(settings=self._settings)
+        return self._suggestions
 
     # ------------------------------------------------------------------ #
     # Цикл                                                               #
@@ -416,6 +486,15 @@ class SchedulerWorkerService:
             "platform_allowlist": s.scheduler_worker_platform_allowlist_list,
             "account_allowlist": s.scheduler_worker_account_allowlist_list,
             "live_publish": False,
+            "experiment_suggestions": {
+                "enabled": s.experiment_suggestions_enabled_effective,
+                "worker_enabled": s.experiment_suggestions_worker_enabled_effective,
+                "dry_run": s.experiment_suggestions_dry_run,
+                "auto_create": s.experiment_suggestions_auto_create_effective,
+                "schedule_experiments_enabled": s.schedule_experiments_enabled,
+                "max_per_tick": s.experiment_suggestions_max_per_tick,
+                "live_publish": False,
+            },
             "lease": self._mask_lease(lease),
             "warnings": self._status_warnings(),
         }

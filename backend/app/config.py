@@ -234,6 +234,20 @@ class Settings(BaseSettings):
     topic_optimization_recency_days: int = 60
     topic_optimization_max_recommendations: int = 10
 
+    # --- Предложения экспериментов worker-ом (v0.4.3) ---
+    # Worker может предлагать эксперименты/темы, но НЕ публикует live. Генерация
+    # предложений worker-ом и авто-создание экспериментов ВЫКЛЮЧЕНЫ по умолчанию.
+    experiment_suggestions_enabled: bool = True
+    experiment_suggestions_worker_enabled: bool = False
+    experiment_suggestions_dry_run: bool = True
+    experiment_suggestions_auto_create: bool = False
+    experiment_suggestions_max_per_tick: int = 5
+    experiment_suggestions_max_active_per_project: int = 20
+    experiment_suggestions_min_confidence: float = 0.55
+    experiment_suggestions_cooldown_hours: int = 24
+    experiment_suggestions_expire_days: int = 14
+    experiment_suggestions_require_review: bool = True
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -389,6 +403,42 @@ class Settings(BaseSettings):
             if raw.isdigit():
                 out.append(int(raw))
         return out
+
+    # --- Предложения экспериментов: производные свойства (v0.4.3) ---
+
+    @property
+    def experiment_suggestions_enabled_effective(self) -> bool:
+        """Доступны ли предложения экспериментов (UI/API)."""
+        return bool(self.experiment_suggestions_enabled)
+
+    @property
+    def experiment_suggestions_worker_enabled_effective(self) -> bool:
+        """Может ли worker генерировать предложения (по умолчанию false)."""
+        return bool(
+            self.experiment_suggestions_enabled and self.experiment_suggestions_worker_enabled
+        )
+
+    @property
+    def experiment_suggestions_auto_create_effective(self) -> bool:
+        """Разрешено ли worker-у авто-создавать A/B из предложений (по умолчанию false).
+
+        Даже при true эксперименты — только draft/needs_review; live-публикаций нет.
+        """
+        return bool(
+            self.experiment_suggestions_enabled
+            and self.experiment_suggestions_worker_enabled
+            and self.experiment_suggestions_auto_create
+        )
+
+    @property
+    def experiment_suggestions_cooldown_seconds(self) -> int:
+        """Окно cooldown дедупа предложений (в секундах, безопасные границы)."""
+        return max(0, int(self.experiment_suggestions_cooldown_hours or 0)) * 3600
+
+    @property
+    def experiment_suggestions_expire_seconds(self) -> int:
+        """Срок жизни предложения (в секундах)."""
+        return max(0, int(self.experiment_suggestions_expire_days or 0)) * 86400
 
     # --- Auth / session: производные (effective) свойства ---
 

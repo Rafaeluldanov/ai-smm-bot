@@ -202,3 +202,9 @@ CTA, медиа и время работают лучше. См.
 Варианты A/B создаются как draft/needs_review посты и проходят обычную очередь ревью;
 winner (ручной или авто по метрикам) обновляет профиль обучения. См.
 [39_Botfleet_AB_Testing_Topic_Optimization.md](39_Botfleet_AB_Testing_Topic_Optimization.md).
+
+## Продолжение: worker-предложения (v0.4.3)
+
+Приём/отклонение предложений worker-а даёт лёгкий сигнал обучения по теме (preferred/rejected
+topics), не публикуя live. См.
+[40_Botfleet_Worker_Experiment_Suggestions.md](40_Botfleet_Worker_Experiment_Suggestions.md).

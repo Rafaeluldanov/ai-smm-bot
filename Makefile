@@ -177,6 +177,18 @@ experiment-score: ## Скоринг эксперимента: make experiment-sc
 experiment-winner: ## Выбор winner (dry-run по умолчанию): make experiment-winner experiment_id=1 [method=auto] [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.choose_experiment_winner --experiment-id "$(experiment_id)" --method "$(or $(method),auto)" --dry-run "$(or $(dry_run),true)"
 
+experiment-suggestions-preview: ## Preview предложений worker-а: make experiment-suggestions-preview project_id=1 [platform=telegram] [limit=10]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.experiment_suggestions_preview --project-id "$(project_id)" --platform "$(or $(platform),all)" $(if $(limit),--limit $(limit),)
+
+experiment-suggestions-generate: ## Генерация предложений (dry-run по умолчанию): make experiment-suggestions-generate project_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.experiment_suggestions_generate --project-id "$(project_id)" --platform "$(or $(platform),all)" --dry-run "$(or $(dry_run),true)"
+
+experiment-suggestion-accept: ## Принять предложение: make experiment-suggestion-accept suggestion_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.experiment_suggestion_accept --suggestion-id "$(suggestion_id)"
+
+experiment-suggestion-create: ## Создать A/B из предложения (dry-run по умолчанию): make experiment-suggestion-create suggestion_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.experiment_suggestion_create --suggestion-id "$(suggestion_id)" --dry-run "$(or $(dry_run),true)"
+
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
 

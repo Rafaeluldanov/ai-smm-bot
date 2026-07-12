@@ -163,3 +163,9 @@ A/B-тестирование · цикл оптимизации тем (multi-ar
 Метрики вариантов подхватываются A/B-слоем: при выборе winner они обновляют профиль
 обучения, а рекомендации тем строятся в т. ч. по импортированным метрикам. См.
 [39_Botfleet_AB_Testing_Topic_Optimization.md](39_Botfleet_AB_Testing_Topic_Optimization.md).
+
+## Продолжение: worker-предложения (v0.4.3)
+
+Те же сигналы (метрики + обучение) питают worker-предложения экспериментов/тем, которые
+клиент принимает или превращает в A/B без live-публикации. См.
+[40_Botfleet_Worker_Experiment_Suggestions.md](40_Botfleet_Worker_Experiment_Suggestions.md).

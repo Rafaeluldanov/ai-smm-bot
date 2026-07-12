@@ -25,6 +25,7 @@ from app.models.crm_bot_smm import (
     CrmPublishingPlan,
     CrmSmmResource,
 )
+from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.media_asset import MediaAsset
 from app.models.media_asset_variant import MediaAssetVariant
@@ -67,6 +68,7 @@ __all__ = [
     "CrmPromotionCategory",
     "CrmPublishingPlan",
     "CrmSmmResource",
+    "ExperimentSuggestion",
     "ExternalImageCandidate",
     "BillingProfile",
     "MediaAsset",

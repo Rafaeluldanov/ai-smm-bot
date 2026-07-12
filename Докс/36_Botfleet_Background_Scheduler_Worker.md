@@ -112,3 +112,10 @@ Worker делегирует в `ScheduleAutomationService.run_due`, которы
 под safety gates. По умолчанию live выключен — worker по-прежнему создаёт только
 `draft/needs_review`, если гейты не пройдены. Очередь ревью и профиль обучения —
 [37_Botfleet_Review_Learning_Automation.md](37_Botfleet_Review_Learning_Automation.md).
+
+## Продолжение: предложения экспериментов (v0.4.3)
+
+Тик worker-а дополнительно (за флагом `EXPERIMENT_SUGGESTIONS_WORKER_ENABLED`, выключено по
+умолчанию) анализирует проекты целей и **предлагает** эксперименты/темы без live-публикации;
+`SchedulerWorkerTickResult` расширен счётчиками предложений. См.
+[40_Botfleet_Worker_Experiment_Suggestions.md](40_Botfleet_Worker_Experiment_Suggestions.md).

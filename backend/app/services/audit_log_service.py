@@ -112,6 +112,20 @@ ACTION_OPTIMIZATION_RECOMMENDATIONS_GENERATED = "optimization.recommendations.ge
 ACTION_OPTIMIZATION_TOPIC_SELECTED = "optimization.topic.selected"
 ACTION_AB_TEST_PREVIEWED = "ab_test.previewed"
 ACTION_AB_TEST_BLOCKED = "ab_test.blocked"
+# Предложения экспериментов worker-ом (v0.4.3).
+ACTION_EXP_SUGGESTION_PREVIEWED = "experiment_suggestion.previewed"
+ACTION_EXP_SUGGESTION_GENERATED = "experiment_suggestion.generated"
+ACTION_EXP_SUGGESTION_CREATED = "experiment_suggestion.created"
+ACTION_EXP_SUGGESTION_ACCEPTED = "experiment_suggestion.accepted"
+ACTION_EXP_SUGGESTION_REJECTED = "experiment_suggestion.rejected"
+ACTION_EXP_SUGGESTION_DISMISSED = "experiment_suggestion.dismissed"
+ACTION_EXP_SUGGESTION_EXPERIMENT_CREATED = "experiment_suggestion.experiment_created"
+ACTION_EXP_SUGGESTION_FAILED = "experiment_suggestion.failed"
+ACTION_WORKER_EXP_SUGGESTIONS_PREVIEWED = "scheduler.worker.experiment_suggestions.previewed"
+ACTION_WORKER_EXP_SUGGESTIONS_CREATED = "scheduler.worker.experiment_suggestions.created"
+ACTION_WORKER_EXP_SUGGESTIONS_SKIPPED = "scheduler.worker.experiment_suggestions.skipped"
+ACTION_WORKER_EXPERIMENT_CREATED = "scheduler.worker.experiment_created"
+ACTION_WORKER_EXP_SUGGESTIONS_FAILED = "scheduler.worker.experiment_suggestions.failed"
 
 
 class AuditLogService:

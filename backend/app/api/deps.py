@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.services.automation_settings_service import AutomationSettingsService
     from app.services.client_learning_service import ClientLearningService
     from app.services.content_scoring_service import ContentScoringService
+    from app.services.experiment_suggestion_service import ExperimentSuggestionService
     from app.services.metrics_import_service import MetricsImportService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
@@ -223,6 +224,15 @@ def get_ab_testing_service() -> "ABTestingService":
         learning_service=get_client_learning_service(),
         billing_service=get_billing_service(),
         settings=get_settings(),
+    )
+
+
+def get_experiment_suggestion_service() -> "ExperimentSuggestionService":
+    """Построить сервис предложений экспериментов (worker/клиент, без live-публикации)."""
+    from app.services.experiment_suggestion_service import ExperimentSuggestionService
+
+    return ExperimentSuggestionService(
+        billing_service=get_billing_service(), settings=get_settings()
     )
 
 

@@ -287,6 +287,40 @@ class ClientLearningService:
             unique.append(item)
         return unique[:limit]
 
+    def record_suggestion_signal(
+        self,
+        db: Session,
+        project_id: int,
+        topic: str,
+        positive: bool,
+        platform_key: str | None = None,
+    ) -> None:
+        """Лёгкий сигнал обучения по решению о предложении (accept/reject).
+
+        Не создаёт `PostFeedbackEvent` (у предложения нет поста) — мягко и ограниченно
+        двигает профиль: принятая тема → в preferred_topics, отклонённая → в
+        rejected_topics (дедуп, кап). Одно отклонение не «перевешивает» (лишь добавляет
+        тему в список — вес не накапливается).
+        """
+        topic = (topic or "").strip()
+        if not topic:
+            return
+        profile = client_learning_repository.get_or_create_profile(
+            db, project_id, account_id=self._account_id(db, project_id)
+        )
+        preferred = list(profile.preferred_topics or [])
+        rejected = list(profile.rejected_topics or [])
+        lower = topic.lower()
+        if positive:
+            if all(str(t).lower() != lower for t in preferred):
+                preferred = ([topic] + preferred)[:15]
+        else:
+            if all(str(t).lower() != lower for t in rejected):
+                rejected = ([topic] + rejected)[:15]
+        client_learning_repository.update_profile_from_signals(
+            db, profile, preferred_topics=preferred, rejected_topics=rejected
+        )
+
     # ------------------------------------------------------------------ #
     # 6. Сводка для UI «Чему бот научился»                                #
     # ------------------------------------------------------------------ #

@@ -36,6 +36,12 @@ USAGE_TOPIC_OPTIMIZATION = "topic_optimization"
 USAGE_EXPERIMENT_ANALYSIS = "experiment_analysis"
 USAGE_WINNER_SELECTION = "winner_selection"
 
+# Типы usage для предложений экспериментов worker-ом (v0.4.3).
+USAGE_EXPERIMENT_SUGGESTION_GENERATE = "experiment_suggestion_generate"
+USAGE_EXPERIMENT_SUGGESTION_ACCEPT = "experiment_suggestion_accept"
+USAGE_EXPERIMENT_SUGGESTION_CREATE_EXPERIMENT = "experiment_suggestion_create_experiment"
+USAGE_EXPERIMENT_SUGGESTION_WORKER_TICK = "experiment_suggestion_worker_tick"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -62,6 +68,12 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_AB_EXPERIMENT_CREATE: 10,
     USAGE_VARIANT_GENERATION: 5,
     USAGE_EXPERIMENT_ANALYSIS: 5,
+    # v0.4.3: генерация/приём предложений и worker-tick — бесплатно; создание
+    # эксперимента из предложения тарифицируется как обычное создание A/B (см. AB-путь).
+    USAGE_EXPERIMENT_SUGGESTION_GENERATE: 0,
+    USAGE_EXPERIMENT_SUGGESTION_ACCEPT: 0,
+    USAGE_EXPERIMENT_SUGGESTION_WORKER_TICK: 0,
+    USAGE_EXPERIMENT_SUGGESTION_CREATE_EXPERIMENT: 10,
 }
 _DEFAULT_ACTION_COST = 1
 

@@ -148,3 +148,10 @@ make experiment-winner experiment_id=1 method=auto dry_run=true
 Реальная A/B live-доставка · авто-подбор темы в worker (за флагом) · multi-armed bandit ·
 Bayesian/Thompson sampling · платформенно-специфичная оптимизация · production live-auto
 аудит.
+
+## Продолжение: worker-предложения (v0.4.3)
+
+Фоновый worker анализирует проект и **предлагает** эксперименты/темы (клиент принимает/
+отклоняет/создаёт A/B), но не публикует live. Авто-создание A/B worker-ом — за флагом,
+выключено по умолчанию. См.
+[40_Botfleet_Worker_Experiment_Suggestions.md](40_Botfleet_Worker_Experiment_Suggestions.md).
