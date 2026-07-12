@@ -28,6 +28,8 @@ from app.repositories import (
     content_experiment_repository,
     crm_bot_smm_repository,
     experiment_suggestion_repository,
+    media_duplicate_cluster_repository,
+    media_fingerprint_repository,
     media_quality_repository,
     payment_repository,
     post_publication_repository,
@@ -252,6 +254,34 @@ def require_media_quality_access(
     if snapshot is None:
         raise _NOT_FOUND
     _guard_project(db, settings, user, snapshot.project_id)
+
+
+def require_media_fingerprint_access(
+    fingerprint_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к fingerprint медиа (через проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    fingerprint = media_fingerprint_repository.get_by_id(db, fingerprint_id)
+    if fingerprint is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, fingerprint.project_id)
+
+
+def require_media_cluster_access(
+    cluster_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к кластеру дублей медиа (через проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    cluster = media_duplicate_cluster_repository.get_by_id(db, cluster_id)
+    if cluster is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, cluster.project_id)
 
 
 def require_vk_resource_access(

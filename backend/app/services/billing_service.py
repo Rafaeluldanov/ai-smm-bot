@@ -59,6 +59,12 @@ USAGE_MEDIA_QUALITY_PREVIEW = "media_quality_preview"
 USAGE_MEDIA_QUALITY_SCORE = "media_quality_score"
 USAGE_MEDIA_QUALITY_DASHBOARD = "media_quality_dashboard"
 
+# Типы usage для fingerprint/дедупликации медиа (v0.4.7). Все бесплатны в MVP (без внешнего AI).
+USAGE_MEDIA_FINGERPRINT_PREVIEW = "media_fingerprint_preview"
+USAGE_MEDIA_FINGERPRINT_CALCULATE = "media_fingerprint_calculate"
+USAGE_MEDIA_DUPLICATE_PREVIEW = "media_duplicate_preview"
+USAGE_MEDIA_DUPLICATE_CALCULATE = "media_duplicate_calculate"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -104,6 +110,11 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_MEDIA_QUALITY_PREVIEW: 0,
     USAGE_MEDIA_QUALITY_SCORE: 0,
     USAGE_MEDIA_QUALITY_DASHBOARD: 0,
+    # v0.4.7: fingerprint/дедупликация медиа — бесплатно в MVP (без внешнего AI).
+    USAGE_MEDIA_FINGERPRINT_PREVIEW: 0,
+    USAGE_MEDIA_FINGERPRINT_CALCULATE: 0,
+    USAGE_MEDIA_DUPLICATE_PREVIEW: 0,
+    USAGE_MEDIA_DUPLICATE_CALCULATE: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

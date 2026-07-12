@@ -158,6 +158,20 @@ ACTION_MEDIA_QUALITY_DUPLICATE_DETECTED = "media_quality.duplicate_detected"
 ACTION_WORKER_MEDIA_QUALITY_PREVIEWED = "scheduler.worker.media_quality.previewed"
 ACTION_WORKER_MEDIA_QUALITY_SCORED = "scheduler.worker.media_quality.scored"
 ACTION_WORKER_MEDIA_QUALITY_FAILED = "scheduler.worker.media_quality.failed"
+# Fingerprint и дедупликация медиа (v0.4.7).
+ACTION_MEDIA_FINGERPRINT_PREVIEWED = "media_fingerprint.previewed"
+ACTION_MEDIA_FINGERPRINT_CALCULATED = "media_fingerprint.calculated"
+ACTION_MEDIA_FINGERPRINT_FAILED = "media_fingerprint.failed"
+ACTION_MEDIA_DUPLICATE_PREVIEWED = "media_duplicate.previewed"
+ACTION_MEDIA_DUPLICATE_CLUSTER_CREATED = "media_duplicate.cluster_created"
+ACTION_MEDIA_DUPLICATE_REVIEWED = "media_duplicate.reviewed"
+ACTION_MEDIA_DUPLICATE_IGNORED = "media_duplicate.ignored"
+ACTION_MEDIA_DUPLICATE_RESOLVED = "media_duplicate.resolved"
+ACTION_WORKER_MEDIA_FINGERPRINT_PREVIEWED = "scheduler.worker.media_fingerprint.previewed"
+ACTION_WORKER_MEDIA_FINGERPRINT_CREATED = "scheduler.worker.media_fingerprint.created"
+ACTION_WORKER_MEDIA_FINGERPRINT_FAILED = "scheduler.worker.media_fingerprint.failed"
+ACTION_WORKER_DUPLICATE_CLUSTER_PREVIEWED = "scheduler.worker.duplicate_cluster.previewed"
+ACTION_WORKER_DUPLICATE_CLUSTER_CREATED = "scheduler.worker.duplicate_cluster.created"
 
 
 class AuditLogService:

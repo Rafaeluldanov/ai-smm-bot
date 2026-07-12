@@ -29,12 +29,17 @@ from app.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.repositories import project_repository, scheduler_worker_repository
 from app.services.audit_log_service import (
+    ACTION_WORKER_DUPLICATE_CLUSTER_CREATED,
+    ACTION_WORKER_DUPLICATE_CLUSTER_PREVIEWED,
     ACTION_WORKER_LEASE_ACQUIRED,
     ACTION_WORKER_LEASE_SKIPPED,
     ACTION_WORKER_MEDIA_DECISION_CREATED,
     ACTION_WORKER_MEDIA_DECISION_FAILED,
     ACTION_WORKER_MEDIA_DECISION_PREVIEWED,
     ACTION_WORKER_MEDIA_DECISION_SKIPPED,
+    ACTION_WORKER_MEDIA_FINGERPRINT_CREATED,
+    ACTION_WORKER_MEDIA_FINGERPRINT_FAILED,
+    ACTION_WORKER_MEDIA_FINGERPRINT_PREVIEWED,
     ACTION_WORKER_MEDIA_QUALITY_FAILED,
     ACTION_WORKER_MEDIA_QUALITY_PREVIEWED,
     ACTION_WORKER_MEDIA_QUALITY_SCORED,
@@ -113,6 +118,14 @@ class SchedulerWorkerTickResult:
     media_quality_weak_count: int = 0
     media_quality_duplicate_count: int = 0
     media_quality_errors: list[str] = field(default_factory=list)
+    # Fingerprint и дедупликация медиа (v0.4.7). Worker считает хэши/кластеры, но НЕ публикует live.
+    media_fingerprinting_enabled: bool = False
+    media_fingerprinting_dry_run: bool = False
+    media_fingerprints_previewed: int = 0
+    media_fingerprints_created: int = 0
+    duplicate_clusters_previewed: int = 0
+    duplicate_clusters_created: int = 0
+    duplicate_cluster_errors: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     started_at: str | None = None
     finished_at: str | None = None
@@ -140,6 +153,9 @@ class SchedulerWorkerService:
         self._suggestions = suggestion_service
         # v0.4.6: сервис оценки качества медиа (ленивое построение; без внешнего AI/live).
         self._quality: Any | None = None
+        # v0.4.7: сервисы fingerprint/дедупликации медиа (ленивые; без внешнего AI/сети/live).
+        self._fingerprint: Any | None = None
+        self._similarity: Any | None = None
 
     # ------------------------------------------------------------------ #
     # Идентификация                                                      #
@@ -396,6 +412,8 @@ class SchedulerWorkerService:
             self._annotate_media_selection(db, owner_id, effective_dry, result)
             # v0.4.6: оценка качества медиатеки проектов (без внешнего AI/live).
             self._process_media_quality(db, targets, owner_id, effective_dry, result)
+            # v0.4.7: fingerprint + кластеры дублей медиатеки (локально, без AI/сети/live).
+            self._process_media_fingerprints(db, targets, owner_id, effective_dry, result)
         except Exception as exc:  # noqa: BLE001 — тик не роняет процесс
             result.errors.append(f"tick error: {type(exc).__name__}")
             self._audit.record(
@@ -605,6 +623,97 @@ class SchedulerWorkerService:
             )
 
     # ------------------------------------------------------------------ #
+    # Fingerprint и дедупликация медиа (v0.4.7, без внешнего AI/сети/live) #
+    # ------------------------------------------------------------------ #
+
+    def _fingerprint_svc(self) -> Any:
+        if self._fingerprint is None:
+            from app.services.media_fingerprint_service import MediaFingerprintService
+
+            self._fingerprint = MediaFingerprintService(settings=self._settings)
+        return self._fingerprint
+
+    def _similarity_svc(self) -> Any:
+        if self._similarity is None:
+            from app.services.media_similarity_service import MediaSimilarityService
+
+            self._similarity = MediaSimilarityService(settings=self._settings)
+        return self._similarity
+
+    def _process_media_fingerprints(
+        self,
+        db: Session,
+        targets: list[ScheduleWorkerTarget],
+        owner_id: str,
+        schedule_dry_run: bool,
+        result: SchedulerWorkerTickResult,
+    ) -> None:
+        """Считать fingerprint + кластеры дублей медиатеки проектов. Локально, без AI/сети/live.
+
+        Управляется MEDIA_FINGERPRINTING_WORKER_ENABLED (выключено по умолчанию); dry-run =
+        worker dry-run ИЛИ MEDIA_FINGERPRINTING_DRY_RUN.
+        """
+        s = self._settings
+        enabled = s.media_fingerprinting_worker_enabled_effective
+        result.media_fingerprinting_enabled = enabled
+        dry_run = bool(schedule_dry_run or s.media_fingerprinting_dry_run)
+        result.media_fingerprinting_dry_run = dry_run
+        if not enabled:
+            return
+        seen: set[int] = set()
+        for target in targets:
+            if target.project_id in seen:
+                continue
+            seen.add(target.project_id)
+            try:
+                fp_summary = self._fingerprint_svc().calculate_project_fingerprints(
+                    db, target.project_id, dry_run=dry_run
+                )
+                dup_summary = self._similarity_svc().find_duplicate_clusters(
+                    db, target.project_id, dry_run=dry_run
+                )
+            except Exception as exc:  # noqa: BLE001 — расчёт не роняет тик
+                result.duplicate_cluster_errors.append(
+                    f"p{target.project_id}: {type(exc).__name__}"
+                )
+                continue
+            if dry_run:
+                result.media_fingerprints_previewed += int(fp_summary.get("scanned", 0))
+                result.duplicate_clusters_previewed += int(dup_summary.get("clusters_found", 0))
+            else:
+                result.media_fingerprints_created += int(fp_summary.get("created", 0))
+                result.duplicate_clusters_created += int(dup_summary.get("clusters_created", 0))
+        fp_action = (
+            ACTION_WORKER_MEDIA_FINGERPRINT_PREVIEWED
+            if dry_run
+            else ACTION_WORKER_MEDIA_FINGERPRINT_CREATED
+        )
+        dup_action = (
+            ACTION_WORKER_DUPLICATE_CLUSTER_PREVIEWED
+            if dry_run
+            else ACTION_WORKER_DUPLICATE_CLUSTER_CREATED
+        )
+        base_meta = {
+            "owner_id": owner_id,
+            "dry_run": dry_run,
+            "fingerprints_previewed": result.media_fingerprints_previewed,
+            "fingerprints_created": result.media_fingerprints_created,
+            "clusters_previewed": result.duplicate_clusters_previewed,
+            "clusters_created": result.duplicate_clusters_created,
+            "external_ai": False,
+            "live_publish": False,
+        }
+        self._audit.record(db, fp_action, entity_type="scheduler_worker", metadata=base_meta)
+        self._audit.record(db, dup_action, entity_type="scheduler_worker", metadata=base_meta)
+        if result.duplicate_cluster_errors:
+            self._audit.record(
+                db,
+                ACTION_WORKER_MEDIA_FINGERPRINT_FAILED,
+                entity_type="scheduler_worker",
+                metadata={**base_meta, "errors": len(result.duplicate_cluster_errors)},
+            )
+
+    # ------------------------------------------------------------------ #
     # Предложения экспериментов (v0.4.3, без live-публикации)             #
     # ------------------------------------------------------------------ #
 
@@ -768,6 +877,15 @@ class SchedulerWorkerService:
                 "dry_run": s.media_quality_scoring_dry_run,
                 "min_good_score": s.media_quality_min_good_score_safe,
                 "external_ai": s.media_quality_external_ai_enabled,
+                "live_publish": False,
+            },
+            "media_fingerprinting": {
+                "enabled": s.media_fingerprinting_enabled_effective,
+                "worker_enabled": s.media_fingerprinting_worker_enabled_effective,
+                "dry_run": s.media_fingerprinting_dry_run,
+                "external_ai": s.media_fingerprinting_external_ai_enabled,
+                "yandex_download": s.media_fingerprinting_use_yandex_download,
+                "auto_delete": s.media_duplicate_auto_delete_enabled,
                 "live_publish": False,
             },
             "lease": self._mask_lease(lease),

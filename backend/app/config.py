@@ -302,6 +302,27 @@ class Settings(BaseSettings):
     media_quality_auto_retags_enabled: bool = False
     media_quality_external_ai_enabled: bool = False
 
+    # --- Fingerprint и дедупликация медиа (v0.4.7) ---
+    # Безопасные локальные fingerprint (sha256/perceptual/average/difference hash + сигнатуры)
+    # и кластеры дублей. БЕЗ внешнего AI/vision, БЕЗ сети по умолчанию (Yandex-скачивание
+    # выключено), БЕЗ авто-удаления/скрытия. Fingerprint worker-ом ВЫКЛЮЧЕН по умолчанию; dry-run.
+    media_fingerprinting_enabled: bool = True
+    media_fingerprinting_worker_enabled: bool = False
+    media_fingerprinting_dry_run: bool = True
+    media_fingerprinting_max_assets_per_run: int = 200
+    media_fingerprinting_use_image_bytes: bool = True
+    media_fingerprinting_use_variants: bool = True
+    media_fingerprinting_use_yandex_download: bool = False
+    media_fingerprinting_external_ai_enabled: bool = False
+    media_similarity_dedup_enabled: bool = True
+    media_similarity_exact_hash_threshold: float = 1.0
+    media_similarity_near_hash_distance: int = 6
+    media_similarity_tag_weight: float = 0.2
+    media_similarity_visual_weight: float = 0.8
+    media_duplicate_cluster_min_score: float = 0.82
+    media_duplicate_auto_hide_enabled: bool = False
+    media_duplicate_auto_delete_enabled: bool = False
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -616,6 +637,41 @@ class Settings(BaseSettings):
     def media_quality_fatigue_window_days_safe(self) -> int:
         """Окно усталости медиа (не отрицательное)."""
         return max(1, int(self.media_quality_fatigue_window_days or 1))
+
+    # --- Fingerprint/дедупликация медиа: производные свойства (v0.4.7) ---
+
+    @property
+    def media_fingerprinting_enabled_effective(self) -> bool:
+        """Доступен ли fingerprint медиа (preview/UI/API/CLI)."""
+        return bool(self.media_fingerprinting_enabled)
+
+    @property
+    def media_fingerprinting_worker_enabled_effective(self) -> bool:
+        """Может ли worker сам считать fingerprint/кластеры (по умолчанию false).
+
+        Даже при true — локальные хэши, без внешнего AI, без сети по умолчанию, без удаления.
+        """
+        return bool(self.media_fingerprinting_enabled and self.media_fingerprinting_worker_enabled)
+
+    @property
+    def media_fingerprinting_dry_run_effective(self) -> bool:
+        """Dry-run fingerprint (по умолчанию true — без записи)."""
+        return bool(self.media_fingerprinting_dry_run)
+
+    @property
+    def media_fingerprinting_max_assets_per_run_safe(self) -> int:
+        """Максимум ассетов за один прогон fingerprint (не отрицательное)."""
+        return max(1, int(self.media_fingerprinting_max_assets_per_run or 1))
+
+    @property
+    def media_similarity_near_hash_distance_safe(self) -> int:
+        """Порог hamming-дистанции для «похожих» (безопасные границы [1..32])."""
+        return max(1, min(32, int(self.media_similarity_near_hash_distance or 1)))
+
+    @property
+    def media_duplicate_cluster_min_score_safe(self) -> float:
+        """Минимальный similarity для кластера дублей в границах [0..1]."""
+        return max(0.0, min(1.0, float(self.media_duplicate_cluster_min_score or 0.0)))
 
     # --- Auth / session: производные (effective) свойства ---
 

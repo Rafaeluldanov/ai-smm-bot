@@ -29,6 +29,8 @@ from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.media_asset import MediaAsset
 from app.models.media_asset_variant import MediaAssetVariant
+from app.models.media_duplicate_cluster import MediaDuplicateCluster
+from app.models.media_fingerprint import MediaFingerprint
 from app.models.media_quality_snapshot import MediaQualitySnapshot
 from app.models.metric_import_run import MetricImportRun
 from app.models.payment import (
@@ -78,6 +80,8 @@ __all__ = [
     "BillingProfile",
     "MediaAsset",
     "MediaAssetVariant",
+    "MediaDuplicateCluster",
+    "MediaFingerprint",
     "MediaQualitySnapshot",
     "MetricImportRun",
     "PaymentInvoice",

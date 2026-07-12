@@ -216,6 +216,21 @@ media-quality-score: ## Оценить качество медиа (dry-run по
 media-quality-dashboard: ## Сводка качества медиа: make media-quality-dashboard project_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_quality_dashboard --project-id "$(project_id)" --platform "$(or $(platform),all)"
 
+media-fingerprint-preview: ## Предпросмотр fingerprint медиа: make media-fingerprint-preview project_id=1 [limit=50]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_fingerprint_preview --project-id "$(project_id)" --limit "$(or $(limit),50)"
+
+media-fingerprint-calculate: ## Рассчитать fingerprint медиа (dry-run по умолчанию): make media-fingerprint-calculate project_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_fingerprint_calculate --project-id "$(project_id)" --limit "$(or $(limit),100)" --dry-run "$(or $(dry_run),true)"
+
+media-duplicate-preview: ## Предпросмотр кластеров дублей: make media-duplicate-preview project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_duplicate_preview --project-id "$(project_id)"
+
+media-duplicate-calculate: ## Построить кластеры дублей (dry-run по умолчанию): make media-duplicate-calculate project_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_duplicate_calculate --project-id "$(project_id)" --dry-run "$(or $(dry_run),true)"
+
+media-duplicate-dashboard: ## Сводка дублей медиа: make media-duplicate-dashboard project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_duplicate_dashboard --project-id "$(project_id)"
+
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
 

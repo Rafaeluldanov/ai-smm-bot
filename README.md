@@ -1802,3 +1802,17 @@ AI** (`MEDIA_QUALITY_EXTERNAL_AI_ENABLED=false`) и **без live-публика
 умолчанию); авто-ретегирование выключено. Клиент видит качество медиатеки на
 `/ui/projects/{id}/media-quality`. Подробно —
 [Докс/43_Botfleet_Media_Quality_Scoring.md](./Докс/43_Botfleet_Media_Quality_Scoring.md).
+
+## Fingerprint медиа и визуальная дедупликация (v0.4.7)
+
+Botfleet находит визуально похожие и дублирующиеся медиа по **безопасным локальным
+fingerprint** (file sha256 + **perceptual/average/difference hash** + color/metadata/tag
+signature, через Pillow) и группирует их в **кластеры дублей** (`MediaFingerprint`,
+`MediaDuplicateCluster`) с canonical-ассетом и рекомендациями. Оценка качества использует это
+для `uniqueness_score` (точный/почти-дубль/серия), а автовыбор медиа **не берёт почти-одинаковые
+фото в media_group** и пишет `diversity_score` в `generation_notes`. Всё — **локально, без
+внешнего AI/vision** (`MEDIA_FINGERPRINTING_EXTERNAL_AI_ENABLED=false`), **без сети** по
+умолчанию (`MEDIA_FINGERPRINTING_USE_YANDEX_DOWNLOAD=false`), **без live-публикаций** и **без
+удаления файлов** (`MEDIA_DUPLICATE_AUTO_DELETE_ENABLED=false`); fingerprint worker-ом выключен
+по умолчанию (dry-run). Клиент видит дубли на `/ui/projects/{id}/media-duplicates`. Подробно —
+[Докс/44_Botfleet_Media_Fingerprints_Dedup.md](./Докс/44_Botfleet_Media_Fingerprints_Dedup.md).

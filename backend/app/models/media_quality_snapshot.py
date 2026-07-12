@@ -45,6 +45,9 @@ MEDIA_QUALITY_ISSUES: tuple[str, ...] = (
     "instagram_public_url_required",
     "media_proxy_not_ready",
     "internal_path_only",
+    # v0.4.7: визуальная похожесть (fingerprint/dedup).
+    "visually_similar",
+    "same_series",
 )
 MEDIA_QUALITY_SIGNAL_SOURCES: tuple[str, ...] = (
     "metadata",

@@ -277,6 +277,13 @@ class MediaQualityService:
         duplicate_candidates = (
             self.find_duplicate_candidates(db, media_asset) if detect_duplicates else []
         )
+        # v0.4.7: визуальная похожесть по сохранённым fingerprint/кластерам дублей.
+        visual_type, visual_members = (
+            self._visual_similarity(db, project_id, media_asset)
+            if detect_duplicates
+            else (None, [])
+        )
+        merged_dupes = sorted(set(duplicate_candidates) | set(visual_members))
 
         return {
             "project_id": project_id,
@@ -300,9 +307,49 @@ class MediaQualityService:
             "file_size": getattr(variant, "file_size", None),
             "recent_usage_count": recent_usage_count,
             "last_used_at": last_used_at,
-            "duplicate_candidates": duplicate_candidates,
+            "duplicate_candidates": merged_dupes,
+            "visual_similarity_type": visual_type,
             "media_proxy_ready": self._media_proxy_ready(),
         }
+
+    def _visual_similarity(
+        self, db: Session, project_id: int, media_asset: Any
+    ) -> tuple[str | None, list[int]]:
+        """Визуальные дубли по сохранённым fingerprint/кластерам (v0.4.7). Без inline-расчёта."""
+        s = self._resolve_settings()
+        if not getattr(s, "media_fingerprinting_enabled_effective", False):
+            return None, []
+        from app.repositories import (
+            media_duplicate_cluster_repository,
+            media_fingerprint_repository,
+        )
+
+        members: set[int] = set()
+        visual_type: str | None = None
+        fp = media_fingerprint_repository.get_latest_for_asset(db, project_id, media_asset.id)
+        if fp is not None and fp.file_sha256:
+            for other in media_fingerprint_repository.list_by_sha256(
+                db, project_id, fp.file_sha256
+            ):
+                if other.media_asset_id != media_asset.id:
+                    members.add(other.media_asset_id)
+                    visual_type = "exact_duplicate"
+        if fp is not None and fp.perceptual_hash:
+            for other in media_fingerprint_repository.list_by_perceptual_hash(
+                db, project_id, fp.perceptual_hash
+            ):
+                if other.media_asset_id != media_asset.id:
+                    members.add(other.media_asset_id)
+                    visual_type = visual_type or "near_duplicate"
+        cluster = media_duplicate_cluster_repository.find_cluster_for_media_asset(
+            db, project_id, media_asset.id
+        )
+        if cluster is not None:
+            for mid in cluster.member_media_asset_ids or []:
+                if mid != media_asset.id:
+                    members.add(mid)
+            visual_type = visual_type or cluster.cluster_type
+        return visual_type, sorted(members)
 
     # ------------------------------------------------------------------ #
     # 4-9. Скоринг измерений                                              #
@@ -386,7 +433,17 @@ class MediaQualityService:
 
     @staticmethod
     def calculate_uniqueness_score(features: dict[str, Any]) -> int:
-        """Уникальность: дубликаты штрафуются, уникальные файл/путь/теги — высоко. 0..100."""
+        """Уникальность: визуальные дубли/серии штрафуются, уникальные — высоко. 0..100.
+
+        v0.4.7: учитывает визуальную похожесть (visual_similarity_type) поверх метаданных.
+        """
+        visual = features.get("visual_similarity_type")
+        if visual in ("exact_duplicate", "same_yandex_path"):
+            return 25  # точный дубль — очень низкая уникальность
+        if visual in ("near_duplicate", "visually_similar", "heic_jpeg_pair"):
+            return 45  # почти дубль — средне-низкая
+        if visual in ("same_series", "same_tag_signature", "same_file_name"):
+            return 70  # однотипная серия — лёгкий штраф
         dups = features.get("duplicate_candidates") or []
         if not dups:
             return 90 if features["has_yandex_path"] else 80
@@ -455,7 +512,15 @@ class MediaQualityService:
             issues.append("missing_technology_tags")
         if int(features.get("recent_usage_count") or 0) >= 1:
             issues.append("recently_used")
-        if features.get("duplicate_candidates"):
+        # v0.4.7: визуальная похожесть уточняет тип проблемы дублей.
+        visual = features.get("visual_similarity_type")
+        if visual in ("exact_duplicate", "near_duplicate", "same_yandex_path", "heic_jpeg_pair"):
+            issues.append("duplicate_candidate")
+        elif visual == "visually_similar":
+            issues.append("visually_similar")
+        elif visual in ("same_series", "same_tag_signature", "same_file_name"):
+            issues.append("same_series")
+        elif features.get("duplicate_candidates"):
             issues.append("duplicate_candidate")
         if relevance < 50:
             issues.append("weak_topic_match")
@@ -508,7 +573,11 @@ class MediaQualityService:
         if "recently_used" in issue_set:
             actions.append("Медиа недавно использовалось — не повторяйте в ближайшее время.")
         if "duplicate_candidate" in issue_set:
-            actions.append("Похоже на дубль — проверьте медиатеку и уберите повтор.")
+            actions.append("Похоже на дубль — оставьте canonical, остальное скройте/замените.")
+        if "visually_similar" in issue_set:
+            actions.append("Есть визуально похожие фото — выберите другое для разнообразия.")
+        if "same_series" in issue_set:
+            actions.append("Однотипная серия — объедините или добавьте различающие теги.")
         if "instagram_public_url_required" in issue_set or "media_proxy_not_ready" in issue_set:
             actions.append("Для Instagram подготовьте public image_url (media proxy).")
         if "internal_path_only" in issue_set:

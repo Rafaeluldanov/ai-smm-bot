@@ -104,4 +104,7 @@ make media-proxy-cleanup dry_run=true
 - реальные метрики внешних API — отдельным этапом;
 - движок автоматизации расписаний (v0.3.8) для Instagram-черновиков отмечает
   `needs_public_image_url` в generation_notes — см.
-  [35_Botfleet_Schedule_Automation_Engine.md](35_Botfleet_Schedule_Automation_Engine.md).
+  [35_Botfleet_Schedule_Automation_Engine.md](35_Botfleet_Schedule_Automation_Engine.md);
+- визуальная дедупликация (v0.4.7) считает fingerprint из **локальных** байтов enhanced-
+  вариантов; Yandex-скачивание для fingerprint по умолчанию выключено (без сети) — см.
+  [44_Botfleet_Media_Fingerprints_Dedup.md](44_Botfleet_Media_Fingerprints_Dedup.md).

@@ -11,7 +11,9 @@ if TYPE_CHECKING:
     from app.services.client_learning_service import ClientLearningService
     from app.services.content_scoring_service import ContentScoringService
     from app.services.experiment_suggestion_service import ExperimentSuggestionService
+    from app.services.media_fingerprint_service import MediaFingerprintService
     from app.services.media_quality_service import MediaQualityService
+    from app.services.media_similarity_service import MediaSimilarityService
     from app.services.metrics_import_service import MetricsImportService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
@@ -262,6 +264,20 @@ def get_media_quality_service() -> "MediaQualityService":
     from app.services.media_quality_service import MediaQualityService
 
     return MediaQualityService(settings=get_settings())
+
+
+def get_media_fingerprint_service() -> "MediaFingerprintService":
+    """Построить сервис fingerprint медиа (локальные хэши; без внешнего AI/сети/live)."""
+    from app.services.media_fingerprint_service import MediaFingerprintService
+
+    return MediaFingerprintService(settings=get_settings())
+
+
+def get_media_similarity_service() -> "MediaSimilarityService":
+    """Построить сервис похожести/дедупликации медиа (в пределах проекта; без внешнего AI)."""
+    from app.services.media_similarity_service import MediaSimilarityService
+
+    return MediaSimilarityService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":

@@ -85,6 +85,8 @@ class ScheduleMediaDecisionService:
         self._audit = audit_service
         # v0.4.6: оценка качества медиа (правило-ориентированная, без внешнего AI). Ленивая.
         self._quality = quality_service
+        # v0.4.7: похожесть/дедупликация медиа (fingerprint-based). Ленивая.
+        self._similarity: Any | None = None
         self._settings = settings
 
     # ------------------------------------------------------------------ #
@@ -236,6 +238,8 @@ class ScheduleMediaDecisionService:
         images, videos, scored = self.build_media_candidates(
             db, project_id, platform_key, topic_decision, category, context
         )
+        # v0.4.7: не выбирать почти одинаковые фото в media_group (при наличии альтернатив).
+        images, diversity_info = self._diversify_images(db, project_id, images)
         strategy, chosen, source, strat_reasons = self.choose_strategy(
             platform_key, images, videos, topic_decision, context
         )
@@ -259,6 +263,16 @@ class ScheduleMediaDecisionService:
         if quality_summary.get("weak_selected_count") and quality_summary["selected_media_scores"]:
             reasons.append("Внимание: среди выбранных есть медиа ниже порога качества.")
         risks = self._augment_quality_risks(risks, quality_summary)
+        # v0.4.7: сводка разнообразия/дублей выбранных медиа + risk-флаги.
+        diversity_summary = self._media_diversity_summary(
+            db, project_id, chosen, strategy, diversity_info, context
+        )
+        risks = self._augment_diversity_risks(risks, diversity_summary, strategy)
+        if diversity_summary.get("similar_media_skipped_count"):
+            reasons.append(
+                f"Пропущено похожих фото: {diversity_summary['similar_media_skipped_count']} "
+                "(для разнообразия подборки)."
+            )
         return {
             "project_id": project_id,
             "platform_key": platform_key,
@@ -280,6 +294,7 @@ class ScheduleMediaDecisionService:
             "risk_flags": risks,
             "reasons": reasons[:8],
             "media_quality_summary": quality_summary,
+            "media_diversity_summary": diversity_summary,
             "decision_metadata": {
                 "candidate_count": len(scored),
                 "image_candidates": len(images),
@@ -287,8 +302,111 @@ class ScheduleMediaDecisionService:
                 "min_confidence": self._min_confidence(),
                 "max_images": self._max_images(platform_key),
                 "media_quality_summary": quality_summary,
+                "media_diversity_summary": diversity_summary,
             },
         }
+
+    def _diversify_images(
+        self, db: Session, project_id: int, images: list[dict[str, Any]]
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """Убрать почти-дубли из пула изображений (жадно, canonical/лучший первым). v0.4.7."""
+        if not self._diversity_enabled() or len(images) <= 1:
+            return images, {"skipped": 0, "warnings": []}
+        diverse: list[dict[str, Any]] = []
+        skipped = 0
+        warnings: list[str] = []
+        cache: dict[int, Any] = {}
+        for cand in images:
+            dup_of = None
+            for kept in diverse:
+                if self._assets_similar(db, project_id, cand["id"], kept["id"], cache):
+                    dup_of = kept["id"]
+                    break
+            if dup_of is not None:
+                skipped += 1
+                warnings.append(f"Похоже на уже выбранное медиа #{dup_of} — пропущено.")
+            else:
+                diverse.append(cand)
+        return diverse, {"skipped": skipped, "warnings": warnings[:6]}
+
+    def _assets_similar(
+        self, db: Session, project_id: int, asset_a: int, asset_b: int, cache: dict[int, Any]
+    ) -> bool:
+        """Похожи ли два ассета по fingerprint/кластеру (в пределах проекта)."""
+        from app.repositories import (
+            media_duplicate_cluster_repository,
+            media_fingerprint_repository,
+        )
+
+        cluster = media_duplicate_cluster_repository.find_cluster_for_media_asset(
+            db, project_id, asset_a
+        )
+        if cluster is not None and asset_b in (cluster.member_media_asset_ids or []):
+            return True
+        if asset_a not in cache:
+            cache[asset_a] = media_fingerprint_repository.get_latest_for_asset(
+                db, project_id, asset_a
+            )
+        if asset_b not in cache:
+            cache[asset_b] = media_fingerprint_repository.get_latest_for_asset(
+                db, project_id, asset_b
+            )
+        fpa, fpb = cache[asset_a], cache[asset_b]
+        if fpa is None or fpb is None:
+            return False
+        cmp = self._similarity_svc().compare_fingerprints(fpa, fpb)
+        return bool(cmp["similarity_score"] >= self._diversity_threshold())
+
+    def _media_diversity_summary(
+        self,
+        db: Session,
+        project_id: int,
+        chosen: list[dict[str, Any]],
+        strategy: str,
+        diversity_info: dict[str, Any],
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Свод разнообразия: diversity_score, пропущенные похожие, кластеры, предупреждения."""
+        from app.repositories import media_duplicate_cluster_repository
+
+        skipped = int(diversity_info.get("skipped", 0))
+        cluster_ids: set[int] = set()
+        similar_recent = False
+        recent = context.get("recent_media_ids") or set()
+        for cand in chosen:
+            cluster = media_duplicate_cluster_repository.find_cluster_for_media_asset(
+                db, project_id, cand["id"]
+            )
+            if cluster is not None:
+                cluster_ids.add(cluster.id)
+                if any(mid in recent for mid in (cluster.member_media_asset_ids or [])):
+                    similar_recent = True
+        chosen_n = len(chosen)
+        diversity_score = round(chosen_n / max(1, chosen_n + skipped), 3)
+        return {
+            "diversity_score": diversity_score,
+            "similar_media_skipped_count": skipped,
+            "duplicate_cluster_ids": sorted(cluster_ids),
+            "selected_similarity_warnings": list(diversity_info.get("warnings", []))[:6],
+            "similar_media_recently_used": similar_recent,
+        }
+
+    @staticmethod
+    def _augment_diversity_risks(
+        risks: list[str], diversity_summary: dict[str, Any], strategy: str
+    ) -> list[str]:
+        """Добавить risk-флаги разнообразия/дублей."""
+        out = list(risks)
+        if diversity_summary.get("duplicate_cluster_ids"):
+            out.append("duplicate_candidate")
+        if strategy in ("media_group", "carousel_ready") and (
+            diversity_summary.get("similar_media_skipped_count")
+            and diversity_summary.get("diversity_score", 1.0) < 0.75
+        ):
+            out.append("low_diversity_media_group")
+        if diversity_summary.get("similar_media_recently_used"):
+            out.append("similar_media_recently_used")
+        return list(dict.fromkeys(out))
 
     def _media_quality_summary(self, chosen: list[dict[str, Any]]) -> dict[str, Any]:
         """Свод качества выбранных медиа (v0.4.6): баллы, слабые, дубли, общие проблемы."""
@@ -545,6 +663,7 @@ class ScheduleMediaDecisionService:
                 "media_decision_risk_flags": (decision.get("risk_flags") or [])[:8],
                 "needs_public_image_url": bool(decision.get("needs_public_image_url")),
                 "media_quality_summary": decision.get("media_quality_summary") or {},
+                "media_diversity_summary": decision.get("media_diversity_summary") or {},
             }
         )
         payload["generation_notes"] = notes
@@ -855,6 +974,9 @@ class ScheduleMediaDecisionService:
             "media_quality_summary": (decision.decision_metadata or {}).get(
                 "media_quality_summary", {}
             ),
+            "media_diversity_summary": (decision.decision_metadata or {}).get(
+                "media_diversity_summary", {}
+            ),
             "created_at": decision.created_at.isoformat() if decision.created_at else None,
         }
 
@@ -944,6 +1066,18 @@ class ScheduleMediaDecisionService:
     def _min_good_quality(self) -> int:
         return int(getattr(self._resolve_settings(), "media_quality_min_good_score_safe", 70))
 
+    def _diversity_enabled(self) -> bool:
+        s = self._resolve_settings()
+        return bool(
+            getattr(s, "media_fingerprinting_enabled_effective", False)
+            and getattr(s, "media_similarity_dedup_enabled", True)
+        )
+
+    def _diversity_threshold(self) -> float:
+        return float(
+            getattr(self._resolve_settings(), "media_duplicate_cluster_min_score_safe", 0.82)
+        )
+
     # --- Ленивые зависимости ---
 
     def _quality_svc(self) -> Any:
@@ -952,6 +1086,13 @@ class ScheduleMediaDecisionService:
 
             self._quality = MediaQualityService(settings=self._settings)
         return self._quality
+
+    def _similarity_svc(self) -> Any:
+        if self._similarity is None:
+            from app.services.media_similarity_service import MediaSimilarityService
+
+            self._similarity = MediaSimilarityService(settings=self._settings)
+        return self._similarity
 
     def _learning_svc(self) -> ClientLearningService:
         if self._learning is None:
