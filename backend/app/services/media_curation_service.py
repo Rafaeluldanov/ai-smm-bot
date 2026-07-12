@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
+from app.models.media_curation_task import MEDIA_CURATION_APPROVAL_REQUIRED_ACTIONS
 from app.repositories import (
     media_asset_repository,
     media_curation_repository,
@@ -130,6 +131,8 @@ class MediaCurationService:
                 fingerprint_id=payload.get("fingerprint_id"),
                 task_type=payload["task_type"],
                 status="proposed",
+                review_status="proposed",
+                priority=self._default_priority(),
                 title=payload["title"],
                 reason=payload.get("reason"),
                 suggested_action=payload.get("suggested_action"),
@@ -338,6 +341,17 @@ class MediaCurationService:
             raise MediaCurationError("Задача не найдена")
         if task.status in ("applied", "rejected", "ignored"):
             return {**self._task_view(task), "outcome": "already_final"}
+        # Гейт согласования (v0.4.9): изменяющие медиа действия — только после approved.
+        if (
+            action in MEDIA_CURATION_APPROVAL_REQUIRED_ACTIONS
+            and self._require_approval()
+            and task.review_status != "approved"
+        ):
+            return {
+                **self._task_view(task),
+                "outcome": "requires_approval",
+                "blocked": True,
+            }
         project_id = task.project_id
 
         if action == "approve_tags":
@@ -600,6 +614,15 @@ class MediaCurationService:
             "risk_flags": list(task.risk_flags or []),
             "confidence_score": round(task.confidence_score, 3),
             "created_at": task.created_at.isoformat() if task.created_at else None,
+            # Collaborative review (v0.4.9): безопасные поля согласования.
+            "review_status": getattr(task, "review_status", "proposed"),
+            "priority": getattr(task, "priority", "normal"),
+            "assignee_user_id": getattr(task, "assignee_user_id", None),
+            "reviewer_user_id": getattr(task, "reviewer_user_id", None),
+            "due_at": task.due_at.isoformat() if getattr(task, "due_at", None) else None,
+            "approved_at": (
+                task.approved_at.isoformat() if getattr(task, "approved_at", None) else None
+            ),
         }
 
     @staticmethod
@@ -632,6 +655,24 @@ class MediaCurationService:
 
     def _min_good(self) -> int:
         return int(getattr(self._resolve_settings(), "media_quality_min_good_score_safe", 70))
+
+    def _require_approval(self) -> bool:
+        """Требуется ли approved перед применением изменений (v0.4.9)."""
+        return bool(
+            getattr(
+                self._resolve_settings(),
+                "media_curation_review_require_approval_effective",
+                True,
+            )
+        )
+
+    def _default_priority(self) -> str:
+        """Приоритет новой задачи по умолчанию (v0.4.9)."""
+        return str(
+            getattr(
+                self._resolve_settings(), "media_curation_review_default_priority_safe", "normal"
+            )
+        )
 
     def _use_fingerprints(self) -> bool:
         return bool(getattr(self._resolve_settings(), "media_curation_use_fingerprints", True))

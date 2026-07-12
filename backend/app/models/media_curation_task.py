@@ -77,6 +77,78 @@ TAG_SUGGESTION_SOURCES: tuple[str, ...] = (
     "manual",
 )
 
+# --- Термины collaborative review (v0.4.9): единые перечисления (Часть 1). --- #
+# review_status — отдельное измерение workflow согласования (не путать со ``status``:
+# ``status`` — жизненный цикл самой задачи курирования, ``review_status`` — согласование).
+MEDIA_CURATION_REVIEW_STATUSES: tuple[str, ...] = (
+    "proposed",
+    "assigned",
+    "in_review",
+    "changes_requested",
+    "approved",
+    "rejected",
+    "applied",
+    "ignored",
+    "restored",
+    "expired",
+    "failed",
+)
+MEDIA_CURATION_REVIEW_ACTIONS: tuple[str, ...] = (
+    "assign",
+    "unassign",
+    "start_review",
+    "comment",
+    "request_changes",
+    "approve",
+    "reject",
+    "apply",
+    "ignore",
+    "restore",
+    "expire",
+)
+MEDIA_CURATION_PRIORITIES: tuple[str, ...] = ("low", "normal", "high", "urgent")
+# Порядок сортировки приоритетов (больше — важнее).
+MEDIA_CURATION_PRIORITY_ORDER: dict[str, int] = {
+    "urgent": 3,
+    "high": 2,
+    "normal": 1,
+    "low": 0,
+}
+MEDIA_CURATION_DECISION_TYPES: tuple[str, ...] = (
+    "approve_tags",
+    "reject_tags",
+    "mark_duplicate",
+    "keep_canonical",
+    "hide_from_selection",
+    "restore_to_selection",
+    "ignore_cluster",
+    "request_replacement",
+    "mark_reviewed",
+)
+# Роли участников процесса ревью (доступ фактически проверяют tenant-гарды проекта).
+MEDIA_CURATION_REVIEW_ROLES: tuple[str, ...] = (
+    "owner",
+    "admin",
+    "member",
+    "viewer",
+    "reviewer",
+)
+# Действия apply, изменяющие медиа (теги/видимость) — разрешены ТОЛЬКО после approved.
+MEDIA_CURATION_APPROVAL_REQUIRED_ACTIONS: tuple[str, ...] = (
+    "approve_tags",
+    "mark_duplicate",
+    "hide_from_selection",
+)
+# Типы комментариев.
+MEDIA_CURATION_COMMENT_TYPES: tuple[str, ...] = (
+    "comment",
+    "decision",
+    "system",
+    "request_changes",
+    "approval",
+    "rejection",
+)
+
 
 class MediaCurationTask(Base, TimestampMixin):
     """Задача курирования медиатеки (proposed → accepted/applied/rejected/ignored). Без удаления."""
@@ -144,3 +216,27 @@ class MediaCurationTask(Base, TimestampMixin):
         String(255), unique=True, index=True, default=None
     )
     task_metadata: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)
+
+    # --- Collaborative review workflow (v0.4.9) --- #
+    review_status: Mapped[str] = mapped_column(
+        String(30), index=True, default="proposed", nullable=False
+    )
+    priority: Mapped[str] = mapped_column(String(20), index=True, default="normal", nullable=False)
+    assignee_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, default=None
+    )
+    reviewer_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True, default=None
+    )
+    due_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True, default=None
+    )
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=None)
+    changes_requested_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )
+    decision_summary: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)
+    before_state: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)
+    after_state: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)
+    review_metadata: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)

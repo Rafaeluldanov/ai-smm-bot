@@ -70,6 +70,11 @@ USAGE_MEDIA_CURATION_PREVIEW = "media_curation_preview"
 USAGE_MEDIA_CURATION_GENERATE = "media_curation_generate"
 USAGE_MEDIA_CURATION_APPLY = "media_curation_apply"
 
+# Типы usage для collaborative review медиатеки (v0.4.9). Бесплатны в MVP.
+USAGE_MEDIA_CURATION_REVIEW_COMMENT = "media_curation_review_comment"
+USAGE_MEDIA_CURATION_REVIEW_APPROVE = "media_curation_review_approve"
+USAGE_MEDIA_CURATION_REVIEW_APPLY = "media_curation_review_apply"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -124,6 +129,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_MEDIA_CURATION_PREVIEW: 0,
     USAGE_MEDIA_CURATION_GENERATE: 0,
     USAGE_MEDIA_CURATION_APPLY: 0,
+    # v0.4.9: collaborative review медиатеки — бесплатно в MVP (комментарии/approve/apply).
+    USAGE_MEDIA_CURATION_REVIEW_COMMENT: 0,
+    USAGE_MEDIA_CURATION_REVIEW_APPROVE: 0,
+    USAGE_MEDIA_CURATION_REVIEW_APPLY: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

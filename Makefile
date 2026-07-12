@@ -30,6 +30,8 @@ BIN := $(VENV)/bin
         billing-balance billing-topup \
         prod-check security-readiness backup-db restore-db \
         admin-create-user admin-grant-role audit-export \
+        media-curation-review-dashboard media-curation-review-comment \
+        media-curation-review-approve media-curation-review-apply \
         smoke
 
 help: ## Показать список команд
@@ -242,6 +244,18 @@ media-curation-apply: ## Применить задачу курирования 
 
 media-curation-dashboard: ## Сводка курирования медиатеки: make media-curation-dashboard project_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_dashboard --project-id "$(project_id)"
+
+media-curation-review-dashboard: ## Сводка доски ревью медиатеки: make media-curation-review-dashboard project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_review_dashboard --project-id "$(project_id)"
+
+media-curation-review-comment: ## Комментарий к задаче ревью (dry-run по умолчанию): make media-curation-review-comment task_id=1 comment="..." [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_review_comment --task-id "$(task_id)" --comment "$(comment)" --dry-run "$(or $(dry_run),true)"
+
+media-curation-review-approve: ## Одобрить задачу ревью (dry-run по умолчанию): make media-curation-review-approve task_id=1 [comment="..."] [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_review_approve --task-id "$(task_id)" $(if $(comment),--comment "$(comment)",) --dry-run "$(or $(dry_run),true)"
+
+media-curation-review-apply: ## Применить одобренную задачу ревью (dry-run по умолчанию): make media-curation-review-apply task_id=1 action=approve_tags [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_curation_review_apply --task-id "$(task_id)" --action "$(or $(action),mark_reviewed)" --dry-run "$(or $(dry_run),true)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

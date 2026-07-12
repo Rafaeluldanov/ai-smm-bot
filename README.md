@@ -1829,3 +1829,20 @@ signature, через Pillow) и группирует их в **кластеры
 worker-ом выключено по умолчанию (dry-run). Клиент работает на
 `/ui/projects/{id}/media-curation`. Подробно —
 [Докс/45_Botfleet_Media_Curation_Workflow.md](./Докс/45_Botfleet_Media_Curation_Workflow.md).
+
+## Ревью медиатеки (collaborative review, v0.4.9)
+
+Медиатека курируется не одним человеком, а через полноценный **workflow согласования**: задачи
+на проверку получают статус согласования (`review_status`: `proposed → assigned → in_review →
+changes_requested → approved → applied` и др.), **ответственного** (`assignee`/`reviewer`),
+**приоритет** и **срок** (`due_at`), **комментарии** и **историю решений** (timeline: кто
+предложил/одобрил/отклонил/применил, теги и видимость до/после). Ключевое правило —
+**approve-before-apply**: изменяющие медиа действия (`approve_tags`, `mark_duplicate`,
+`hide_from_selection`) применяются **только после `approved`** (`MEDIA_CURATION_REVIEW_REQUIRE_APPROVAL=true`);
+double-apply запрещён; `reject`/`ignore` ничего не применяют; `restore` возвращает медиа в
+подбор. **Файлы никогда не удаляются**, авто-применение и уведомления выключены
+(`MEDIA_CURATION_REVIEW_AUTO_APPLY_AFTER_APPROVAL=false`, `MEDIA_CURATION_REVIEW_NOTIFY_ENABLED=false`),
+внешнего AI нет (`MEDIA_CURATION_REVIEW_EXTERNAL_AI_ENABLED=false`), live-публикаций/реальных
+платежей нет. Комментарии/approve/apply **бесплатны** в MVP. Доска ревью —
+`/ui/projects/{id}/media-curation-review`. Подробно —
+[Докс/46_Botfleet_Media_Curation_Review.md](./Докс/46_Botfleet_Media_Curation_Review.md).

@@ -65,7 +65,9 @@ def _seed(db: Session, slug: str):  # noqa: ANN202
 
 
 def _svc() -> MediaCurationService:
-    return MediaCurationService(settings=Settings())
+    # Прямой apply без approval-гейта: эти unit-тесты проверяют механику применения
+    # (гейт согласования v0.4.9 отдельно покрыт в test_media_curation_review_*).
+    return MediaCurationService(settings=Settings(media_curation_review_require_approval=False))
 
 
 def test_preview_no_writes(db_session: Session) -> None:

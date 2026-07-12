@@ -184,6 +184,18 @@ ACTION_MEDIA_CURATION_TAGS_APPLIED = "media_curation.tags_applied"
 ACTION_WORKER_MEDIA_CURATION_PREVIEWED = "scheduler.worker.media_curation.previewed"
 ACTION_WORKER_MEDIA_CURATION_CREATED = "scheduler.worker.media_curation.created"
 ACTION_WORKER_MEDIA_CURATION_FAILED = "scheduler.worker.media_curation.failed"
+# Collaborative media curation review (v0.4.9).
+ACTION_MEDIA_CURATION_REVIEW_COMMENT_ADDED = "media_curation_review.comment_added"
+ACTION_MEDIA_CURATION_REVIEW_ASSIGNED = "media_curation_review.assigned"
+ACTION_MEDIA_CURATION_REVIEW_UNASSIGNED = "media_curation_review.unassigned"
+ACTION_MEDIA_CURATION_REVIEW_STARTED = "media_curation_review.started"
+ACTION_MEDIA_CURATION_REVIEW_CHANGES_REQUESTED = "media_curation_review.changes_requested"
+ACTION_MEDIA_CURATION_REVIEW_APPROVED = "media_curation_review.approved"
+ACTION_MEDIA_CURATION_REVIEW_REJECTED = "media_curation_review.rejected"
+ACTION_MEDIA_CURATION_REVIEW_APPLIED = "media_curation_review.applied"
+ACTION_MEDIA_CURATION_REVIEW_IGNORED = "media_curation_review.ignored"
+ACTION_MEDIA_CURATION_REVIEW_RESTORED = "media_curation_review.restored"
+ACTION_MEDIA_CURATION_REVIEW_OVERDUE = "media_curation_review.overdue"
 
 
 class AuditLogService:

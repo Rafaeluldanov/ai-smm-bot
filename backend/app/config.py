@@ -341,6 +341,20 @@ class Settings(BaseSettings):
     media_curation_use_learning: bool = True
     media_curation_external_ai_enabled: bool = False
 
+    # --- Collaborative media curation review (v0.4.9) ---
+    # Ревью медиатеки: задачи на проверку, ответственные, комментарии, история решений.
+    # Изменения применяются ТОЛЬКО после approved; авто-применение и уведомления выключены;
+    # внешнего AI нет; файлы не удаляются; live-публикаций/платежей не подразумевает.
+    media_curation_review_enabled: bool = True
+    media_curation_review_require_approval: bool = True
+    media_curation_review_allow_self_approval: bool = True
+    media_curation_review_default_priority: str = "normal"
+    media_curation_review_overdue_days: int = 7
+    media_curation_review_max_comments_per_task: int = 100
+    media_curation_review_notify_enabled: bool = False
+    media_curation_review_auto_apply_after_approval: bool = False
+    media_curation_review_external_ai_enabled: bool = False
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -725,6 +739,40 @@ class Settings(BaseSettings):
     def media_curation_task_expire_seconds(self) -> int:
         """Срок жизни proposed-задачи в секундах (из дней; не отрицательное)."""
         return max(1, int(self.media_curation_task_expire_days or 1)) * 86400
+
+    # --- Collaborative media curation review: производные свойства (v0.4.9) ---
+
+    @property
+    def media_curation_review_enabled_effective(self) -> bool:
+        """Доступен ли workflow ревью медиатеки (нужно и общее курирование)."""
+        return bool(self.media_curation_enabled and self.media_curation_review_enabled)
+
+    @property
+    def media_curation_review_require_approval_effective(self) -> bool:
+        """Требуется ли approved перед apply (по умолчанию true).
+
+        Если ревью выключено — гейт не действует (обратная совместимость с прямым apply).
+        """
+        return bool(
+            self.media_curation_review_enabled_effective
+            and self.media_curation_review_require_approval
+        )
+
+    @property
+    def media_curation_review_default_priority_safe(self) -> str:
+        """Приоритет задачи по умолчанию (валидное значение; иначе normal)."""
+        value = str(self.media_curation_review_default_priority or "normal").strip().lower()
+        return value if value in ("low", "normal", "high", "urgent") else "normal"
+
+    @property
+    def media_curation_review_overdue_seconds(self) -> int:
+        """Порог просрочки задачи ревью в секундах (из дней; не отрицательное)."""
+        return max(1, int(self.media_curation_review_overdue_days or 1)) * 86400
+
+    @property
+    def media_curation_review_max_comments_per_task_safe(self) -> int:
+        """Максимум комментариев на задачу (не меньше 1)."""
+        return max(1, int(self.media_curation_review_max_comments_per_task or 1))
 
     # --- Auth / session: производные (effective) свойства ---
 

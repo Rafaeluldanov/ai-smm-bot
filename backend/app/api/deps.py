@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.services.client_learning_service import ClientLearningService
     from app.services.content_scoring_service import ContentScoringService
     from app.services.experiment_suggestion_service import ExperimentSuggestionService
+    from app.services.media_curation_review_service import MediaCurationReviewService
     from app.services.media_curation_service import MediaCurationService
     from app.services.media_fingerprint_service import MediaFingerprintService
     from app.services.media_quality_service import MediaQualityService
@@ -286,6 +287,15 @@ def get_media_curation_service() -> "MediaCurationService":
     from app.services.media_curation_service import MediaCurationService
 
     return MediaCurationService(settings=get_settings())
+
+
+def get_media_curation_review_service() -> "MediaCurationReviewService":
+    """Построить сервис collaborative review медиатеки (approve-before-apply; без AI/delete)."""
+    from app.services.media_curation_review_service import MediaCurationReviewService
+
+    return MediaCurationReviewService(
+        curation_service=get_media_curation_service(), settings=get_settings()
+    )
 
 
 def get_metrics_import_service() -> "MetricsImportService":
