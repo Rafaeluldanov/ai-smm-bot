@@ -266,6 +266,25 @@ class Settings(BaseSettings):
     auto_topic_selection_use_client_feedback: bool = True
     auto_topic_selection_fallback_to_crm_category: bool = True
 
+    # --- Автовыбор медиа worker-ом (v0.4.5) ---
+    # Worker сам выбирает media strategy и конкретные медиа для слота по теме/тегам/
+    # платформе/обучению/A-B winners/метрикам/доступности, но НЕ публикует live и НЕ создаёт
+    # публичные ссылки автоматически. Автовыбор worker-ом ВЫКЛЮЧЕН по умолчанию; dry-run.
+    auto_media_selection_enabled: bool = True
+    auto_media_selection_worker_enabled: bool = False
+    auto_media_selection_dry_run: bool = True
+    auto_media_selection_min_confidence: float = 0.50
+    auto_media_selection_recency_days: int = 60
+    auto_media_selection_fatigue_window_days: int = 14
+    auto_media_selection_max_images_telegram: int = 10
+    auto_media_selection_max_images_vk: int = 5
+    auto_media_selection_max_images_instagram: int = 10
+    auto_media_selection_require_media_for_media_plans: bool = False
+    auto_media_selection_use_ab_winners: bool = True
+    auto_media_selection_use_metrics: bool = True
+    auto_media_selection_use_client_feedback: bool = True
+    auto_media_selection_create_public_links: bool = False
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -492,6 +511,51 @@ class Settings(BaseSettings):
     def auto_topic_selection_fatigue_window_days_safe(self) -> int:
         """Окно усталости тем (не отрицательное)."""
         return max(1, int(self.auto_topic_selection_fatigue_window_days or 1))
+
+    # --- Автовыбор медиа: производные свойства (v0.4.5) ---
+
+    @property
+    def auto_media_selection_enabled_effective(self) -> bool:
+        """Доступен ли автовыбор медиа (preview/UI/API/CLI)."""
+        return bool(self.auto_media_selection_enabled)
+
+    @property
+    def auto_media_selection_worker_enabled_effective(self) -> bool:
+        """Может ли worker сам создавать решения о медиа (по умолчанию false).
+
+        Даже при true пост создаётся только как draft/needs_review; live-публикаций нет;
+        публичные ссылки автоматически НЕ создаются.
+        """
+        return bool(self.auto_media_selection_enabled and self.auto_media_selection_worker_enabled)
+
+    @property
+    def auto_media_selection_dry_run_effective(self) -> bool:
+        """Dry-run автовыбора медиа (по умолчанию true — без записи решений)."""
+        return bool(self.auto_media_selection_dry_run)
+
+    @property
+    def auto_media_selection_min_confidence_safe(self) -> float:
+        """Порог уверенности медиа-решения в безопасных границах [0..1]."""
+        return max(0.0, min(1.0, float(self.auto_media_selection_min_confidence or 0.0)))
+
+    @property
+    def auto_media_selection_recency_days_safe(self) -> int:
+        """Окно «недавних» постов для новизны медиа (не отрицательное)."""
+        return max(1, int(self.auto_media_selection_recency_days or 1))
+
+    @property
+    def auto_media_selection_fatigue_window_days_safe(self) -> int:
+        """Окно усталости медиа (не отрицательное)."""
+        return max(1, int(self.auto_media_selection_fatigue_window_days or 1))
+
+    def auto_media_selection_max_images_for_platform(self, platform: str | None) -> int:
+        """Максимум изображений в группе для платформы (безопасные границы)."""
+        mapping = {
+            "telegram": self.auto_media_selection_max_images_telegram,
+            "vk": self.auto_media_selection_max_images_vk,
+            "instagram": self.auto_media_selection_max_images_instagram,
+        }
+        return max(1, int(mapping.get(str(platform or "").lower(), 1) or 1))
 
     # --- Auth / session: производные (effective) свойства ---
 

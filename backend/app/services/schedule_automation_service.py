@@ -96,6 +96,7 @@ class ScheduleAutomationService:
         publication_service: Any | None = None,
         review_service: Any | None = None,
         topic_decision_service: Any | None = None,
+        media_decision_service: Any | None = None,
         settings: Any | None = None,
     ) -> None:
         self._billing = billing_service or BillingService()
@@ -109,6 +110,8 @@ class ScheduleAutomationService:
         self._review = review_service
         # v0.4.4: автовыбор темы (learning-driven). Ленивое построение; выключено по умолчанию.
         self._topic_decision = topic_decision_service
+        # v0.4.5: автовыбор медиа (learning-driven). Ленивое построение; выключено по умолчанию.
+        self._media_decision = media_decision_service
         self._settings = settings
 
     # ------------------------------------------------------------------ #
@@ -310,6 +313,8 @@ class ScheduleAutomationService:
         )
         # v0.4.4: превью решений автовыбора темы (только при включённом worker-флаге; без записи).
         topic_decisions_previewed = self._preview_topic_decisions(db, project_id, due)
+        # v0.4.5: превью решений автовыбора медиа (только при включённом worker-флаге; без записи).
+        media_decisions_previewed = self._preview_media_decisions(db, project_id, due)
         return {
             "dry_run": True,
             "run_date": run_date,
@@ -320,6 +325,7 @@ class ScheduleAutomationService:
             "entries": entries,
             "live_calls": False,
             "topic_decisions_previewed": topic_decisions_previewed,
+            "media_decisions_previewed": media_decisions_previewed,
         }
 
     def _preview_topic_decisions(self, db: Session, project_id: int, due: list[_DueEntry]) -> int:
@@ -370,6 +376,7 @@ class ScheduleAutomationService:
         results: list[dict[str, Any]] = []
         created = skipped = 0
         topic_decisions_created = low_confidence_decisions = 0
+        media_decisions_created = low_confidence_media_decisions = no_media_decisions = 0
         for entry in due:
             existing = schedule_run_repository.get_by_idempotency_key(db, entry.idempotency_key)
             if existing is not None and existing.status == "draft_created":
@@ -398,6 +405,12 @@ class ScheduleAutomationService:
                 topic_decisions_created += 1
             if entry_result.get("topic_decision_low_confidence"):
                 low_confidence_decisions += 1
+            if entry_result.get("media_decision_created"):
+                media_decisions_created += 1
+            if entry_result.get("media_decision_low_confidence"):
+                low_confidence_media_decisions += 1
+            if entry_result.get("media_decision_no_media"):
+                no_media_decisions += 1
         return {
             "dry_run": False,
             "run_date": run_date,
@@ -409,6 +422,10 @@ class ScheduleAutomationService:
             # v0.4.4: автовыбор темы (worker агрегирует в TickResult).
             "topic_decisions_created": topic_decisions_created,
             "low_confidence_decisions": low_confidence_decisions,
+            # v0.4.5: автовыбор медиа (worker агрегирует в TickResult).
+            "media_decisions_created": media_decisions_created,
+            "low_confidence_media_decisions": low_confidence_media_decisions,
+            "no_media_decisions": no_media_decisions,
         }
 
     def _process_entry(
@@ -445,10 +462,13 @@ class ScheduleAutomationService:
         # 2b) Автовыбор темы (v0.4.4): решение о теме/CTA/формате/медиа. Никогда не роняет
         # прогон и не публикует live; при выключенном флаге — обычный CRM-драфт.
         decision = self._select_topic_decision(db, project_id, entry, run)
+        # 2c) Автовыбор медиа (v0.4.5): media strategy + конкретные медиа по теме/тегам/
+        # платформе/обучению. Никогда не роняет прогон; при выключенном флаге — обычный подбор.
+        media_decision = self._select_media_decision(db, project_id, entry, run, decision)
 
         # 3) Создание draft + publication (без live-публикации).
         try:
-            post = self.build_post_for_schedule(db, entry, media_ids, decision)
+            post = self.build_post_for_schedule(db, entry, media_ids, decision, media_decision)
             pub = post_publication_repository.create_publication(
                 db,
                 PostPublicationCreate(
@@ -469,6 +489,11 @@ class ScheduleAutomationService:
                 with contextlib.suppress(Exception):
                     self._topic_decision_svc().mark_decision_failed(
                         db, decision["id"], f"draft build failed: {type(exc).__name__}"
+                    )
+            if media_decision is not None and media_decision.get("id") is not None:
+                with contextlib.suppress(Exception):
+                    self._media_decision_svc().mark_decision_failed(
+                        db, media_decision["id"], f"draft build failed: {type(exc).__name__}"
                     )
             self._audit_run(db, ACTION_SCHEDULE_RUN_FAILED, run)
             return {**self.mask_run(run), "outcome": "failed"}
@@ -504,6 +529,17 @@ class ScheduleAutomationService:
             outcome["topic_decision_low_confidence"] = "low_confidence" in (
                 decision.get("risk_flags") or []
             )
+        # Привязать решение о медиа к прогону/посту (+ счётчики для worker/TickResult).
+        if media_decision is not None:
+            self._link_media_decision(db, media_decision, run, post.id)
+            outcome["media_decision_created"] = True
+            outcome["media_decision_id"] = media_decision.get("id")
+            outcome["media_decision_low_confidence"] = "low_confidence" in (
+                media_decision.get("risk_flags") or []
+            )
+            outcome["media_decision_no_media"] = media_decision.get(
+                "selected_strategy"
+            ) == "no_media_available" or "no_media" in (media_decision.get("risk_flags") or [])
         # 5) Полностью автоматический режим: попытка авто-публикации под safety gates.
         if automation_mode == AUTOMATION_FULL_AUTO and getattr(
             entry.plan, "auto_publish_enabled", False
@@ -526,11 +562,13 @@ class ScheduleAutomationService:
         entry: _DueEntry,
         media_ids: list[int],
         decision: dict[str, Any] | None = None,
+        media_decision: dict[str, Any] | None = None,
     ) -> Post:
         """Создать draft/needs_review пост по due-слоту (без AI/сети, без live).
 
         При наличии ``decision`` (v0.4.4) тема/CTA/медиа-стратегия берутся из него, иначе —
-        из CRM-категории (обратная совместимость).
+        из CRM-категории (обратная совместимость). При наличии ``media_decision`` (v0.4.5)
+        конкретные медиа/стратегия берутся из него (learning-driven подбор медиа).
         """
         category = crm_repo.get_category_by_id(db, entry.plan.category_id)
         title = (category.title if category is not None else None) or "Публикация по расписанию"
@@ -544,12 +582,23 @@ class ScheduleAutomationService:
                 title = str(decision["selected_topic"]).strip()
             if decision.get("selected_cta"):
                 cta = str(decision["selected_cta"])
+        # Автовыбор медиа: конкретные media asset id из решения перекрывают базовый подбор.
+        effective_media_ids = media_ids
+        if media_decision is not None and media_decision.get("selected_media_asset_ids"):
+            effective_media_ids = [
+                int(mid) for mid in media_decision["selected_media_asset_ids"] if mid is not None
+            ]
+        elif media_decision is not None and media_decision.get("selected_strategy") in (
+            "text_only",
+            "no_media_available",
+        ):
+            effective_media_ids = []
         text = f"[Черновик расписания] {title}. {cta}".strip()
         notes: dict[str, Any] = {
             "source": "schedule_automation",
             "plan_id": entry.plan.id,
             "category_id": entry.plan.category_id,
-            "media_asset_ids": media_ids,
+            "media_asset_ids": effective_media_ids,
             "primary_tag": tag,
             "live": False,
         }
@@ -568,9 +617,29 @@ class ScheduleAutomationService:
                     "topic_decision_source": decision.get("decision_source"),
                 }
             )
-        if not media_ids:
+        # v0.4.5: media decision перекрывает media-стратегию/медиа темы (реальный подбор).
+        if media_decision is not None:
+            notes.update(
+                {
+                    "schedule_media_decision_id": media_decision.get("id"),
+                    "selected_media_asset_ids": effective_media_ids,
+                    "selected_media_tags": (media_decision.get("selected_media_tags") or [])[:12],
+                    "selected_media_strategy": media_decision.get("selected_strategy"),
+                    "media_decision_confidence": media_decision.get("confidence_score"),
+                    "media_decision_reasons": (media_decision.get("reasons") or [])[:8],
+                    "media_decision_source_signals": (media_decision.get("source_signals") or [])[
+                        :8
+                    ],
+                    "media_decision_risk_flags": (media_decision.get("risk_flags") or [])[:8],
+                    "media_decision_source": media_decision.get("decision_source"),
+                }
+            )
+        if not effective_media_ids:
             notes["warning"] = "no_media_text_only"
-        if entry.platform == "instagram" and media_ids:
+        # Instagram требует public image_url при наличии изображений (решение о медиа знает точно).
+        if media_decision is not None:
+            notes["needs_public_image_url"] = bool(media_decision.get("needs_public_image_url"))
+        elif entry.platform == "instagram" and effective_media_ids:
             notes["needs_public_image_url"] = True
         # Текст пишем в поле платформы (по умолчанию — vk_text).
         return post_repository.create_post(
@@ -580,7 +649,7 @@ class ScheduleAutomationService:
                 title=title,
                 status="needs_review",
                 hashtags=[tag] if tag else [],
-                media_asset_id=media_ids[0] if media_ids else None,
+                media_asset_id=effective_media_ids[0] if effective_media_ids else None,
                 scheduled_at=self._due_datetime(entry.run_date, entry.planned_time),
                 generation_notes=notes,
                 telegram_text=text if entry.platform == "telegram" else None,
@@ -953,6 +1022,101 @@ class ScheduleAutomationService:
                 "selected_topic": decision.get("selected_topic"),
                 "decision_source": decision.get("decision_source"),
                 "confidence_score": decision.get("confidence_score"),
+                "risk_flags": (decision.get("risk_flags") or [])[:8],
+            }
+            schedule_run_repository.update_run(db, run, run_metadata=meta)
+
+    # ------------------------------------------------------------------ #
+    # Автовыбор медиа (v0.4.5, без live-публикации)                       #
+    # ------------------------------------------------------------------ #
+
+    def _media_selection_active(self) -> bool:
+        """Пишет ли решения автовыбор медиа (worker включён И НЕ dry-run). По умолчанию false.
+
+        При выключенном флаге или dry-run — обычный подбор медиа (обратная совместимость).
+        """
+        s = self._resolve_settings()
+        return bool(
+            s.auto_media_selection_worker_enabled_effective and not s.auto_media_selection_dry_run
+        )
+
+    def _media_selection_preview_active(self) -> bool:
+        """Доступен ли read-only preview решения о медиа (worker включён; dry-run не важен)."""
+        return bool(self._resolve_settings().auto_media_selection_worker_enabled_effective)
+
+    def _media_decision_svc(self) -> Any:
+        if self._media_decision is None:
+            from app.services.schedule_media_decision_service import (
+                ScheduleMediaDecisionService,
+            )
+
+            self._media_decision = ScheduleMediaDecisionService(settings=self._settings)
+        return self._media_decision
+
+    def _preview_media_decisions(self, db: Session, project_id: int, due: list[_DueEntry]) -> int:
+        """Число слотов, для которых worker предпросмотрит медиа (без записи). 0 если выключено."""
+        if not self._media_selection_preview_active():
+            return 0
+        count = 0
+        for entry in due:
+            try:
+                self._media_decision_svc().preview_media_decision_for_plan(
+                    db, project_id, entry.platform, plan_id=entry.plan.id
+                )
+                count += 1
+            except Exception:  # noqa: BLE001 — превью не должно ронять preview расписания
+                with contextlib.suppress(Exception):
+                    db.rollback()
+        return count
+
+    def _select_media_decision(
+        self,
+        db: Session,
+        project_id: int,
+        entry: _DueEntry,
+        run: Any,
+        topic_decision: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Выбрать медиа для слота (запись решения). None — если выключено или ошибка.
+
+        Никогда не роняет прогон: при сбое откатываемся к обычному подбору медиа.
+        """
+        if not self._media_selection_active():
+            return None
+        topic_decision_id = topic_decision.get("id") if topic_decision else None
+        try:
+            result: dict[str, Any] = self._media_decision_svc().create_media_decision_for_plan(
+                db,
+                project_id,
+                entry.platform,
+                plan_id=entry.plan.id,
+                topic_decision_id=topic_decision_id,
+                schedule_run_id=run.id,
+            )
+        except Exception:  # noqa: BLE001 — автовыбор не должен ронять прогон расписания
+            with contextlib.suppress(Exception):
+                db.rollback()
+            return None
+        return result
+
+    def _link_media_decision(
+        self, db: Session, decision: dict[str, Any], run: Any, post_id: int
+    ) -> None:
+        """Пометить решение о медиа как использованное для драфта и записать в run_metadata."""
+        decision_id = decision.get("id")
+        with contextlib.suppress(Exception):
+            if decision_id is not None:
+                self._media_decision_svc().mark_decision_applied_to_draft(
+                    db, decision_id, run.id, post_id
+                )
+            meta = dict(run.run_metadata or {})
+            meta["media_decision"] = {
+                "id": decision_id,
+                "selected_strategy": decision.get("selected_strategy"),
+                "selected_media_count": decision.get("selected_media_count"),
+                "decision_source": decision.get("decision_source"),
+                "confidence_score": decision.get("confidence_score"),
+                "needs_public_image_url": bool(decision.get("needs_public_image_url")),
                 "risk_flags": (decision.get("risk_flags") or [])[:8],
             }
             schedule_run_repository.update_run(db, run, run_metadata=meta)

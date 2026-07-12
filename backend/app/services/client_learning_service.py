@@ -120,6 +120,7 @@ class ClientLearningService:
                     **snapshot,
                     "comment_present": bool(comment),
                     **self._topic_decision_meta(post),
+                    **self._media_decision_meta(post),
                 }
             ),
         )
@@ -710,6 +711,25 @@ class ClientLearningService:
         notes = post.generation_notes or {}
         if isinstance(notes, dict) and notes.get("schedule_topic_decision_id"):
             return {"schedule_topic_decision_id": notes["schedule_topic_decision_id"]}
+        return {}
+
+    @staticmethod
+    def _media_decision_meta(post: Post) -> dict[str, Any]:
+        """Связать событие с решением автовыбора медиа (v0.4.5), если пост создан из него.
+
+        Безопасный хук: если ``generation_notes`` содержит ``schedule_media_decision_id``,
+        добавляем его (и выбранную media-стратегию) в метаданные события — так одобрение/
+        отклонение поста даёт слабый сигнал обучения по выбранным медиа. Без тяжёлой
+        связки, секретов и внутренних путей.
+        """
+        notes = post.generation_notes or {}
+        if isinstance(notes, dict) and notes.get("schedule_media_decision_id"):
+            meta: dict[str, Any] = {
+                "schedule_media_decision_id": notes["schedule_media_decision_id"]
+            }
+            if notes.get("selected_media_strategy"):
+                meta["selected_media_strategy"] = notes["selected_media_strategy"]
+            return meta
         return {}
 
     def _content_snapshot(self, post: Post) -> dict[str, Any]:

@@ -126,3 +126,11 @@ Worker делегирует в `ScheduleAutomationService.run_due`, которы
 `AUTO_TOPIC_SELECTION_WORKER_ENABLED`, выключено по умолчанию), а `SchedulerWorkerTickResult`
 получает счётчики `topic_decisions_previewed/created`, `low_confidence_decisions`. Live-
 публикаций нет. См. [41_Botfleet_Auto_Topic_Selection.md](41_Botfleet_Auto_Topic_Selection.md).
+
+## Продолжение: автовыбор медиа (v0.4.5)
+
+`process_target` → `run_due` следом создаёт решения о медиа (за флагом
+`AUTO_MEDIA_SELECTION_WORKER_ENABLED`, выключено по умолчанию), а `SchedulerWorkerTickResult`
+получает счётчики `media_decisions_previewed/created`, `low_confidence_media_decisions`,
+`no_media_decisions` + audit `scheduler.worker.media_decision.*`. Live-публикаций нет; публичные
+ссылки не создаются. См. [42_Botfleet_Auto_Media_Selection.md](42_Botfleet_Auto_Media_Selection.md).

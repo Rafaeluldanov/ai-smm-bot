@@ -43,6 +43,7 @@ from app.models.post_publication import PostPublication
 from app.models.post_review_action import PostReviewAction
 from app.models.project import Project
 from app.models.public_media_link import PublicMediaLink
+from app.models.schedule_media_decision import ScheduleMediaDecision
 from app.models.schedule_run import ScheduleRun
 from app.models.schedule_topic_decision import ScheduleTopicDecision
 from app.models.scheduler_worker_lease import SchedulerWorkerLease
@@ -71,6 +72,7 @@ __all__ = [
     "CrmSmmResource",
     "ExperimentSuggestion",
     "ExternalImageCandidate",
+    "ScheduleMediaDecision",
     "ScheduleTopicDecision",
     "BillingProfile",
     "MediaAsset",

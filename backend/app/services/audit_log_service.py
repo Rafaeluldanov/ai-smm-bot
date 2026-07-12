@@ -137,6 +137,18 @@ ACTION_WORKER_TOPIC_DECISION_PREVIEWED = "scheduler.worker.topic_decision.previe
 ACTION_WORKER_TOPIC_DECISION_CREATED = "scheduler.worker.topic_decision.created"
 ACTION_WORKER_TOPIC_DECISION_SKIPPED = "scheduler.worker.topic_decision.skipped"
 ACTION_WORKER_TOPIC_DECISION_FAILED = "scheduler.worker.topic_decision.failed"
+# Автовыбор медиа worker-ом (v0.4.5).
+ACTION_MEDIA_DECISION_PREVIEWED = "media_decision.previewed"
+ACTION_MEDIA_DECISION_CREATED = "media_decision.created"
+ACTION_MEDIA_DECISION_APPLIED_TO_DRAFT = "media_decision.applied_to_draft"
+ACTION_MEDIA_DECISION_FAILED = "media_decision.failed"
+ACTION_MEDIA_DECISION_LOW_CONFIDENCE = "media_decision.low_confidence"
+ACTION_MEDIA_DECISION_NO_MEDIA = "media_decision.no_media"
+ACTION_MEDIA_DECISION_FALLBACK_USED = "media_decision.fallback_used"
+ACTION_WORKER_MEDIA_DECISION_PREVIEWED = "scheduler.worker.media_decision.previewed"
+ACTION_WORKER_MEDIA_DECISION_CREATED = "scheduler.worker.media_decision.created"
+ACTION_WORKER_MEDIA_DECISION_SKIPPED = "scheduler.worker.media_decision.skipped"
+ACTION_WORKER_MEDIA_DECISION_FAILED = "scheduler.worker.media_decision.failed"
 
 
 class AuditLogService:

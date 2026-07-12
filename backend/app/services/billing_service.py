@@ -48,6 +48,12 @@ USAGE_TOPIC_DECISION_PREVIEW = "topic_decision_preview"
 USAGE_TOPIC_DECISION_CREATE = "topic_decision_create"
 USAGE_TOPIC_DECISION_APPLY_TO_DRAFT = "topic_decision_apply_to_draft"
 
+# Типы usage для автовыбора медиа (v0.4.5). Все бесплатны: применение решения к драфту
+# включено в обычную генерацию draft по расписанию.
+USAGE_MEDIA_DECISION_PREVIEW = "media_decision_preview"
+USAGE_MEDIA_DECISION_CREATE = "media_decision_create"
+USAGE_MEDIA_DECISION_APPLY_TO_DRAFT = "media_decision_apply_to_draft"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -85,6 +91,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_TOPIC_DECISION_PREVIEW: 0,
     USAGE_TOPIC_DECISION_CREATE: 0,
     USAGE_TOPIC_DECISION_APPLY_TO_DRAFT: 0,
+    # v0.4.5: автовыбор медиа — бесплатно; применение к драфту включено в генерацию draft.
+    USAGE_MEDIA_DECISION_PREVIEW: 0,
+    USAGE_MEDIA_DECISION_CREATE: 0,
+    USAGE_MEDIA_DECISION_APPLY_TO_DRAFT: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

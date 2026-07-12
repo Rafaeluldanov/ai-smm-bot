@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
     from app.services.review_workflow_service import ReviewWorkflowService
+    from app.services.schedule_media_decision_service import ScheduleMediaDecisionService
     from app.services.schedule_topic_decision_service import ScheduleTopicDecisionService
     from app.services.topic_optimization_service import TopicOptimizationService
 
@@ -242,6 +243,17 @@ def get_topic_decision_service() -> "ScheduleTopicDecisionService":
     from app.services.schedule_topic_decision_service import ScheduleTopicDecisionService
 
     return ScheduleTopicDecisionService(settings=get_settings())
+
+
+def get_media_decision_service() -> "ScheduleMediaDecisionService":
+    """Построить сервис автовыбора медиа (worker/клиент, без live-публикации).
+
+    Пост создаётся только как draft/needs_review; публичные ссылки автоматически не
+    создаются; внешних API-вызовов нет.
+    """
+    from app.services.schedule_media_decision_service import ScheduleMediaDecisionService
+
+    return ScheduleMediaDecisionService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":

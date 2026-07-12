@@ -31,6 +31,10 @@ from app.repositories import project_repository, scheduler_worker_repository
 from app.services.audit_log_service import (
     ACTION_WORKER_LEASE_ACQUIRED,
     ACTION_WORKER_LEASE_SKIPPED,
+    ACTION_WORKER_MEDIA_DECISION_CREATED,
+    ACTION_WORKER_MEDIA_DECISION_FAILED,
+    ACTION_WORKER_MEDIA_DECISION_PREVIEWED,
+    ACTION_WORKER_MEDIA_DECISION_SKIPPED,
     ACTION_WORKER_TARGET_PROCESSED,
     ACTION_WORKER_TICK_FAILED,
     ACTION_WORKER_TICK_FINISHED,
@@ -90,6 +94,14 @@ class SchedulerWorkerTickResult:
     topic_decisions_created: int = 0
     low_confidence_decisions: int = 0
     topic_decision_errors: list[str] = field(default_factory=list)
+    # Автовыбор медиа (v0.4.5). Worker сам выбирает media strategy/медиа, но НЕ публикует live.
+    auto_media_selection_enabled: bool = False
+    auto_media_selection_dry_run: bool = False
+    media_decisions_previewed: int = 0
+    media_decisions_created: int = 0
+    low_confidence_media_decisions: int = 0
+    no_media_decisions: int = 0
+    media_decision_errors: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     started_at: str | None = None
     finished_at: str | None = None
@@ -206,12 +218,17 @@ class SchedulerWorkerService:
             "topic_decisions_previewed": 0,
             "topic_decisions_created": 0,
             "low_confidence_decisions": 0,
+            "media_decisions_previewed": 0,
+            "media_decisions_created": 0,
+            "low_confidence_media_decisions": 0,
+            "no_media_decisions": 0,
         }
         if dry_run:
             result = self._automation.run_due_dry(
                 db, target.account_id, target.project_id, now=now, platform_key=target.platform_key
             )
             deltas["topic_decisions_previewed"] = int(result.get("topic_decisions_previewed", 0))
+            deltas["media_decisions_previewed"] = int(result.get("media_decisions_previewed", 0))
             for entry in result.get("entries", []):
                 outcome = entry.get("outcome")
                 if outcome == "missing_credentials":
@@ -229,6 +246,11 @@ class SchedulerWorkerService:
         deltas["skipped"] = int(result.get("skipped", 0))
         deltas["topic_decisions_created"] = int(result.get("topic_decisions_created", 0))
         deltas["low_confidence_decisions"] = int(result.get("low_confidence_decisions", 0))
+        deltas["media_decisions_created"] = int(result.get("media_decisions_created", 0))
+        deltas["low_confidence_media_decisions"] = int(
+            result.get("low_confidence_media_decisions", 0)
+        )
+        deltas["no_media_decisions"] = int(result.get("no_media_decisions", 0))
         for entry in result.get("entries", []):
             outcome = entry.get("outcome") or entry.get("status")
             if outcome == "missing_credentials":
@@ -347,10 +369,18 @@ class SchedulerWorkerService:
                 result.topic_decisions_previewed += deltas.get("topic_decisions_previewed", 0)
                 result.topic_decisions_created += deltas.get("topic_decisions_created", 0)
                 result.low_confidence_decisions += deltas.get("low_confidence_decisions", 0)
+                result.media_decisions_previewed += deltas.get("media_decisions_previewed", 0)
+                result.media_decisions_created += deltas.get("media_decisions_created", 0)
+                result.low_confidence_media_decisions += deltas.get(
+                    "low_confidence_media_decisions", 0
+                )
+                result.no_media_decisions += deltas.get("no_media_decisions", 0)
             # v0.4.3: предложения экспериментов по проектам (без live-публикации).
             self._process_experiment_suggestions(db, targets, owner_id, effective_dry, result)
             # v0.4.4: сводка автовыбора темы (решения создаются внутри run_due).
             self._annotate_topic_selection(db, owner_id, effective_dry, result)
+            # v0.4.5: сводка автовыбора медиа (решения создаются внутри run_due).
+            self._annotate_media_selection(db, owner_id, effective_dry, result)
         except Exception as exc:  # noqa: BLE001 — тик не роняет процесс
             result.errors.append(f"tick error: {type(exc).__name__}")
             self._audit.record(
@@ -428,6 +458,62 @@ class SchedulerWorkerService:
                 ACTION_WORKER_TOPIC_DECISION_FAILED,
                 entity_type="scheduler_worker",
                 metadata={**base_meta, "errors": len(result.topic_decision_errors)},
+            )
+
+    # ------------------------------------------------------------------ #
+    # Автовыбор медиа (v0.4.5, без live-публикации)                        #
+    # ------------------------------------------------------------------ #
+
+    def _annotate_media_selection(
+        self,
+        db: Session,
+        owner_id: str,
+        schedule_dry_run: bool,
+        result: SchedulerWorkerTickResult,
+    ) -> None:
+        """Проставить флаги автовыбора медиа + аудит. Решения создаются внутри run_due.
+
+        Управляется флагом AUTO_MEDIA_SELECTION_WORKER_ENABLED (выключен по умолчанию);
+        dry-run = worker dry-run ИЛИ AUTO_MEDIA_SELECTION_DRY_RUN. Live-публикаций нет;
+        публичные ссылки автоматически не создаются.
+        """
+        s = self._settings
+        enabled = s.auto_media_selection_worker_enabled_effective
+        result.auto_media_selection_enabled = enabled
+        result.auto_media_selection_dry_run = bool(
+            schedule_dry_run or s.auto_media_selection_dry_run
+        )
+        if not enabled:
+            return
+        action = (
+            ACTION_WORKER_MEDIA_DECISION_PREVIEWED
+            if result.auto_media_selection_dry_run
+            else ACTION_WORKER_MEDIA_DECISION_CREATED
+        )
+        base_meta = {
+            "owner_id": owner_id,
+            "dry_run": result.auto_media_selection_dry_run,
+            "media_decisions_previewed": result.media_decisions_previewed,
+            "media_decisions_created": result.media_decisions_created,
+            "low_confidence_media_decisions": result.low_confidence_media_decisions,
+            "no_media_decisions": result.no_media_decisions,
+            "live_publish": False,
+        }
+        self._audit.record(db, action, entity_type="scheduler_worker", metadata=base_meta)
+        # Отдельные события: ничего не создано (не dry) → skipped; были ошибки → failed.
+        if not result.auto_media_selection_dry_run and result.media_decisions_created == 0:
+            self._audit.record(
+                db,
+                ACTION_WORKER_MEDIA_DECISION_SKIPPED,
+                entity_type="scheduler_worker",
+                metadata=base_meta,
+            )
+        if result.media_decision_errors:
+            self._audit.record(
+                db,
+                ACTION_WORKER_MEDIA_DECISION_FAILED,
+                entity_type="scheduler_worker",
+                metadata={**base_meta, "errors": len(result.media_decision_errors)},
             )
 
     # ------------------------------------------------------------------ #
@@ -578,6 +664,14 @@ class SchedulerWorkerService:
                 "worker_enabled": s.auto_topic_selection_worker_enabled_effective,
                 "dry_run": s.auto_topic_selection_dry_run,
                 "min_confidence": s.auto_topic_selection_min_confidence_safe,
+                "live_publish": False,
+            },
+            "auto_media_selection": {
+                "enabled": s.auto_media_selection_enabled_effective,
+                "worker_enabled": s.auto_media_selection_worker_enabled_effective,
+                "dry_run": s.auto_media_selection_dry_run,
+                "min_confidence": s.auto_media_selection_min_confidence_safe,
+                "create_public_links": s.auto_media_selection_create_public_links,
                 "live_publish": False,
             },
             "lease": self._mask_lease(lease),
