@@ -206,6 +206,19 @@ ACTION_MENTION_RESOLVED = "mention.resolved"
 ACTION_NOTIFICATION_OVERDUE_SCAN_PREVIEWED = "notification.overdue_scan.previewed"
 ACTION_NOTIFICATION_OVERDUE_SCAN_CREATED = "notification.overdue_scan.created"
 ACTION_WORKLOAD_VIEWED = "workload.viewed"
+# Notification delivery sandbox + digest (v0.5.1).
+ACTION_NOTIFICATION_DELIVERY_PREVIEWED = "notification_delivery.previewed"
+ACTION_NOTIFICATION_DELIVERY_JOB_CREATED = "notification_delivery.job_created"
+ACTION_NOTIFICATION_DELIVERY_SENT = "notification_delivery.sent"
+ACTION_NOTIFICATION_DELIVERY_FAILED = "notification_delivery.failed"
+ACTION_NOTIFICATION_DELIVERY_SKIPPED = "notification_delivery.skipped"
+ACTION_NOTIFICATION_DELIVERY_DISABLED = "notification_delivery.disabled"
+ACTION_NOTIFICATION_DELIVERY_RETRY_SCHEDULED = "notification_delivery.retry_scheduled"
+ACTION_NOTIFICATION_DIGEST_PREVIEWED = "notification_digest.previewed"
+ACTION_NOTIFICATION_DIGEST_GENERATED = "notification_digest.generated"
+ACTION_NOTIFICATION_DIGEST_SENT = "notification_digest.sent"
+ACTION_NOTIFICATION_DIGEST_FAILED = "notification_digest.failed"
+ACTION_NOTIFICATION_DIGEST_SCHEDULER_PREVIEWED = "notification_digest.scheduler.previewed"
 
 
 class AuditLogService:

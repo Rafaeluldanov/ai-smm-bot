@@ -2618,12 +2618,15 @@ def ui_settings() -> HTMLResponse:
         "<div class='inline' style='margin-top:8px'>"
         "<label><input type='checkbox' id='np-inapp' checked disabled> В приложении (in-app)</label>"
         "<label><input type='checkbox' id='np-email' disabled> Email</label>"
+        "<label><input type='checkbox' id='np-telegram' disabled> Telegram</label>"
         "<label><input type='checkbox' id='np-digest' disabled> Дайджест</label>"
         "<label><input type='checkbox' id='np-webhook' disabled> Webhook</label>"
         "</div>"
-        "<p class='muted'>Внешняя доставка (email/дайджест/webhook/push) выключена по умолчанию "
-        "и в MVP не отправляется. Открыть все уведомления: "
-        "<a href='/ui/notifications'>Уведомления →</a></p></div>"
+        "<p class='muted'>Внешняя доставка (email/Telegram/дайджест/webhook/push) выключена по "
+        "умолчанию и в MVP не отправляется. "
+        "<a href='/ui/notifications'>Уведомления →</a> · "
+        "<a href='/ui/notification-delivery'>Доставка уведомлений →</a> · "
+        "<a href='/ui/notification-digests'>Дайджесты →</a></p></div>"
         # Индикаторы безопасности.
         "<div class='card'><h3>🔒 Безопасность</h3><ul class='muted'>"
         "<li>Live-публикации выключены по умолчанию.</li>"
@@ -4636,6 +4639,8 @@ def ui_project_media_curation_review_task(project_id: int, task_id: int) -> HTML
 def ui_notifications() -> HTMLResponse:
     """Inbox уведомлений пользователя: фильтры, карточки, прочитать/скрыть."""
     body = (
+        "<div class='inline'><a href='/ui/notification-delivery'><button class='ghost mini'>Доставка</button></a>"
+        "<a href='/ui/notification-digests'><button class='ghost mini'>Дайджесты</button></a></div>"
         "<h2>Уведомления</h2>"
         "<div class='callout'>Внутренние (in-app) уведомления. Внешней доставки (email/SMS/"
         "push) нет — она выключена по умолчанию.</div>"
@@ -4694,6 +4699,7 @@ def ui_project_notifications(project_id: int) -> HTMLResponse:
         f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
         "<button class='sec mini'>← К проекту</button></a>"
         f"<a href='/ui/projects/{project_id}/review-workload'><button class='ghost mini'>Нагрузка ревьюеров</button></a>"
+        f"<a href='/ui/projects/{project_id}/notification-delivery'><button class='ghost mini'>Доставка</button></a>"
         f"<a href='/ui/projects/{project_id}/media-curation-review'><button class='ghost mini'>Ревью медиатеки</button></a></div>"
         "<h2>Уведомления проекта</h2>"
         "<div class='callout'>Только внутренние уведомления. Внешней доставки нет.</div>"
@@ -4752,3 +4758,144 @@ def ui_project_review_workload(project_id: int) -> HTMLResponse:
         "load();"
     )
     return _page("Нагрузка ревьюеров", body, script, active="notifications", active_pid=project_id)
+
+
+_DELIVERY_BANNER = (
+    "<div class='callout warn'><b>Внешняя доставка выключена.</b> Сейчас работает только "
+    "in-app / sandbox: email/Telegram/webhook используют mock-провайдеры и НИЧЕГО не отправляют "
+    "наружу. Реальная доставка требует отдельных флагов и включается осознанно.</div>"
+)
+
+
+@router.get("/notification-delivery", response_class=HTMLResponse)
+def ui_notification_delivery() -> HTMLResponse:
+    """Доставка уведомлений (sandbox): статусы, каналы, логи, preview/send-dry/retry-dry."""
+    body = (
+        "<div class='inline'><a href='/ui/notifications'><button class='sec mini'>← Уведомления</button></a>"
+        "<a href='/ui/notification-digests'><button class='ghost mini'>Дайджесты</button></a></div>"
+        "<h2>Доставка уведомлений</h2>"
+        f"{_DELIVERY_BANNER}"
+        "<div class='grid'>"
+        "<div class='pcard'><div class='muted'>pending</div><div id='dl-pending' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>sent</div><div id='dl-sent' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>failed</div><div id='dl-failed' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>skipped</div><div id='dl-skipped' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>disabled</div><div id='dl-disabled' class='an-big'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Каналы</h3><div class='inline'>"
+        "<span class='pill'>Email: mock / disabled</span>"
+        "<span class='pill'>Telegram: mock / disabled</span>"
+        "<span class='pill'>Webhook: mock / disabled</span>"
+        "<span class='pill'>Digest: disabled</span></div>"
+        "<div class='muted' style='margin-top:6px'>Провайдеры sandbox: реальная отправка не выполняется.</div></div>"
+        "<div class='card'><h3>Тест доставки (sandbox)</h3>"
+        "<div class='inline'>"
+        "<input id='dl-nid' placeholder='notification_id' style='width:150px'>"
+        "<select id='dl-channel'><option>email</option><option>telegram</option><option>webhook</option></select>"
+        "<button class='mini sec' onclick='dlPreview()'>Preview delivery</button>"
+        "<button class='mini' onclick='dlSendDry()'>Send dry-run</button></div>"
+        "<div id='dl-testout' class='muted'></div></div>"
+        "<div id='dl-msg' class='muted'></div>"
+        "<div class='card'><h3>Логи доставки</h3><div id='dl-list' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');const msg=document.getElementById('dl-msg');"
+        "function dlrow(l){return `<div class='sched-task'><span class='pill'>${esc(l.channel)}</span> "
+        "<span class='pill'>${esc(l.provider)}</span> <b>${esc(l.status)}</b> "
+        "<span class='muted'>${esc(l.destination_masked||'')} · попыток ${l.attempts}"
+        "${l.error_message?' · '+esc(l.error_message):''} · ${l.created_at?esc(l.created_at.slice(0,16)):''}</span> "
+        "<button class='mini ghost' onclick='dlRetry(${l.id})'>Retry dry-run</button></div>`;}"
+        "async function loadDL(){try{const logs=await api('GET','/notification-delivery/logs?limit=100');"
+        "const cnt={pending:0,sent:0,failed:0,skipped:0,disabled:0};logs.forEach(l=>{if(cnt[l.status]!=null)cnt[l.status]++;});"
+        "document.getElementById('dl-pending').textContent=cnt.pending;"
+        "document.getElementById('dl-sent').textContent=cnt.sent;"
+        "document.getElementById('dl-failed').textContent=cnt.failed;"
+        "document.getElementById('dl-skipped').textContent=cnt.skipped;"
+        "document.getElementById('dl-disabled').textContent=cnt.disabled;"
+        "const host=document.getElementById('dl-list');host.classList.remove('muted');"
+        "host.innerHTML=logs.length?logs.map(dlrow).join(''):\"<div class='muted'>Логов доставки нет.</div>\";}catch(x){err(eEl,x)}}"
+        "function nid(){return parseInt(document.getElementById('dl-nid').value,10);}"
+        "async function dlPreview(){const id=nid();if(!id)return;try{const ch=document.getElementById('dl-channel').value;"
+        "const r=await api('POST','/notification-delivery/notifications/'+id+'/preview',{channels:[ch]});"
+        "const pv=r.previews[0];document.getElementById('dl-testout').textContent='Провайдер '+pv.provider+' · '+pv.destination_masked+' · внешняя доставка: '+(pv.external_delivery_enabled?'вкл':'выкл');}catch(x){err(eEl,x)}}"
+        "async function dlSendDry(){const id=nid();if(!id)return;try{const ch=document.getElementById('dl-channel').value;"
+        "const r=await api('POST','/notification-delivery/notifications/'+id+'/send-dry',{channels:[ch]});"
+        "msg.textContent='Dry-run: '+(r.results[0]?r.results[0].outcome:'—')+' (без внешней отправки).';loadDL();}catch(x){err(eEl,x)}}"
+        "async function dlRetry(id){try{const r=await api('POST','/notification-delivery/logs/'+id+'/retry-dry',{});"
+        "msg.textContent='Retry dry-run #'+id+': '+(r.outcome||'—');loadDL();}catch(x){err(eEl,x)}}"
+        "window.dlPreview=dlPreview;window.dlSendDry=dlSendDry;window.dlRetry=dlRetry;loadDL();"
+    )
+    return _page("Доставка уведомлений", body, script, active="notifications")
+
+
+@router.get("/projects/{project_id}/notification-delivery", response_class=HTMLResponse)
+def ui_project_notification_delivery(project_id: int) -> HTMLResponse:
+    """Дашборд доставки проекта: статусы/каналы/провайдеры (sandbox)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/notifications'>"
+        "<button class='sec mini'>← Уведомления проекта</button></a>"
+        "<a href='/ui/notification-delivery'><button class='ghost mini'>Моя доставка</button></a></div>"
+        "<h2>Доставка уведомлений проекта</h2>"
+        f"{_DELIVERY_BANNER}"
+        "<div class='grid'>"
+        "<div class='pcard'><div class='muted'>Всего</div><div id='pd-total' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>sent</div><div id='pd-sent' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>failed</div><div id='pd-failed' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>disabled</div><div id='pd-disabled' class='an-big'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>По каналам</h3><div id='pd-channels' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "async function load(){try{const d=await api('GET','/notification-delivery/projects/'+PID+'/dashboard');"
+        "document.getElementById('pd-total').textContent=d.total;"
+        "document.getElementById('pd-sent').textContent=d.sent;"
+        "document.getElementById('pd-failed').textContent=d.failed;"
+        "document.getElementById('pd-disabled').textContent=d.disabled;"
+        "const ch=document.getElementById('pd-channels');ch.classList.remove('muted');"
+        "const es=Object.entries(d.by_channel||{});"
+        "ch.innerHTML=es.length?es.map(([k,v])=>`<div class='sched-task'><span class='pill'>${esc(k)}</span> ${v}</div>`).join(''):"
+        "\"<div class='muted'>Доставок нет.</div>\";}catch(x){err(eEl,x)}}load();"
+    )
+    return _page(
+        "Доставка уведомлений проекта", body, script, active="notifications", active_pid=project_id
+    )
+
+
+@router.get("/notification-digests", response_class=HTMLResponse)
+def ui_notification_digests() -> HTMLResponse:
+    """Дайджесты уведомлений: preview daily/weekly, список, generate dry-run."""
+    body = (
+        "<div class='inline'><a href='/ui/notification-delivery'>"
+        "<button class='sec mini'>← Доставка</button></a></div>"
+        "<h2>Дайджесты уведомлений</h2>"
+        "<div class='callout warn'><b>Внешняя доставка выключена.</b> Дайджест можно "
+        "сгенерировать и посмотреть, но наружу он не отправляется (email выключен).</div>"
+        "<div class='card'><div class='inline'>"
+        "<label>Частота <select id='dg-freq'><option>daily</option><option>weekly</option></select></label>"
+        "<button class='mini sec' onclick='dgPreview()'>Preview</button>"
+        "<button class='mini ghost' onclick='dgGenDry()'>Generate dry-run</button></div>"
+        "<div id='dg-preview' class='muted' style='margin-top:8px'></div></div>"
+        "<div id='dg-msg' class='muted'></div>"
+        "<div class='card'><h3>Недавние дайджесты</h3><div id='dg-list' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');const msg=document.getElementById('dg-msg');"
+        "function freq(){return document.getElementById('dg-freq').value;}"
+        "async function dgPreview(){try{const r=await api('POST','/notification-digests/preview',{frequency:freq()});"
+        "document.getElementById('dg-preview').innerHTML=`<b>${esc(r.subject)}</b><br>уведомлений: ${r.notification_count} · "
+        "дайджесты: ${r.digest_enabled?'вкл':'выкл'} · внешняя доставка: ${r.external_delivery_enabled?'вкл':'выкл'}"
+        "<pre style='white-space:pre-wrap'>${esc(r.body_preview)}</pre>`;}catch(x){err(eEl,x)}}"
+        "async function dgGenDry(){try{const r=await api('POST','/notification-digests/generate-dry',{frequency:freq()});"
+        "msg.textContent='Dry-run: уведомлений '+r.notification_count+' (без записи).';}catch(x){err(eEl,x)}}"
+        "async function loadDG(){try{const rows=await api('GET','/notification-digests');"
+        "const host=document.getElementById('dg-list');host.classList.remove('muted');"
+        "host.innerHTML=rows.length?rows.map(d=>`<div class='sched-task'><span class='pill'>${esc(d.frequency)}</span> "
+        "<b>${esc(d.status)}</b> <span class='muted'>${esc(d.subject)} · ${d.notification_count} · ${d.created_at?esc(d.created_at.slice(0,16)):''}</span></div>`).join(''):"
+        "\"<div class='muted'>Дайджестов нет.</div>\";}catch(x){err(eEl,x)}}"
+        "window.dgPreview=dgPreview;window.dgGenDry=dgGenDry;loadDG();"
+    )
+    return _page("Дайджесты уведомлений", body, script, active="notifications")

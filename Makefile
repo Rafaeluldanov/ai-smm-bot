@@ -33,6 +33,8 @@ BIN := $(VENV)/bin
         media-curation-review-dashboard media-curation-review-comment \
         media-curation-review-approve media-curation-review-apply \
         notifications-inbox notifications-overdue-scan notifications-workload \
+        notification-delivery-preview notification-delivery-send notification-delivery-retry \
+        notification-digest-preview notification-digest-generate notification-digest-scheduler \
         smoke
 
 help: ## Показать список команд
@@ -266,6 +268,24 @@ notifications-overdue-scan: ## Скан просроченных задач ре
 
 notifications-workload: ## Нагрузка ревьюеров проекта: make notifications-workload project_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.notifications_workload --project-id "$(project_id)"
+
+notification-delivery-preview: ## Предпросмотр доставки: make notification-delivery-preview notification_id=1 [channels=email,telegram]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_delivery_preview --notification-id "$(notification_id)" --channels "$(or $(channels),email)"
+
+notification-delivery-send: ## Доставка (dry-run по умолчанию): make notification-delivery-send notification_id=1 channels=email [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_delivery_send --notification-id "$(notification_id)" --channels "$(or $(channels),email)" --dry-run "$(or $(dry_run),true)"
+
+notification-delivery-retry: ## Повтор доставок (dry-run по умолчанию): make notification-delivery-retry [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_delivery_retry --dry-run "$(or $(dry_run),true)"
+
+notification-digest-preview: ## Предпросмотр дайджеста: make notification-digest-preview user_id=1 [frequency=daily]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_digest_preview --user-id "$(user_id)" --frequency "$(or $(frequency),daily)"
+
+notification-digest-generate: ## Генерация дайджеста (dry-run по умолчанию): make notification-digest-generate user_id=1 [frequency=daily] [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_digest_generate --user-id "$(user_id)" --frequency "$(or $(frequency),daily)" --dry-run "$(or $(dry_run),true)"
+
+notification-digest-scheduler: ## Планировщик дайджестов (dry-run по умолчанию): make notification-digest-scheduler [frequency=daily] [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_digest_scheduler --frequency "$(or $(frequency),daily)" --dry-run "$(or $(dry_run),true)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

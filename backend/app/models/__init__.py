@@ -37,6 +37,8 @@ from app.models.media_duplicate_cluster import MediaDuplicateCluster
 from app.models.media_fingerprint import MediaFingerprint
 from app.models.media_quality_snapshot import MediaQualitySnapshot
 from app.models.metric_import_run import MetricImportRun
+from app.models.notification_delivery_log import NotificationDeliveryLog
+from app.models.notification_digest import NotificationDigest
 from app.models.notification_preference import NotificationPreference
 from app.models.payment import (
     BillingProfile,
@@ -93,6 +95,8 @@ __all__ = [
     "MediaFingerprint",
     "MediaQualitySnapshot",
     "MetricImportRun",
+    "NotificationDeliveryLog",
+    "NotificationDigest",
     "NotificationPreference",
     "PaymentInvoice",
     "PaymentTransaction",

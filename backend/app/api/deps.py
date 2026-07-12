@@ -17,6 +17,8 @@ if TYPE_CHECKING:
     from app.services.media_quality_service import MediaQualityService
     from app.services.media_similarity_service import MediaSimilarityService
     from app.services.metrics_import_service import MetricsImportService
+    from app.services.notification_delivery_service import NotificationDeliveryService
+    from app.services.notification_digest_service import NotificationDigestService
     from app.services.notification_service import NotificationService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
@@ -306,6 +308,20 @@ def get_notification_service() -> "NotificationService":
     from app.services.notification_service import NotificationService
 
     return NotificationService(settings=get_settings())
+
+
+def get_notification_delivery_service() -> "NotificationDeliveryService":
+    """Построить сервис доставки уведомлений (sandbox; без реальной внешней доставки)."""
+    from app.services.notification_delivery_service import NotificationDeliveryService
+
+    return NotificationDeliveryService(settings=get_settings())
+
+
+def get_notification_digest_service() -> "NotificationDigestService":
+    """Построить сервис дайджестов уведомлений (без реальной отправки; выключен по умолчанию)."""
+    from app.services.notification_digest_service import NotificationDigestService
+
+    return NotificationDigestService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":

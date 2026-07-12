@@ -155,3 +155,8 @@ project-гардом. Межклиентских уведомлений нет; 
 - планировщик дайджестов;
 - autocomplete упоминаний;
 - балансировка нагрузки ревьюеров (workload balancing).
+
+> **Продолжение (v0.5.1):** фундамент внешней доставки (email/Telegram/webhook) и дайджестов
+> реализован как **sandbox** — delivery-задачи, журнал, retry/backoff, планировщик; реальная
+> доставка выключена по умолчанию (mock-провайдеры). См.
+> [48_Botfleet_Notification_Delivery_Digest.md](48_Botfleet_Notification_Delivery_Digest.md).

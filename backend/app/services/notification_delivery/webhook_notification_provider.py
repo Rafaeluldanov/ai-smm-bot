@@ -1,0 +1,54 @@
+"""Webhook notification-провайдер (skeleton) — v0.5.1.
+
+Реальный HTTP-вызов НЕ реализован в MVP и наружу ничего не идёт. Отказывается, если внешняя
+доставка/webhook-live выключены (по умолчанию). Сетевые библиотеки НЕ импортируются.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from app.services.notification_delivery.provider import (
+    NotificationDeliveryProvider,
+    NotificationDeliveryRequest,
+    NotificationDeliveryResult,
+)
+
+if TYPE_CHECKING:
+    from app.config import Settings
+
+
+class WebhookNotificationProvider(NotificationDeliveryProvider):
+    """Live webhook-провайдер (skeleton): реальный HTTP-вызов выключен по умолчанию."""
+
+    provider_name = "webhook"
+    channel = "webhook"
+
+    def __init__(self, settings: Settings | None = None) -> None:
+        self._settings = settings
+
+    def _resolve_settings(self) -> Any:
+        if self._settings is None:
+            from app.config import get_settings
+
+            self._settings = get_settings()
+        return self._settings
+
+    def send(self, request: NotificationDeliveryRequest) -> NotificationDeliveryResult:
+        """Отказать, если внешняя доставка/webhook-live выключены; иначе — not implemented."""
+        settings = self._resolve_settings()
+        if not settings.notification_webhook_enabled_effective:
+            return self._disabled_result(
+                request,
+                "external webhook delivery disabled (NOTIFICATION_WEBHOOK_LIVE_ENABLED=false)",
+            )
+        # Реальный подписанный webhook-вызов в MVP НЕ реализован (skeleton).
+        return NotificationDeliveryResult(
+            ok=False,
+            status="failed",
+            provider=self.provider_name,
+            channel=self.channel,
+            destination_masked=self._masked(request),
+            error_message="live webhook delivery not implemented in MVP",
+            response_metadata={"delivered": False},
+        )

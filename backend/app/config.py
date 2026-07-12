@@ -376,6 +376,45 @@ class Settings(BaseSettings):
     post_review_sla_hours: int = 48
     experiment_review_sla_hours: int = 72
 
+    # --- Notification delivery sandbox: email/telegram/webhook + digest (v0.5.1) ---
+    # Внешняя доставка уведомлений как sandbox/mock: провайдеры по умолчанию mock и НИЧЕГО не
+    # отправляют. РЕАЛЬНАЯ доставка (SMTP/Telegram/webhook) ВЫКЛЮЧЕНА по умолчанию — все
+    # *_LIVE_ENABLED и NOTIFICATION_EXTERNAL_DELIVERY_ENABLED = false; dry-run по умолчанию.
+    notification_delivery_enabled: bool = True
+    notification_delivery_dry_run: bool = True
+    notification_external_delivery_enabled: bool = False
+
+    notification_email_enabled: bool = False
+    notification_email_provider: str = "mock"
+    notification_email_live_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_use_tls: bool = True
+
+    notification_telegram_enabled: bool = False
+    notification_telegram_provider: str = "mock"
+    notification_telegram_live_enabled: bool = False
+    notification_telegram_bot_token: str = ""
+    notification_telegram_default_chat_id: str = ""
+
+    notification_webhook_enabled: bool = False
+    notification_webhook_provider: str = "mock"
+    notification_webhook_live_enabled: bool = False
+    notification_webhook_signing_secret: str = ""
+
+    notification_digest_enabled: bool = False
+    notification_digest_worker_enabled: bool = False
+    notification_digest_dry_run: bool = True
+    notification_digest_default_frequency: str = "daily"
+    notification_digest_max_notifications: int = 50
+
+    notification_delivery_retry_enabled: bool = True
+    notification_delivery_max_attempts: int = 3
+    notification_delivery_retry_backoff_seconds: int = 300
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -852,6 +891,96 @@ class Settings(BaseSettings):
     def experiment_review_sla_seconds(self) -> int:
         """SLA ревью экспериментов в секундах (из часов; не отрицательное)."""
         return max(1, int(self.experiment_review_sla_hours or 1)) * 3600
+
+    # --- Notification delivery: производные (effective) свойства (v0.5.1) ---
+
+    @property
+    def notification_delivery_enabled_effective(self) -> bool:
+        """Доступна ли подсистема доставки (создание delivery-задач, логи, dry-run)."""
+        return bool(self.notifications_enabled and self.notification_delivery_enabled)
+
+    @property
+    def notification_external_delivery_enabled_effective(self) -> bool:
+        """Разрешена ли ЛЮБАЯ реальная внешняя доставка. По умолчанию false — в MVP отправки нет."""
+        return bool(
+            self.notification_delivery_enabled_effective
+            and self.notification_external_delivery_enabled
+        )
+
+    def _channel_live_effective(self, enabled: bool, live: bool) -> bool:
+        """Канал реально шлёт наружу только при external-флаге, включённом канале и его live."""
+        return bool(self.notification_external_delivery_enabled_effective and enabled and live)
+
+    @property
+    def notification_email_enabled_effective(self) -> bool:
+        """Реальная отправка email (по умолчанию false — используется mock)."""
+        return self._channel_live_effective(
+            self.notification_email_enabled, self.notification_email_live_enabled
+        )
+
+    @property
+    def notification_telegram_enabled_effective(self) -> bool:
+        """Реальная отправка Telegram-уведомлений (по умолчанию false — mock)."""
+        return self._channel_live_effective(
+            self.notification_telegram_enabled, self.notification_telegram_live_enabled
+        )
+
+    @property
+    def notification_webhook_enabled_effective(self) -> bool:
+        """Реальный вызов webhook (по умолчанию false — mock)."""
+        return self._channel_live_effective(
+            self.notification_webhook_enabled, self.notification_webhook_live_enabled
+        )
+
+    @property
+    def notification_digest_enabled_effective(self) -> bool:
+        """Доступны ли дайджесты (генерация/предпросмотр; по умолчанию false)."""
+        return bool(
+            self.notification_delivery_enabled_effective and self.notification_digest_enabled
+        )
+
+    @property
+    def notification_digest_worker_enabled_effective(self) -> bool:
+        """Может ли worker сам запускать дайджест-планировщик (по умолчанию false)."""
+        return bool(
+            self.notification_digest_enabled_effective and self.notification_digest_worker_enabled
+        )
+
+    @property
+    def notification_delivery_max_attempts_safe(self) -> int:
+        """Максимум попыток доставки (не меньше 1)."""
+        return max(1, int(self.notification_delivery_max_attempts or 1))
+
+    @property
+    def notification_delivery_retry_backoff_seconds_safe(self) -> int:
+        """Backoff между попытками в секундах (не отрицательное)."""
+        return max(1, int(self.notification_delivery_retry_backoff_seconds or 1))
+
+    @property
+    def notification_digest_max_notifications_safe(self) -> int:
+        """Максимум уведомлений в одном дайджесте (не меньше 1)."""
+        return max(1, int(self.notification_digest_max_notifications or 1))
+
+    @property
+    def notification_digest_default_frequency_safe(self) -> str:
+        """Частота дайджеста по умолчанию (daily|weekly; иначе daily)."""
+        value = str(self.notification_digest_default_frequency or "daily").strip().lower()
+        return value if value in ("daily", "weekly") else "daily"
+
+    @property
+    def smtp_configured(self) -> bool:
+        """Заданы ли минимальные SMTP-параметры (host + from). Секрет не раскрывается."""
+        return bool(self.smtp_host.strip() and self.smtp_from_email.strip())
+
+    @property
+    def notification_telegram_configured(self) -> bool:
+        """Задан ли токен Telegram-бота (наличие, без раскрытия значения)."""
+        return bool(self.notification_telegram_bot_token.strip())
+
+    @property
+    def notification_webhook_signing_configured(self) -> bool:
+        """Задан ли секрет подписи webhook (наличие, без раскрытия значения)."""
+        return bool(self.notification_webhook_signing_secret.strip())
 
     # --- Auth / session: производные (effective) свойства ---
 

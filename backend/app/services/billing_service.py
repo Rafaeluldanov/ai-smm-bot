@@ -80,6 +80,12 @@ USAGE_NOTIFICATION_CREATE = "notification_create"
 USAGE_NOTIFICATION_OVERDUE_SCAN = "notification_overdue_scan"
 USAGE_NOTIFICATION_DIGEST = "notification_digest"
 
+# Типы usage для доставки уведомлений/дайджестов (v0.5.1). Бесплатны в MVP (доставки нет).
+USAGE_NOTIFICATION_DELIVERY_PREVIEW = "notification_delivery_preview"
+USAGE_NOTIFICATION_DELIVERY_SEND = "notification_delivery_send"
+USAGE_NOTIFICATION_DIGEST_GENERATE = "notification_digest_generate"
+USAGE_NOTIFICATION_DIGEST_SEND = "notification_digest_send"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -142,6 +148,11 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_NOTIFICATION_CREATE: 0,
     USAGE_NOTIFICATION_OVERDUE_SCAN: 0,
     USAGE_NOTIFICATION_DIGEST: 0,
+    # v0.5.1: доставка уведомлений/дайджестов (sandbox) — бесплатно в MVP (реальной доставки нет).
+    USAGE_NOTIFICATION_DELIVERY_PREVIEW: 0,
+    USAGE_NOTIFICATION_DELIVERY_SEND: 0,
+    USAGE_NOTIFICATION_DIGEST_GENERATE: 0,
+    USAGE_NOTIFICATION_DIGEST_SEND: 0,
 }
 _DEFAULT_ACTION_COST = 1
 
