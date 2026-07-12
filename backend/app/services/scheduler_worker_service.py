@@ -35,6 +35,9 @@ from app.services.audit_log_service import (
     ACTION_WORKER_MEDIA_DECISION_FAILED,
     ACTION_WORKER_MEDIA_DECISION_PREVIEWED,
     ACTION_WORKER_MEDIA_DECISION_SKIPPED,
+    ACTION_WORKER_MEDIA_QUALITY_FAILED,
+    ACTION_WORKER_MEDIA_QUALITY_PREVIEWED,
+    ACTION_WORKER_MEDIA_QUALITY_SCORED,
     ACTION_WORKER_TARGET_PROCESSED,
     ACTION_WORKER_TICK_FAILED,
     ACTION_WORKER_TICK_FINISHED,
@@ -102,6 +105,14 @@ class SchedulerWorkerTickResult:
     low_confidence_media_decisions: int = 0
     no_media_decisions: int = 0
     media_decision_errors: list[str] = field(default_factory=list)
+    # Оценка качества медиа (v0.4.6). Worker оценивает медиатеку, но НЕ публикует live.
+    media_quality_scoring_enabled: bool = False
+    media_quality_scoring_dry_run: bool = False
+    media_quality_assets_scanned: int = 0
+    media_quality_snapshots_created: int = 0
+    media_quality_weak_count: int = 0
+    media_quality_duplicate_count: int = 0
+    media_quality_errors: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     started_at: str | None = None
     finished_at: str | None = None
@@ -127,6 +138,8 @@ class SchedulerWorkerService:
         self._audit = audit_service or AuditLogService(self._settings)
         # v0.4.3: сервис предложений экспериментов (ленивое построение; без live).
         self._suggestions = suggestion_service
+        # v0.4.6: сервис оценки качества медиа (ленивое построение; без внешнего AI/live).
+        self._quality: Any | None = None
 
     # ------------------------------------------------------------------ #
     # Идентификация                                                      #
@@ -381,6 +394,8 @@ class SchedulerWorkerService:
             self._annotate_topic_selection(db, owner_id, effective_dry, result)
             # v0.4.5: сводка автовыбора медиа (решения создаются внутри run_due).
             self._annotate_media_selection(db, owner_id, effective_dry, result)
+            # v0.4.6: оценка качества медиатеки проектов (без внешнего AI/live).
+            self._process_media_quality(db, targets, owner_id, effective_dry, result)
         except Exception as exc:  # noqa: BLE001 — тик не роняет процесс
             result.errors.append(f"tick error: {type(exc).__name__}")
             self._audit.record(
@@ -514,6 +529,79 @@ class SchedulerWorkerService:
                 ACTION_WORKER_MEDIA_DECISION_FAILED,
                 entity_type="scheduler_worker",
                 metadata={**base_meta, "errors": len(result.media_decision_errors)},
+            )
+
+    # ------------------------------------------------------------------ #
+    # Оценка качества медиа (v0.4.6, без внешнего AI/live-публикации)      #
+    # ------------------------------------------------------------------ #
+
+    def _quality_svc(self) -> Any:
+        if self._quality is None:
+            from app.services.media_quality_service import MediaQualityService
+
+            self._quality = MediaQualityService(settings=self._settings)
+        return self._quality
+
+    def _process_media_quality(
+        self,
+        db: Session,
+        targets: list[ScheduleWorkerTarget],
+        owner_id: str,
+        schedule_dry_run: bool,
+        result: SchedulerWorkerTickResult,
+    ) -> None:
+        """Оценить качество медиатеки проектов из targets. Правило-ориентированно, без AI/live.
+
+        Управляется MEDIA_QUALITY_SCORING_WORKER_ENABLED (выключено по умолчанию); dry-run =
+        worker dry-run ИЛИ MEDIA_QUALITY_SCORING_DRY_RUN.
+        """
+        s = self._settings
+        enabled = s.media_quality_scoring_worker_enabled_effective
+        result.media_quality_scoring_enabled = enabled
+        dry_run = bool(schedule_dry_run or s.media_quality_scoring_dry_run)
+        result.media_quality_scoring_dry_run = dry_run
+        if not enabled:
+            return
+        seen: set[int] = set()
+        for target in targets:
+            if target.project_id in seen:
+                continue
+            seen.add(target.project_id)
+            try:
+                summary = self._quality_svc().score_project_media(
+                    db,
+                    target.project_id,
+                    platform_key=target.platform_key,
+                    limit=200,
+                    dry_run=dry_run,
+                )
+            except Exception as exc:  # noqa: BLE001 — оценка не роняет тик
+                result.media_quality_errors.append(f"p{target.project_id}: {type(exc).__name__}")
+                continue
+            result.media_quality_assets_scanned += int(summary.get("scanned", 0))
+            result.media_quality_snapshots_created += int(summary.get("snapshots_created", 0))
+            result.media_quality_weak_count += int(summary.get("weak", 0))
+            result.media_quality_duplicate_count += int(summary.get("duplicates", 0))
+        action = (
+            ACTION_WORKER_MEDIA_QUALITY_PREVIEWED if dry_run else ACTION_WORKER_MEDIA_QUALITY_SCORED
+        )
+        base_meta = {
+            "owner_id": owner_id,
+            "dry_run": dry_run,
+            "assets_scanned": result.media_quality_assets_scanned,
+            "snapshots_created": result.media_quality_snapshots_created,
+            "weak": result.media_quality_weak_count,
+            "duplicates": result.media_quality_duplicate_count,
+            "external_ai": False,
+            "live_publish": False,
+        }
+        self._audit.record(db, action, entity_type="scheduler_worker", metadata=base_meta)
+        if result.media_quality_errors:
+            self._audit.record(
+                db,
+                ACTION_WORKER_MEDIA_QUALITY_FAILED,
+                entity_type="scheduler_worker",
+                metadata={**base_meta, "errors": len(result.media_quality_errors)},
             )
 
     # ------------------------------------------------------------------ #
@@ -672,6 +760,14 @@ class SchedulerWorkerService:
                 "dry_run": s.auto_media_selection_dry_run,
                 "min_confidence": s.auto_media_selection_min_confidence_safe,
                 "create_public_links": s.auto_media_selection_create_public_links,
+                "live_publish": False,
+            },
+            "media_quality_scoring": {
+                "enabled": s.media_quality_scoring_enabled_effective,
+                "worker_enabled": s.media_quality_scoring_worker_enabled_effective,
+                "dry_run": s.media_quality_scoring_dry_run,
+                "min_good_score": s.media_quality_min_good_score_safe,
+                "external_ai": s.media_quality_external_ai_enabled,
                 "live_publish": False,
             },
             "lease": self._mask_lease(lease),

@@ -28,6 +28,7 @@ from app.repositories import (
     content_experiment_repository,
     crm_bot_smm_repository,
     experiment_suggestion_repository,
+    media_quality_repository,
     payment_repository,
     post_publication_repository,
     post_repository,
@@ -237,6 +238,20 @@ def require_media_decision_access(
     if decision is None:
         raise _NOT_FOUND
     _guard_project(db, settings, user, decision.project_id)
+
+
+def require_media_quality_access(
+    snapshot_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к снимку качества медиа (через проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    snapshot = media_quality_repository.get_by_id(db, snapshot_id)
+    if snapshot is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, snapshot.project_id)
 
 
 def require_vk_resource_access(

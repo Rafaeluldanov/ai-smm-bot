@@ -1787,3 +1787,18 @@ worker-ом **выключен** по умолчанию (`AUTO_TOPIC_SELECTION_
 **выключен** по умолчанию (`AUTO_MEDIA_SELECTION_WORKER_ENABLED=false`, dry-run по умолчанию).
 Клиент видит выбор на `/ui/projects/{id}/media-decisions`. Подробно —
 [Докс/42_Botfleet_Auto_Media_Selection.md](./Докс/42_Botfleet_Auto_Media_Selection.md).
+
+## Оценка качества медиа и дедупликация (v0.4.6)
+
+Botfleet **оценивает каждое медиа** по пяти измерениям (**quality / relevance / freshness /
+uniqueness / platform_fit → overall ∈ [0..100]**), выявляет проблемы (нет тегов, HEIC, видео,
+слишком маленькое, повтор, дубль, нужен public image_url…) и **повторы/дубли** (по имени/пути/
+заголовку/подписи тегов, без image embeddings) и сохраняет снимок (`MediaQualitySnapshot`).
+Автовыбор медиа теперь **предпочитает более качественные ассеты**, а слабые/повторяющиеся
+помечает предупреждением (`weak_media_quality` / `repeated_media`) и пишет
+`media_quality_summary` в `generation_notes`. Оценка **правило-ориентированная — без внешнего
+AI** (`MEDIA_QUALITY_EXTERNAL_AI_ENABLED=false`) и **без live-публикаций**; оценка worker-ом
+**выключена** по умолчанию (`MEDIA_QUALITY_SCORING_WORKER_ENABLED=false`, dry-run по
+умолчанию); авто-ретегирование выключено. Клиент видит качество медиатеки на
+`/ui/projects/{id}/media-quality`. Подробно —
+[Докс/43_Botfleet_Media_Quality_Scoring.md](./Докс/43_Botfleet_Media_Quality_Scoring.md).

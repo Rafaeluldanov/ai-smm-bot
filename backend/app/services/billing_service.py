@@ -54,6 +54,11 @@ USAGE_MEDIA_DECISION_PREVIEW = "media_decision_preview"
 USAGE_MEDIA_DECISION_CREATE = "media_decision_create"
 USAGE_MEDIA_DECISION_APPLY_TO_DRAFT = "media_decision_apply_to_draft"
 
+# Типы usage для оценки качества медиа (v0.4.6). Все бесплатны в MVP (без внешнего AI).
+USAGE_MEDIA_QUALITY_PREVIEW = "media_quality_preview"
+USAGE_MEDIA_QUALITY_SCORE = "media_quality_score"
+USAGE_MEDIA_QUALITY_DASHBOARD = "media_quality_dashboard"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -95,6 +100,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_MEDIA_DECISION_PREVIEW: 0,
     USAGE_MEDIA_DECISION_CREATE: 0,
     USAGE_MEDIA_DECISION_APPLY_TO_DRAFT: 0,
+    # v0.4.6: оценка качества медиа — бесплатно в MVP (без внешнего AI).
+    USAGE_MEDIA_QUALITY_PREVIEW: 0,
+    USAGE_MEDIA_QUALITY_SCORE: 0,
+    USAGE_MEDIA_QUALITY_DASHBOARD: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

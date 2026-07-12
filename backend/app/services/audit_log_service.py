@@ -149,6 +149,15 @@ ACTION_WORKER_MEDIA_DECISION_PREVIEWED = "scheduler.worker.media_decision.previe
 ACTION_WORKER_MEDIA_DECISION_CREATED = "scheduler.worker.media_decision.created"
 ACTION_WORKER_MEDIA_DECISION_SKIPPED = "scheduler.worker.media_decision.skipped"
 ACTION_WORKER_MEDIA_DECISION_FAILED = "scheduler.worker.media_decision.failed"
+# Оценка качества медиа (v0.4.6).
+ACTION_MEDIA_QUALITY_PREVIEWED = "media_quality.previewed"
+ACTION_MEDIA_QUALITY_SCORED = "media_quality.scored"
+ACTION_MEDIA_QUALITY_FAILED = "media_quality.failed"
+ACTION_MEDIA_QUALITY_WEAK_DETECTED = "media_quality.weak_detected"
+ACTION_MEDIA_QUALITY_DUPLICATE_DETECTED = "media_quality.duplicate_detected"
+ACTION_WORKER_MEDIA_QUALITY_PREVIEWED = "scheduler.worker.media_quality.previewed"
+ACTION_WORKER_MEDIA_QUALITY_SCORED = "scheduler.worker.media_quality.scored"
+ACTION_WORKER_MEDIA_QUALITY_FAILED = "scheduler.worker.media_quality.failed"
 
 
 class AuditLogService:

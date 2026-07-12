@@ -285,6 +285,23 @@ class Settings(BaseSettings):
     auto_media_selection_use_client_feedback: bool = True
     auto_media_selection_create_public_links: bool = False
 
+    # --- Оценка качества медиа (v0.4.6) ---
+    # Правило-ориентированная оценка качества/релевантности/свежести/уникальности/пригодности
+    # медиа + выявление дублей. БЕЗ внешнего AI и БЕЗ live-публикаций. Оценка worker-ом
+    # ВЫКЛЮЧЕНА по умолчанию; dry-run; авто-ретегирование выключено.
+    media_quality_scoring_enabled: bool = True
+    media_quality_scoring_worker_enabled: bool = False
+    media_quality_scoring_dry_run: bool = True
+    media_quality_min_good_score: int = 70
+    media_quality_min_excellent_score: int = 85
+    media_quality_recency_days: int = 60
+    media_quality_fatigue_window_days: int = 14
+    media_quality_max_snapshots_per_asset: int = 20
+    media_quality_dedup_enabled: bool = True
+    media_quality_platform_weighting_enabled: bool = True
+    media_quality_auto_retags_enabled: bool = False
+    media_quality_external_ai_enabled: bool = False
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -556,6 +573,49 @@ class Settings(BaseSettings):
             "instagram": self.auto_media_selection_max_images_instagram,
         }
         return max(1, int(mapping.get(str(platform or "").lower(), 1) or 1))
+
+    # --- Оценка качества медиа: производные свойства (v0.4.6) ---
+
+    @property
+    def media_quality_scoring_enabled_effective(self) -> bool:
+        """Доступна ли оценка качества медиа (preview/UI/API/CLI)."""
+        return bool(self.media_quality_scoring_enabled)
+
+    @property
+    def media_quality_scoring_worker_enabled_effective(self) -> bool:
+        """Может ли worker сам писать снимки качества (по умолчанию false).
+
+        Даже при true — правило-ориентированная оценка, без внешнего AI и без live-публикаций.
+        """
+        return bool(
+            self.media_quality_scoring_enabled and self.media_quality_scoring_worker_enabled
+        )
+
+    @property
+    def media_quality_scoring_dry_run_effective(self) -> bool:
+        """Dry-run оценки качества (по умолчанию true — без записи снимков)."""
+        return bool(self.media_quality_scoring_dry_run)
+
+    @property
+    def media_quality_min_good_score_safe(self) -> int:
+        """Порог «good» в безопасных границах [0..100]."""
+        return max(0, min(100, int(self.media_quality_min_good_score or 0)))
+
+    @property
+    def media_quality_min_excellent_score_safe(self) -> int:
+        """Порог «excellent» в безопасных границах [good..100]."""
+        good = self.media_quality_min_good_score_safe
+        return max(good, min(100, int(self.media_quality_min_excellent_score or 0)))
+
+    @property
+    def media_quality_recency_days_safe(self) -> int:
+        """Окно «недавних» постов для свежести медиа (не отрицательное)."""
+        return max(1, int(self.media_quality_recency_days or 1))
+
+    @property
+    def media_quality_fatigue_window_days_safe(self) -> int:
+        """Окно усталости медиа (не отрицательное)."""
+        return max(1, int(self.media_quality_fatigue_window_days or 1))
 
     # --- Auth / session: производные (effective) свойства ---
 

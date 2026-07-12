@@ -134,3 +134,12 @@ Worker делегирует в `ScheduleAutomationService.run_due`, которы
 получает счётчики `media_decisions_previewed/created`, `low_confidence_media_decisions`,
 `no_media_decisions` + audit `scheduler.worker.media_decision.*`. Live-публикаций нет; публичные
 ссылки не создаются. См. [42_Botfleet_Auto_Media_Selection.md](42_Botfleet_Auto_Media_Selection.md).
+
+## Продолжение: оценка качества медиа (v0.4.6)
+
+При `MEDIA_QUALITY_SCORING_WORKER_ENABLED=true` (выключено по умолчанию) worker оценивает
+качество медиатеки проектов (`score_project_media`), а `SchedulerWorkerTickResult` получает
+счётчики `media_quality_assets_scanned/snapshots_created`, `media_quality_weak_count`,
+`media_quality_duplicate_count` + audit `scheduler.worker.media_quality.*`. Правило-
+ориентированно, без внешнего AI и без live-публикации. См.
+[43_Botfleet_Media_Quality_Scoring.md](43_Botfleet_Media_Quality_Scoring.md).

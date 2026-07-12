@@ -77,11 +77,14 @@ class ScheduleMediaDecisionService:
         topic_decision_service: Any | None = None,
         learning_service: ClientLearningService | None = None,
         audit_service: AuditLogService | None = None,
+        quality_service: Any | None = None,
         settings: Settings | None = None,
     ) -> None:
         self._topic = topic_decision_service
         self._learning = learning_service
         self._audit = audit_service
+        # v0.4.6: оценка качества медиа (правило-ориентированная, без внешнего AI). Ленивая.
+        self._quality = quality_service
         self._settings = settings
 
     # ------------------------------------------------------------------ #
@@ -252,6 +255,10 @@ class ScheduleMediaDecisionService:
             self.explain_media_decision(strategy, chosen, context, needs_public) + strat_reasons
         )
         alternatives = self._alternatives(platform_key, images, videos, strategy, context)
+        quality_summary = self._media_quality_summary(chosen)
+        if quality_summary.get("weak_selected_count") and quality_summary["selected_media_scores"]:
+            reasons.append("Внимание: среди выбранных есть медиа ниже порога качества.")
+        risks = self._augment_quality_risks(risks, quality_summary)
         return {
             "project_id": project_id,
             "platform_key": platform_key,
@@ -272,14 +279,58 @@ class ScheduleMediaDecisionService:
             "source_signals": sorted(context["signals"])[:10],
             "risk_flags": risks,
             "reasons": reasons[:8],
+            "media_quality_summary": quality_summary,
             "decision_metadata": {
                 "candidate_count": len(scored),
                 "image_candidates": len(images),
                 "video_candidates": len(videos),
                 "min_confidence": self._min_confidence(),
                 "max_images": self._max_images(platform_key),
+                "media_quality_summary": quality_summary,
             },
         }
+
+    def _media_quality_summary(self, chosen: list[dict[str, Any]]) -> dict[str, Any]:
+        """Свод качества выбранных медиа (v0.4.6): баллы, слабые, дубли, общие проблемы."""
+        scores: list[int] = []
+        snapshot_ids: list[int] = []
+        issues: dict[str, int] = {}
+        weak = dup = 0
+        min_good = self._min_good_quality()
+        for cand in chosen:
+            qv = cand.get("quality")
+            if not qv:
+                continue
+            overall = int(qv.get("overall") or 0)
+            scores.append(overall)
+            if overall < min_good:
+                weak += 1
+            for issue in qv.get("issues", []) or []:
+                issues[issue] = issues.get(issue, 0) + 1
+                if issue in ("duplicate_candidate", "recently_used"):
+                    dup += 1
+            if qv.get("snapshot_id"):
+                snapshot_ids.append(int(qv["snapshot_id"]))
+        return {
+            "selected_media_scores": scores,
+            "average_selected_score": (round(sum(scores) / len(scores), 1) if scores else None),
+            "weak_selected_count": weak,
+            "duplicate_warning_count": dup,
+            "common_issues": sorted(issues.items(), key=lambda kv: kv[1], reverse=True)[:6],
+            "media_quality_snapshot_ids": snapshot_ids,
+        }
+
+    def _augment_quality_risks(
+        self, risks: list[str], quality_summary: dict[str, Any]
+    ) -> list[str]:
+        """Добавить risk-флаги по качеству: weak_media_quality / repeated_media."""
+        out = list(risks)
+        avg = quality_summary.get("average_selected_score")
+        if avg is not None and avg < self._min_good_quality():
+            out.append("weak_media_quality")
+        if quality_summary.get("duplicate_warning_count"):
+            out.append("repeated_media")
+        return list(dict.fromkeys(out))
 
     # ------------------------------------------------------------------ #
     # 4. Кандидаты                                                        #
@@ -303,9 +354,22 @@ class ScheduleMediaDecisionService:
             for a in media_asset_repository.list_media_assets_by_project(db, project_id)
             if a.status in _USABLE_STATUSES
         ]
+        quality_on = self._media_quality_enabled()
+        media_tags = sorted(context["wanted_tags"]) if context.get("wanted_tags") else None
         scored: list[dict[str, Any]] = []
         for asset in assets:
             cand = self.score_media_candidate(db, project_id, platform_key, asset, context)
+            # v0.4.6: качество медиа поднимает ранг сильных ассетов (снимок → быстрый dry-run).
+            if quality_on:
+                try:
+                    qv = self._quality_svc().quality_overall_for_asset(
+                        db, project_id, asset, platform_key, media_tags=media_tags
+                    )
+                    cand["quality"] = qv
+                    cand["overall_media_score"] = qv["overall"]
+                    cand["score"] += round(int(qv["overall"]) / 12)
+                except Exception:  # noqa: BLE001 — оценка качества не должна ронять подбор
+                    cand["quality"] = None
             scored.append(cand)
         # Только релевантные (совпало хоть что-то) — как в PostMediaSelectionService.
         matched = [c for c in scored if c["matched"]]
@@ -480,6 +544,7 @@ class ScheduleMediaDecisionService:
                 "media_decision_source_signals": (decision.get("source_signals") or [])[:8],
                 "media_decision_risk_flags": (decision.get("risk_flags") or [])[:8],
                 "needs_public_image_url": bool(decision.get("needs_public_image_url")),
+                "media_quality_summary": decision.get("media_quality_summary") or {},
             }
         )
         payload["generation_notes"] = notes
@@ -787,6 +852,9 @@ class ScheduleMediaDecisionService:
             "source_signals": list(decision.source_signals or []),
             "risk_flags": list(decision.risk_flags or []),
             "reasons": list(decision.reasons or []),
+            "media_quality_summary": (decision.decision_metadata or {}).get(
+                "media_quality_summary", {}
+            ),
             "created_at": decision.created_at.isoformat() if decision.created_at else None,
         }
 
@@ -868,7 +936,22 @@ class ScheduleMediaDecisionService:
             getattr(self._resolve_settings(), "auto_media_selection_use_client_feedback", True)
         )
 
+    def _media_quality_enabled(self) -> bool:
+        return bool(
+            getattr(self._resolve_settings(), "media_quality_scoring_enabled_effective", False)
+        )
+
+    def _min_good_quality(self) -> int:
+        return int(getattr(self._resolve_settings(), "media_quality_min_good_score_safe", 70))
+
     # --- Ленивые зависимости ---
+
+    def _quality_svc(self) -> Any:
+        if self._quality is None:
+            from app.services.media_quality_service import MediaQualityService
+
+            self._quality = MediaQualityService(settings=self._settings)
+        return self._quality
 
     def _learning_svc(self) -> ClientLearningService:
         if self._learning is None:

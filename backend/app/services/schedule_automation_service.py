@@ -632,6 +632,7 @@ class ScheduleAutomationService:
                     ],
                     "media_decision_risk_flags": (media_decision.get("risk_flags") or [])[:8],
                     "media_decision_source": media_decision.get("decision_source"),
+                    "media_quality_summary": media_decision.get("media_quality_summary") or {},
                 }
             )
         if not effective_media_ids:

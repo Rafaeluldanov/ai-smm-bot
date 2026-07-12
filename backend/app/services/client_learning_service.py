@@ -729,6 +729,10 @@ class ClientLearningService:
             }
             if notes.get("selected_media_strategy"):
                 meta["selected_media_strategy"] = notes["selected_media_strategy"]
+            # v0.4.6: слабый сигнал качества выбранных медиа (без путей/секретов).
+            summary = notes.get("media_quality_summary")
+            if isinstance(summary, dict) and summary.get("average_selected_score") is not None:
+                meta["media_quality_avg_score"] = summary["average_selected_score"]
             return meta
         return {}
 
