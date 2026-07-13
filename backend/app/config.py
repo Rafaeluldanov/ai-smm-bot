@@ -437,6 +437,30 @@ class Settings(BaseSettings):
     notification_telegram_incoming_update_log_enabled: bool = True
     notification_telegram_incoming_max_text_preview: int = 200
 
+    # --- Autopilot-first client workspace (v0.5.6) ---
+    # Простой клиентский workspace: клиент подключает площадки, даёт Яндекс Диск, выбирает
+    # календарь и включает автопилот. full_auto — основной режим продукта, но он НЕ включает
+    # глобальные live-флаги публикации и НЕ обходит существующие safety-gates. health worker
+    # выключен; auto-start live выключен; advanced-настройки скрыты по умолчанию.
+    autopilot_ui_enabled: bool = True
+    autopilot_default_mode: str = "full_auto"
+    autopilot_full_auto_primary: bool = True
+    autopilot_semi_auto_secondary: bool = True
+    autopilot_require_yandex_disk: bool = True
+    autopilot_require_calendar: bool = True
+    autopilot_require_platform: bool = True
+    autopilot_health_check_enabled: bool = True
+    autopilot_health_check_worker_enabled: bool = False
+    autopilot_health_check_dry_run: bool = True
+    autopilot_auto_create_schedules: bool = True
+    autopilot_auto_start_live: bool = False
+    autopilot_show_advanced_settings: bool = False
+    autopilot_min_media_assets: int = 5
+    autopilot_recommended_media_assets: int = 30
+    autopilot_default_posts_per_day: int = 1
+    autopilot_default_publish_time: str = "10:00"
+    autopilot_default_timezone: str = "Europe/Moscow"
+
     notification_webhook_enabled: bool = False
     notification_webhook_provider: str = "mock"
     notification_webhook_live_enabled: bool = False
@@ -1315,6 +1339,75 @@ class Settings(BaseSettings):
     def notification_telegram_incoming_max_text_preview_safe(self) -> int:
         """Максимум символов text_preview входящего апдейта (в границах 1..512)."""
         return max(1, min(512, int(self.notification_telegram_incoming_max_text_preview or 200)))
+
+    # --- Autopilot-first workspace: производные (effective) свойства (v0.5.6) ---
+
+    @property
+    def autopilot_ui_enabled_effective(self) -> bool:
+        """Доступен ли клиентский autopilot-workspace (по умолчанию включён)."""
+        return bool(self.autopilot_ui_enabled)
+
+    @property
+    def autopilot_default_mode_safe(self) -> str:
+        """Режим автопилота по умолчанию (full_auto/semi_auto; иначе full_auto)."""
+        mode = str(self.autopilot_default_mode or "full_auto").strip().lower()
+        return mode if mode in ("full_auto", "semi_auto") else "full_auto"
+
+    @property
+    def autopilot_full_auto_primary_effective(self) -> bool:
+        """full_auto — основной режим продукта (по умолчанию true)."""
+        return bool(self.autopilot_full_auto_primary)
+
+    @property
+    def autopilot_health_check_worker_enabled_effective(self) -> bool:
+        """Включён ли фоновый health-worker автопилота (по умолчанию false)."""
+        return bool(
+            self.autopilot_health_check_enabled and self.autopilot_health_check_worker_enabled
+        )
+
+    @property
+    def autopilot_health_check_dry_run_effective(self) -> bool:
+        """Dry-run health-check (по умолчанию true — без побочных эффектов)."""
+        return bool(self.autopilot_health_check_dry_run)
+
+    @property
+    def autopilot_auto_start_live_effective(self) -> bool:
+        """Разрешён ли авто-старт live-публикации. По умолчанию false — live не включается из UI."""
+        return bool(self.autopilot_auto_start_live)
+
+    @property
+    def autopilot_min_media_assets_safe(self) -> int:
+        """Минимум медиа для автопилота (в границах 1..100)."""
+        return max(1, min(100, int(self.autopilot_min_media_assets or 5)))
+
+    @property
+    def autopilot_recommended_media_assets_safe(self) -> int:
+        """Рекомендуемый объём медиатеки (не меньше минимума)."""
+        return max(
+            self.autopilot_min_media_assets_safe,
+            min(1000, int(self.autopilot_recommended_media_assets or 30)),
+        )
+
+    @property
+    def autopilot_default_posts_per_day_safe(self) -> int:
+        """Постов в день по умолчанию (в границах 1..10)."""
+        return max(1, min(10, int(self.autopilot_default_posts_per_day or 1)))
+
+    @property
+    def autopilot_default_publish_time_safe(self) -> str:
+        """Время публикации по умолчанию (HH:MM; иначе 10:00)."""
+        raw = str(self.autopilot_default_publish_time or "10:00").strip()
+        parts = raw.split(":")
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            hh, mm = int(parts[0]), int(parts[1])
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                return f"{hh:02d}:{mm:02d}"
+        return "10:00"
+
+    @property
+    def autopilot_default_timezone_safe(self) -> str:
+        """Часовой пояс по умолчанию (непустой; иначе Europe/Moscow)."""
+        return str(self.autopilot_default_timezone or "").strip() or "Europe/Moscow"
 
     # --- Auth / session: производные (effective) свойства ---
 

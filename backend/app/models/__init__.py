@@ -58,6 +58,7 @@ from app.models.post_feedback_event import PostFeedbackEvent
 from app.models.post_publication import PostPublication
 from app.models.post_review_action import PostReviewAction
 from app.models.project import Project
+from app.models.project_autopilot_profile import ProjectAutopilotProfile
 from app.models.public_media_link import PublicMediaLink
 from app.models.schedule_media_decision import ScheduleMediaDecision
 from app.models.schedule_run import ScheduleRun
@@ -120,6 +121,7 @@ __all__ = [
     "PostPublication",
     "PostReviewAction",
     "Project",
+    "ProjectAutopilotProfile",
     "PublicMediaLink",
     "ScheduleRun",
     "SchedulerWorkerLease",

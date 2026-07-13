@@ -1959,3 +1959,27 @@ API-вызовы выключены»). Всё **бесплатно** в MVP. Д
 `NOTIFICATION_TELEGRAM_WEBHOOK_MANAGEMENT_DRY_RUN=true`, `NOTIFICATION_EXTERNAL_DELIVERY_ENABLED=false`;
 `NOTIFICATION_TELEGRAM_BOT_TOKEN` и `NOTIFICATION_TELEGRAM_WEBHOOK_SECRET_TOKEN` — только в env.
 Подробно — [Докс/52_Botfleet_Telegram_Webhook_Polling_Sandbox.md](./Докс/52_Botfleet_Telegram_Webhook_Polling_Sandbox.md).
+
+## Autopilot-first клиентский workspace (v0.5.6)
+
+Главный продуктовый слой: **Botfleet — автопилот SMM**. Клиент не разбирается в worker/media
+decisions/fingerprints/OAuth/webhooks — он делает **пять шагов**: (1) подключает площадки, (2)
+даёт публичную ссылку на **Яндекс Диск** с картинками, (3) выбирает **календарь** (каждый день /
+по будням / 3 раза в неделю / свои дни + время + площадки), (4) задаёт цель и стиль, (5) нажимает
+**«Запустить автопилот»** — и забывает. Дальше Botfleet сам выбирает тему/CTA/формат/картинки,
+пишет текст, адаптирует под площадку, публикует по календарю (если live-условия разрешены) и
+учится на метриках. `ProjectAutopilotProfile` (одна панель на проект) управляет существующим
+`CrmPublishingPlan`, не заменяя его. **Health-check** считает понятные клиенту «блокеры»
+(нет площадки / нет Яндекс Диска / мало картинок / нет календаря / нет баланса / условия публикации
+выключены) и **«следующий лучший шаг»** — одну большую кнопку. **full_auto — основной режим, но
+безопасный**: он НЕ включает глобальные live-флаги публикации и НЕ обходит safety-gates — при
+выключенных live-условиях посты создаются как `needs_review` с понятной причиной, а не
+публикуются. Полуавтоматический режим (`semi_auto`) остаётся вторичным review-режимом. UI —
+`/ui/today` (что происходит сегодня + следующий шаг), `/ui/projects/{id}/autopilot` (статус,
+карточки, баланс), `/ui/projects/{id}/autopilot/{setup,platforms,media,calendar,rules}`; сложные
+разделы вынесены в `/ui/advanced`; sidebar упрощён; добавлена мобильная нижняя навигация.
+Primary-страницы — на клиентском языке (без «worker / schedule run / media decision / dry-run /
+webhook»). Всё превью/настройка **бесплатны**; первый пост создаётся как `needs_review`. Дефолты
+безопасны: `AUTOPILOT_AUTO_START_LIVE=false`, `AUTOPILOT_HEALTH_CHECK_WORKER_ENABLED=false`,
+`AUTOPILOT_SHOW_ADVANCED_SETTINGS=false`; глобальные live-флаги не меняются. Подробно —
+[Докс/53_Botfleet_Autopilot_First_Workspace.md](./Докс/53_Botfleet_Autopilot_First_Workspace.md).

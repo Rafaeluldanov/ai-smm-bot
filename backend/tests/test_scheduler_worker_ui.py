@@ -29,7 +29,8 @@ def test_no_live_button_or_publish_due(client: TestClient) -> None:
 
 
 def test_sidebar_has_scheduler_link(client: TestClient) -> None:
-    assert "/ui/scheduler" in client.get("/ui/tariffs").text
+    # v0.5.6: автоматизация/планировщик доступны из Advanced (autopilot-first навигация).
+    assert "/ui/scheduler" in client.get("/ui/advanced").text
 
 
 def test_workspace_has_worker_mini_block(client: TestClient) -> None:

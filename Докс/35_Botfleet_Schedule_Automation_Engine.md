@@ -142,3 +142,6 @@ uniqueness/platform_fit): сильные ассеты поднимаются в 
 `weak_media_quality`/`repeated_media`, а в `generation_notes` пишется `media_quality_summary`.
 Правило-ориентированно, без внешнего AI. См.
 [43_Botfleet_Media_Quality_Scoring.md](43_Botfleet_Media_Quality_Scoring.md).
+
+
+> **Autopilot-first (v0.5.6):** этот слой скрыт за клиентским автопилотом — клиент подключает Яндекс Диск и календарь, а Botfleet сам всё делает. См. [53_Botfleet_Autopilot_First_Workspace.md](53_Botfleet_Autopilot_First_Workspace.md).

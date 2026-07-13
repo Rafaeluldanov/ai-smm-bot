@@ -83,4 +83,5 @@ def test_metrics_no_raw_secrets(client: TestClient) -> None:
 
 
 def test_metrics_sidebar_link(client: TestClient) -> None:
-    assert "/ui/metrics" in client.get("/ui/projects").text
+    # v0.5.6: метрики доступны из Advanced (autopilot-first навигация).
+    assert "/ui/metrics" in client.get("/ui/advanced").text

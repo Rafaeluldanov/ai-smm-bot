@@ -260,6 +260,17 @@ ACTION_TELEGRAM_WEBHOOK_PREVIEWED = "telegram_webhook.previewed"
 ACTION_TELEGRAM_WEBHOOK_SET_DRY = "telegram_webhook.set_dry"
 ACTION_TELEGRAM_WEBHOOK_INFO_DRY = "telegram_webhook.info_dry"
 ACTION_TELEGRAM_POLLING_DRY_RUN = "telegram_polling.dry_run"
+# Autopilot-first workspace (v0.5.6).
+ACTION_AUTOPILOT_PROFILE_CREATED = "autopilot.profile_created"
+ACTION_AUTOPILOT_HEALTH_CHECKED = "autopilot.health_checked"
+ACTION_AUTOPILOT_MODE_CHANGED = "autopilot.mode_changed"
+ACTION_AUTOPILOT_CALENDAR_CONFIGURED = "autopilot.calendar_configured"
+ACTION_AUTOPILOT_YANDEX_DISK_CONFIGURED = "autopilot.yandex_disk_configured"
+ACTION_AUTOPILOT_CONTENT_RULES_CONFIGURED = "autopilot.content_rules_configured"
+ACTION_AUTOPILOT_STARTED = "autopilot.started"
+ACTION_AUTOPILOT_PAUSED = "autopilot.paused"
+ACTION_AUTOPILOT_BLOCKED = "autopilot.blocked"
+ACTION_AUTOPILOT_FIRST_DRAFT_CREATED = "autopilot.first_draft_created"
 
 
 class AuditLogService:

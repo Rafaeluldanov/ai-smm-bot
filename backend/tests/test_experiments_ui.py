@@ -47,7 +47,8 @@ def test_ui_contains_ab_and_recommendations(client: TestClient) -> None:
 
 
 def test_sidebar_links_present(client: TestClient) -> None:
-    side = client.get("/ui/projects").text
+    # v0.5.6: сложные разделы вынесены в Advanced (autopilot-first навигация).
+    side = client.get("/ui/advanced").text
     assert "/ui/experiments" in side
     assert "/ui/optimization" in side
 

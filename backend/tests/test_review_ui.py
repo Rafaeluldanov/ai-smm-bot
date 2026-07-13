@@ -24,7 +24,8 @@ def test_review_shows_publish_disabled_message(client: TestClient) -> None:
 
 
 def test_review_sidebar_links_present(client: TestClient) -> None:
-    body = client.get("/ui/projects/1/review").text
+    # v0.5.6: ревью и обучение доступны из Advanced (autopilot-first навигация).
+    body = client.get("/ui/advanced").text
     assert "/ui/review" in body
     assert "/ui/learning" in body
 

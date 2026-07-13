@@ -288,7 +288,25 @@ h2[id],h3[id]{scroll-margin-top:72px}
 .price-table td.u{font-weight:700;color:var(--accent);white-space:nowrap}
 .site-footer{padding:16px 26px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;text-align:center}
 .site-footer a{color:var(--muted)}.site-footer a:hover{color:var(--accent)}
-@media (max-width:760px){.layout{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--border)}.page-ctx{display:none}.an-cal{grid-template-columns:repeat(7,1fr)}}
+.an-big{font-size:26px;font-weight:700;color:var(--text)}
+.ap-status{display:inline-block;padding:6px 14px;border-radius:20px;font-weight:700;font-size:15px}
+.ap-status.running{background:rgba(34,197,94,.15);color:#16a34a}
+.ap-status.ready{background:rgba(59,130,246,.15);color:#2563eb}
+.ap-status.setup{background:rgba(234,179,8,.18);color:#b45309}
+.ap-status.problem{background:rgba(239,68,68,.15);color:#dc2626}
+.ap-status.paused{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
+.ap-hero{font-size:22px;font-weight:800;margin:2px 0 4px}
+.ap-big-btn{font-size:16px;padding:12px 24px;font-weight:700}
+.ap-step{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.ap-step .dot{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 auto}
+.ap-step .dot.done{background:rgba(34,197,94,.18);color:#16a34a}
+.ap-step .dot.todo{background:var(--surface);border:1px solid var(--border);color:var(--muted)}
+.bnav{display:none}
+@media (max-width:760px){.layout{grid-template-columns:1fr}.sidebar{border-right:0;border-bottom:1px solid var(--border)}.page-ctx{display:none}.an-cal{grid-template-columns:repeat(7,1fr)}
+.bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--surface);border-top:1px solid var(--border)}
+.bnav-item{flex:1;text-align:center;padding:10px 4px;font-size:12px;color:var(--muted);text-decoration:none}
+.bnav-item.active{color:var(--accent);font-weight:700}
+.content{padding-bottom:64px}}
 """
 )
 
@@ -476,7 +494,11 @@ initShell();
 
 
 def _sidebar(active: str = "") -> str:
-    """Левый sidebar: бренд Botfleet + Проекты (список) / Тарифы / Аналитика / Гайд / Настройки."""
+    """Левый sidebar (autopilot-first): Сегодня / Проекты / Аналитика / Оплата / Настройки / Advanced.
+
+    Простая клиентская навигация. Сложные разделы (эксперименты, решения, воркер, вебхуки, доставка,
+    безопасность) вынесены в Advanced, чтобы не перегружать основной сценарий «автопилот работает сам».
+    """
 
     def cls(key: str) -> str:
         return " active" if active == key else ""
@@ -484,21 +506,16 @@ def _sidebar(active: str = "") -> str:
     return (
         "<aside class='sidebar'>"
         f"{_brand_full()}"
+        f"<a class='sb-link{cls('today')}' href='/ui/today'>Сегодня</a>"
         "<div class='sb-group'><div class='sb-head'>"
-        f"<a class='sb-title{cls('projects')}' href='/ui/projects'>Проекты</a>"
+        f"<a class='sb-title{cls('projects')}' href='/ui/projects'>Автопилот · Проекты</a>"
         "<a class='sb-add' href='/ui/projects/new' title='Новый проект'>+</a></div>"
         "<div id='sb-projects' class='sb-projects'><div class='muted sb-hint'>…</div></div></div>"
-        f"<a class='sb-link{cls('tariffs')}' href='/ui/tariffs'>Тарифы</a>"
-        f"<a class='sb-link{cls('notifications')}' href='/ui/notifications'>Уведомления</a>"
-        f"<a class='sb-link{cls('review')}' href='/ui/review'>Ревью</a>"
-        f"<a class='sb-link{cls('learning')}' href='/ui/learning'>Обучение</a>"
-        f"<a class='sb-link{cls('metrics')}' href='/ui/metrics'>Метрики</a>"
-        f"<a class='sb-link{cls('experiments')}' href='/ui/experiments'>Эксперименты</a>"
-        f"<a class='sb-link{cls('optimization')}' href='/ui/optimization'>Оптимизация</a>"
         f"<a class='sb-link{cls('analytics')}' href='/ui/analytics'>Аналитика</a>"
-        f"<a class='sb-link{cls('scheduler')}' href='/ui/scheduler'>Автоматизация</a>"
+        f"<a class='sb-link{cls('tariffs')}' href='/ui/tariffs'>Оплата</a>"
         f"<a class='sb-link{cls('guide')}' href='/ui/guide'>Гайд</a>"
         f"<a class='sb-link{cls('settings')}' href='/ui/settings'>Настройки</a>"
+        f"<a class='sb-link{cls('advanced')}' href='/ui/advanced'>Advanced</a>"
         "</aside>"
     )
 
@@ -537,14 +554,32 @@ def _page(
         "<a href='/ui/legal/payments'>Оплата</a>"
         "</footer>"
     )
+    bottom_nav = _bottom_nav(active) if sidebar else ""
     document = (
         "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         f"<title>{esc_title} — {BRAND_NAME}</title><style>{_CSS}</style>{theme_init}</head><body>"
-        f"{_header(title)}<div class='{layout_cls}'>{inner}</div>{footer}"
+        f"{_header(title)}<div class='{layout_cls}'>{inner}</div>{footer}{bottom_nav}"
         f"<script>{_SHARED_JS}</script><script>{script}</script></body></html>"
     )
     return HTMLResponse(document)
+
+
+def _bottom_nav(active: str = "") -> str:
+    """Мобильная нижняя навигация (видна только на узких экранах): autopilot-first."""
+
+    def cls(key: str) -> str:
+        return " active" if active == key else ""
+
+    return (
+        "<nav class='bnav'>"
+        f"<a class='bnav-item{cls('today')}' href='/ui/today'>Сегодня</a>"
+        f"<a class='bnav-item{cls('projects')}' href='/ui/projects'>Автопилот</a>"
+        f"<a class='bnav-item{cls('analytics')}' href='/ui/analytics'>Аналитика</a>"
+        f"<a class='bnav-item{cls('tariffs')}' href='/ui/tariffs'>Оплата</a>"
+        f"<a class='bnav-item{cls('advanced')}' href='/ui/advanced'>Ещё</a>"
+        "</nav>"
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -1259,6 +1294,11 @@ def ui_project_dashboard(project_id: int) -> HTMLResponse:
     body = (
         # Заголовок проекта (h1 заменяется на «Проект: {имя}» из JS) + баланс.
         "<div class='proj-head'><span id='pbadges'></span></div>"
+        # Autopilot-first: главный CTA ведёт в автопилот (v0.5.6).
+        "<div class='hero'><div class='ap-hero'>Автопостинг работает сам</div>"
+        "<p class='muted'>Подключите площадки, дайте Яндекс Диск и выберите календарь — "
+        "дальше Botfleet сам пишет и публикует.</p>"
+        f"<a href='/ui/projects/{project_id}/autopilot'><button class='ap-big-btn'>Открыть автопилот</button></a></div>"
         # Действия проекта.
         f"<div class='proj-actions'>"
         f"<a href='/ui/projects/{project_id}/settings'><button class='sec mini'>Настройки проекта</button></a>"
@@ -5294,3 +5334,359 @@ def ui_project_notification_telegram(project_id: int) -> HTMLResponse:
     return _page(
         "Telegram-уведомления", body, script, active="notifications", active_pid=project_id
     )
+
+
+# ======================================================================= #
+# Autopilot-first client workspace (v0.5.6)                                #
+# Primary UI: клиентский язык, без технического жаргона.                    #
+# ======================================================================= #
+
+
+@router.get("/today", response_class=HTMLResponse)
+def ui_today() -> HTMLResponse:
+    """Сегодня: что происходит, что требует внимания, следующий шаг, ближайшие публикации."""
+    body = (
+        "<p class='muted'>Обзор за сегодня по всем вашим проектам. Автопилот работает сам — "
+        "здесь только то, что важно.</p>"
+        "<div class='grid'>"
+        "<div class='pcard'><div class='muted'>Запланировано постов</div><div id='td-planned' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Создано постов</div><div id='td-created' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Ждут проверки</div><div id='td-review' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Автопилотов работает</div><div id='td-running' class='an-big'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Требует внимания</h3><div id='td-attention' class='muted'>Загрузка…</div></div>"
+        "<div class='card'><h3>Следующий лучший шаг</h3>"
+        "<div id='td-next' class='muted'>Загрузка…</div></div>"
+        "<div class='card'><h3>Ближайшие публикации</h3><div id='td-next-posts' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "async function tdLoad(){try{"
+        "const projects=await api('GET','/projects');"
+        "let planned=0,created=0,review=0,running=0;const attn=[];const nextPosts=[];let firstProject=null;"
+        "for(const p of (projects||[])){"
+        "if(!firstProject)firstProject=p;"
+        "let d=null;try{d=await api('GET','/autopilot/projects/'+p.id);}catch(e){continue;}"
+        "if(d.is_enabled)running++;"
+        "for(const e of (d.next_posts||[])){planned++;nextPosts.push({project:p.name,platform:e.platform_key,time:e.planned_time,date:e.run_date,outcome:e.outcome});}"
+        "for(const b of (d.blockers||[])){if(b.severity==='setup'||b.severity==='blocking')attn.push({project:p.name,msg:b.message,pid:p.id});}"
+        "}"
+        "document.getElementById('td-planned').textContent=planned;"
+        "document.getElementById('td-created').textContent=created;"
+        "document.getElementById('td-review').textContent=review;"
+        "document.getElementById('td-running').textContent=running;"
+        "const at=document.getElementById('td-attention');at.classList.remove('muted');"
+        "at.innerHTML=attn.length?attn.map(a=>`<div class='sched-task'><b>${esc(a.project)}</b>: ${esc(a.msg)} `+"
+        "`<a href='/ui/projects/${a.pid}/autopilot'>Открыть →</a></div>`).join(''):'<span class=muted>Всё в порядке 🎉</span>';"
+        "const nx=document.getElementById('td-next');nx.classList.remove('muted');"
+        "nx.innerHTML=firstProject?`<a href='/ui/projects/${firstProject.id}/autopilot'><button class='ap-big-btn'>Открыть автопилот</button></a>`:"
+        "`<a href='/ui/projects/new'><button class='ap-big-btn'>Создать проект</button></a>`;"
+        "const np=document.getElementById('td-next-posts');np.classList.remove('muted');"
+        "np.innerHTML=nextPosts.length?nextPosts.slice(0,20).map(e=>`<div class='sched-task'>`+"
+        "`<b>${esc(e.project)}</b> · ${esc(e.platform||'—')} · ${esc(e.date||'')} ${esc(e.time||'')} `+"
+        "`<span class='pill'>${esc(e.outcome||'план')}</span></div>`).join(''):'<span class=muted>Пока нет ближайших публикаций.</span>';"
+        "}catch(x){err(eEl,x)}}tdLoad();"
+    )
+    return _page("Сегодня", body, script, active="today")
+
+
+@router.get("/advanced", response_class=HTMLResponse)
+def ui_advanced() -> HTMLResponse:
+    """Advanced: сложные разделы для продвинутых пользователей (вне основного сценария)."""
+    body = (
+        "<p class='muted'>Продвинутые разделы. В обычном сценарии они не нужны — автопилот "
+        "управляет ими сам. Откройте, только если хотите тонкой настройки.</p>"
+        "<div class='grid'>"
+        "<div class='pcard'><h3>Эксперименты</h3><p class='meta'>A/B-тесты тем и форматов.</p>"
+        "<a href='/ui/experiments'><button class='mini sec'>Открыть</button></a></div>"
+        "<div class='pcard'><h3>Оптимизация</h3><p class='meta'>Оптимизация тем по метрикам.</p>"
+        "<a href='/ui/optimization'><button class='mini sec'>Открыть</button></a></div>"
+        "<div class='pcard'><h3>Обучение</h3><p class='meta'>Профиль обучения проекта.</p>"
+        "<a href='/ui/learning'><button class='mini sec'>Открыть</button></a></div>"
+        "<div class='pcard'><h3>Метрики</h3><p class='meta'>Импорт и обратная связь метрик.</p>"
+        "<a href='/ui/metrics'><button class='mini sec'>Открыть</button></a></div>"
+        "<div class='pcard'><h3>Ревью</h3><p class='meta'>Очередь ревью и SLA.</p>"
+        "<a href='/ui/review'><button class='mini sec'>Открыть</button></a></div>"
+        "<div class='pcard'><h3>Автоматизация</h3><p class='meta'>Планировщик и настройки движка.</p>"
+        "<a href='/ui/scheduler'><button class='mini sec'>Открыть</button></a></div>"
+        "<div class='pcard'><h3>Уведомления</h3><p class='meta'>Доставка, дайджесты, безопасность.</p>"
+        "<a href='/ui/notification-delivery'><button class='mini sec'>Открыть</button></a></div>"
+        "<div class='pcard'><h3>Telegram-бот</h3><p class='meta'>Webhook/polling sandbox.</p>"
+        "<a href='/ui/notification-telegram'><button class='mini sec'>Открыть</button></a></div>"
+        "<div class='pcard'><h3>Email-шаблоны</h3><p class='meta'>SMTP sandbox и шаблоны писем.</p>"
+        "<a href='/ui/email-templates'><button class='mini sec'>Открыть</button></a></div>"
+        "</div>"
+    )
+    return _page("Advanced", body, "", active="advanced")
+
+
+def _ap_subnav(project_id: int, current: str) -> str:
+    """Подменю страниц автопилота проекта."""
+    items = [
+        ("autopilot", "Автопилот", ""),
+        ("setup", "Настройка", "/setup"),
+        ("platforms", "Площадки", "/platforms"),
+        ("media", "Картинки", "/media"),
+        ("calendar", "Календарь", "/calendar"),
+        ("rules", "Стиль и цель", "/rules"),
+    ]
+    links = "".join(
+        f"<a href='/ui/projects/{project_id}/autopilot{suffix}'>"
+        f"<button class='mini {'sec' if key == current else 'ghost'}'>{label}</button></a>"
+        for key, label, suffix in items
+    )
+    return f"<div class='inline' style='margin-bottom:10px'>{links}</div>"
+
+
+@router.get("/projects/{project_id}/autopilot", response_class=HTMLResponse)
+def ui_project_autopilot(project_id: int) -> HTMLResponse:
+    """Автопилот проекта: главный статус, кнопка, карточки, блокеры, следующий шаг."""
+    body = (
+        f"{_ap_subnav(project_id, 'autopilot')}"
+        "<div class='hero'><div class='ap-hero'>Автопостинг работает сам</div>"
+        "<p class='muted'>Подключите площадки, дайте Яндекс Диск и выберите календарь — дальше "
+        "Botfleet сам пишет тексты, выбирает картинки и публикует по календарю.</p></div>"
+        "<div class='card'><div class='inline'>"
+        "<span id='ap-status' class='ap-status setup'>Загрузка…</span>"
+        "<span id='ap-mode' class='pill'>—</span></div>"
+        "<div id='ap-summary' class='muted' style='margin-top:6px'></div>"
+        "<div class='inline' style='margin-top:10px'>"
+        "<button id='ap-start' class='ap-big-btn' onclick='apStart()'>Запустить автопилот</button>"
+        "<button id='ap-pause' class='ap-big-btn sec' onclick='apPause()' style='display:none'>Поставить на паузу</button></div></div>"
+        "<div class='grid'>"
+        "<div class='pcard'><h3>Куда публикуем</h3><div id='ap-platforms' class='meta'>—</div>"
+        f"<a href='/ui/projects/{project_id}/autopilot/platforms'><button class='mini sec'>Площадки</button></a></div>"
+        "<div class='pcard'><h3>Откуда берём картинки</h3><div id='ap-media' class='meta'>—</div>"
+        f"<a href='/ui/projects/{project_id}/autopilot/media'><button class='mini sec'>Яндекс Диск</button></a></div>"
+        "<div class='pcard'><h3>Когда публикуем</h3><div id='ap-calendar' class='meta'>—</div>"
+        f"<a href='/ui/projects/{project_id}/autopilot/calendar'><button class='mini sec'>Календарь</button></a></div>"
+        "<div class='pcard'><h3>Что бот делает сам</h3><div class='meta'>Пишет текст · выбирает "
+        "картинки · адаптирует под площадку · публикует по календарю · анализирует и обучается.</div></div>"
+        "</div>"
+        "<div class='card'><h3>Что требует внимания</h3><div id='ap-blockers' class='muted'>Загрузка…</div>"
+        "<div id='ap-next' style='margin-top:8px'></div></div>"
+        "<div class='card'><h3>Баланс и стоимость</h3><div id='ap-billing' class='muted'>—</div></div>"
+        "<div class='card'><h3>Ближайшие публикации</h3><div id='ap-next-posts' class='muted'>—</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "async function apLoad(){try{const d=await api('GET','/autopilot/projects/'+PID);"
+        "const toneMap={running:'running',ready:'ready',setup_required:'setup',blocked:'problem',paused:'paused',error:'problem'};"
+        "const labelMap={running:'Работает',ready:'Готов к запуску',setup_required:'Нужно настроить',blocked:'Есть проблема',paused:'На паузе',error:'Ошибка'};"
+        "const st=document.getElementById('ap-status');st.className='ap-status '+(toneMap[d.status]||'setup');"
+        "st.textContent=labelMap[d.status]||d.status;"
+        "document.getElementById('ap-mode').textContent=d.mode==='full_auto'?'Полный автопилот':'С проверкой';"
+        "document.getElementById('ap-summary').textContent=(d.simple_client_summary&&d.simple_client_summary.headline)||'';"
+        "document.getElementById('ap-start').style.display=d.is_enabled?'none':'';"
+        "document.getElementById('ap-pause').style.display=d.is_enabled?'':'none';"
+        "const pf=(d.connected_platforms||[]).filter(p=>p.connected).map(p=>esc(p.platform_key));"
+        "document.getElementById('ap-platforms').textContent=pf.length?pf.join(', '):'Пока не подключено';"
+        "const ms=d.media_status||{};document.getElementById('ap-media').textContent="
+        "(d.yandex_disk_status&&d.yandex_disk_status.connected)?('Найдено картинок: '+(ms.total||0)):'Яндекс Диск не подключён';"
+        "const cs=d.calendar_status||{};document.getElementById('ap-calendar').textContent="
+        "cs.configured?('Публикуем: '+((cs.publish_times||[]).join(', ')||'по расписанию')):'Календарь не выбран';"
+        "const bl=document.getElementById('ap-blockers');bl.classList.remove('muted');"
+        "bl.innerHTML=(d.blockers&&d.blockers.length)?d.blockers.map(b=>`<div class='sched-task'>`+"
+        "`<span class='pill'>${b.severity==='info'?'инфо':'важно'}</span> ${esc(b.message)}</div>`).join(''):'<span class=muted>Всё готово ✓</span>';"
+        "const nb=d.next_best_action||{};document.getElementById('ap-next').innerHTML="
+        "nb.label?`<button class='mini sec' onclick='apDoAction(\"'+nb.action+'\")'>${esc(nb.label)}</button>`:'';"
+        "const b=d.balance_status||{};document.getElementById('ap-billing').innerHTML="
+        "`Баланс: <b>${b.balance_units==null?'—':b.balance_units}</b> units · хватит примерно на `+"
+        "`<b>${b.approx_posts_left==null?'—':b.approx_posts_left}</b> постов · один автопост ≈ ${b.cost_per_post||'—'} units · аналитика и обучение включены.`;"
+        "const np=document.getElementById('ap-next-posts');np.classList.remove('muted');"
+        "np.innerHTML=(d.next_posts&&d.next_posts.length)?d.next_posts.slice(0,10).map(e=>`<div class='sched-task'>`+"
+        "`${esc(e.platform_key||'—')} · ${esc(e.run_date||'')} ${esc(e.planned_time||'')}</div>`).join(''):'<span class=muted>Появятся после настройки календаря.</span>';"
+        "}catch(x){err(eEl,x)}}"
+        "async function apStart(){try{const r=await api('POST','/autopilot/projects/'+PID+'/start',{});"
+        "if(!r.ok){err(eEl,new Error(r.message||'Сначала завершите настройку'));}apLoad();}catch(x){err(eEl,x)}}"
+        "async function apPause(){try{await api('POST','/autopilot/projects/'+PID+'/pause',{});apLoad();}catch(x){err(eEl,x)}}"
+        "function apDoAction(a){const map={connect_platform:'/platforms',connect_media:'/media',configure_calendar:'/calendar',open_billing:'',open_calendar:'/calendar',fix_blocker:''};"
+        "if(a==='start_autopilot'){apStart();return;}if(a==='open_billing'){location.href='/ui/tariffs';return;}"
+        "location.href='/ui/projects/'+PID+'/autopilot'+(map[a]||'');}"
+        "window.apStart=apStart;window.apPause=apPause;window.apDoAction=apDoAction;apLoad();"
+    )
+    return _page("Автопилот", body, script, active="projects", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/autopilot/setup", response_class=HTMLResponse)
+def ui_project_autopilot_setup(project_id: int) -> HTMLResponse:
+    """Мастер настройки автопилота: пошаговый чек-лист."""
+    body = (
+        f"{_ap_subnav(project_id, 'setup')}"
+        "<p class='muted'>Пять простых шагов — и автопилот заработает.</p>"
+        "<div class='card'><div id='ap-steps'>Загрузка…</div></div>"
+        "<div class='card'><h3>Что дальше</h3><div class='inline'>"
+        f"<a href='/ui/projects/{project_id}/autopilot/platforms'><button class='mini sec'>1. Подключить площадку</button></a>"
+        f"<a href='/ui/projects/{project_id}/autopilot/media'><button class='mini sec'>2. Подключить Яндекс Диск</button></a>"
+        f"<a href='/ui/projects/{project_id}/autopilot/calendar'><button class='mini sec'>3. Выбрать календарь</button></a>"
+        f"<a href='/ui/projects/{project_id}/autopilot'><button class='mini'>4. Запустить автопилот</button></a>"
+        "</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "async function stLoad(){try{const d=await api('GET','/autopilot/projects/'+PID+'/checklist');"
+        "const h=document.getElementById('ap-steps');"
+        "h.innerHTML=(d.steps||[]).map(s=>`<div class='ap-step'><span class='dot ${s.done?'done':'todo'}'>${s.done?'✓':'•'}</span>`+"
+        "`<span>${esc(s.title)}</span></div>`).join('')+`<p class='muted' style='margin-top:8px'>Готово ${d.done} из ${d.total}.</p>`;"
+        "}catch(x){err(eEl,x)}}stLoad();"
+    )
+    return _page("Настройка автопилота", body, script, active="projects", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/autopilot/platforms", response_class=HTMLResponse)
+def ui_project_autopilot_platforms(project_id: int) -> HTMLResponse:
+    """Площадки автопилота: карточки Telegram/VK/Instagram/OK со статусом подключения."""
+    cards = [
+        ("telegram", "Telegram", "готово"),
+        ("vk", "VK", "готово"),
+        ("instagram", "Instagram", "готово"),
+        ("odnoklassniki", "Одноклассники", "скоро"),
+        ("website", "Сайт", "готово"),
+    ]
+    tiles = "".join(
+        f"<div class='pcard'><h3>{label}</h3>"
+        f"<div class='meta' id='ap-pf-{key}'>—</div>"
+        + (
+            f"<a href='/ui/projects/{project_id}/platforms'><button class='mini sec'>Подключить</button></a>"
+            if avail == "готово"
+            else "<span class='pill off'>скоро</span>"
+        )
+        + "</div>"
+        for key, label, avail in cards
+    )
+    body = (
+        f"{_ap_subnav(project_id, 'platforms')}"
+        "<p class='muted'>Выберите, куда публиковать. Подключение занимает пару минут.</p>"
+        f"<div class='grid'>{tiles}</div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "async function pfLoad(){try{const d=await api('GET','/autopilot/projects/'+PID);"
+        "const map={};for(const p of (d.connected_platforms||[]))map[p.platform_key]=p;"
+        "for(const k of ['telegram','vk','instagram','odnoklassniki','website']){"
+        "const el=document.getElementById('ap-pf-'+k);if(!el)continue;"
+        "const p=map[k];el.textContent=p?(p.connected?'Подключено ✓':'Нужно завершить подключение'):'Не подключено';}"
+        "}catch(x){err(eEl,x)}}pfLoad();"
+    )
+    return _page("Площадки", body, script, active="projects", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/autopilot/media", response_class=HTMLResponse)
+def ui_project_autopilot_media(project_id: int) -> HTMLResponse:
+    """Картинки автопилота: подключение Яндекс Диска + проверка/синхронизация медиатеки."""
+    body = (
+        f"{_ap_subnav(project_id, 'media')}"
+        "<p class='muted'>Дайте публичную ссылку на папку Яндекс Диска с картинками — "
+        "Botfleet сам выберет подходящие под каждый пост.</p>"
+        "<div class='card'><h3>Яндекс Диск</h3>"
+        "<div class='inline'>"
+        "<input id='ap-yd-url' placeholder='https://disk.yandex.ru/d/...' style='min-width:280px'>"
+        "<input id='ap-yd-folder' placeholder='Папка (например SMM)' value='SMM'>"
+        "<input id='ap-yd-tags' placeholder='теги через запятую'>"
+        "<button class='mini' onclick='ydSave()'>Подключить</button></div>"
+        "<div id='ap-yd-status' class='muted' style='margin-top:8px'>—</div></div>"
+        "<div class='card'><h3>Медиатека</h3>"
+        "<div class='inline'><button class='mini sec' onclick='ydCheck()'>Проверить картинки</button></div>"
+        "<div id='ap-yd-media' class='muted' style='margin-top:8px'>—</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "async function ydSave(){try{const tags=gl('ap-yd-tags');"
+        "const r=await api('POST','/autopilot/projects/'+PID+'/yandex-disk',"
+        "{public_url:gv('ap-yd-url'),root_folder:gv('ap-yd-folder'),tags:tags});"
+        "document.getElementById('ap-yd-status').textContent='Подключено ✓ Папка: '+(r.root_folder||'SMM');"
+        "ydCheck();}catch(x){err(eEl,x)}}"
+        "async function ydCheck(){try{const d=await api('GET','/autopilot/projects/'+PID);"
+        "const ms=d.media_status||{};const q=ms.quality||{};"
+        "document.getElementById('ap-yd-media').innerHTML=`Найдено картинок: <b>${ms.total||0}</b>`+"
+        "(q?(' · хорошего качества: '+(q.good||0)):'')+`. Минимум для старта: ${ms.min_required||5}, рекомендуем ${ms.recommended||30}.`;"
+        "const yd=d.yandex_disk_status||{};document.getElementById('ap-yd-status').textContent="
+        "yd.connected?('Подключено ✓ Папка: '+(yd.root_folder||'SMM')):'Яндекс Диск не подключён';"
+        "}catch(x){err(eEl,x)}}"
+        "window.ydSave=ydSave;window.ydCheck=ydCheck;ydCheck();"
+    )
+    return _page("Картинки", body, script, active="projects", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/autopilot/calendar", response_class=HTMLResponse)
+def ui_project_autopilot_calendar(project_id: int) -> HTMLResponse:
+    """Календарь автопилота: простой выбор частоты/времени/площадок."""
+    body = (
+        f"{_ap_subnav(project_id, 'calendar')}"
+        "<p class='muted'>Выберите, как часто и когда публиковать. Botfleet сам подготовит "
+        "и опубликует посты по этому плану.</p>"
+        "<div class='card'><h3>Как часто</h3>"
+        "<div class='inline'>"
+        "<label><input type='radio' name='freq' value='daily' checked> Каждый день</label>"
+        "<label><input type='radio' name='freq' value='weekdays'> По будням</label>"
+        "<label><input type='radio' name='freq' value='three_per_week'> 3 раза в неделю</label>"
+        "<label><input type='radio' name='freq' value='custom'> Свои дни</label></div>"
+        "<div class='inline' style='margin-top:8px' id='cal-days'>"
+        + "".join(
+            f"<label><input type='checkbox' class='cal-wd' value='{i}'> {d}</label>"
+            for i, d in enumerate(["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"])
+        )
+        + "</div></div>"
+        "<div class='card'><h3>Время публикации</h3>"
+        "<div class='inline'><input id='cal-time' value='10:00' style='max-width:100px'>"
+        "<span class='muted'>по Москве</span></div></div>"
+        "<div class='card'><h3>Площадки</h3><div class='inline'>"
+        "<label><input type='checkbox' class='cal-pf' value='telegram' checked> Telegram</label>"
+        "<label><input type='checkbox' class='cal-pf' value='vk'> VK</label>"
+        "<label><input type='checkbox' class='cal-pf' value='instagram'> Instagram</label></div></div>"
+        "<div class='card'><button class='ap-big-btn' onclick='calSave()'>Сохранить календарь</button>"
+        "<div id='cal-status' class='muted' style='margin-top:8px'></div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "function calFreq(){const r=document.querySelector('input[name=freq]:checked');return r?r.value:'daily';}"
+        "async function calSave(){try{"
+        "const platforms=[...document.querySelectorAll('.cal-pf:checked')].map(x=>x.value);"
+        "const weekdays=[...document.querySelectorAll('.cal-wd:checked')].map(x=>parseInt(x.value));"
+        "const r=await api('POST','/autopilot/projects/'+PID+'/calendar',"
+        "{platforms:platforms,frequency:calFreq(),weekdays:weekdays,publish_times:[gv('cal-time')]});"
+        "document.getElementById('cal-status').textContent='Календарь сохранён ✓';}catch(x){err(eEl,x)}}"
+        "window.calSave=calSave;"
+    )
+    return _page("Календарь", body, script, active="projects", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/autopilot/rules", response_class=HTMLResponse)
+def ui_project_autopilot_rules(project_id: int) -> HTMLResponse:
+    """Стиль и цель постинга: цель/тон/глубина/CTA."""
+    body = (
+        f"{_ap_subnav(project_id, 'rules')}"
+        "<p class='muted'>Задайте цель и стиль — Botfleet будет писать тексты в нужном тоне.</p>"
+        "<div class='card'><h3>Цель постинга</h3>"
+        "<select id='rl-goal'>"
+        "<option value='продажи'>Продажи</option><option value='заявки'>Заявки</option>"
+        "<option value='охват'>Охват</option><option value='доверие'>Доверие</option>"
+        "<option value='экспертность'>Экспертность</option></select></div>"
+        "<div class='card'><h3>Тон</h3>"
+        "<select id='rl-tone'>"
+        "<option value='экспертный'>Экспертный</option><option value='дружелюбный'>Дружелюбный</option>"
+        "<option value='продающий'>Продающий</option><option value='спокойный'>Спокойный</option></select></div>"
+        "<div class='card'><h3>Глубина поста</h3>"
+        "<select id='rl-depth'>"
+        "<option value='normal'>Обычный</option><option value='deep'>Глубокий</option>"
+        "<option value='expert'>Экспертный</option></select></div>"
+        "<div class='card'><h3>Призыв к действию (CTA)</h3>"
+        "<input id='rl-cta' placeholder='Например: Пишите в личные сообщения' style='min-width:280px'></div>"
+        "<div class='card'><button class='ap-big-btn' onclick='rlSave()'>Сохранить</button>"
+        "<div id='rl-status' class='muted' style='margin-top:8px'></div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "async function rlSave(){try{const r=await api('POST','/autopilot/projects/'+PID+'/content-rules',"
+        "{business_goal:gv('rl-goal'),tone:gv('rl-tone'),post_depth:gv('rl-depth'),cta:gv('rl-cta')});"
+        "document.getElementById('rl-status').textContent='Сохранено ✓';}catch(x){err(eEl,x)}}"
+        "window.rlSave=rlSave;"
+    )
+    return _page("Стиль и цель", body, script, active="projects", active_pid=project_id)

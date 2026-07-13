@@ -46,10 +46,10 @@ def test_auth_pages_have_forms(client: TestClient) -> None:
 
 
 def test_sidebar_labels_present(client: TestClient) -> None:
-    # Sidebar-разделы присутствуют на страницах кабинета.
+    # Sidebar-разделы (autopilot-first, v0.5.6): Сегодня / Проекты / Аналитика / Оплата / Advanced.
     for path in ("/ui/projects", "/ui/tariffs", "/ui/analytics", "/ui/billing"):
         body = client.get(path).text
-        for label in ("Проекты", "Тарифы", "Аналитика", "Гайд", "Настройки"):
+        for label in ("Сегодня", "Проекты", "Аналитика", "Оплата", "Настройки", "Advanced"):
             assert label in body, (path, label)
 
 
