@@ -96,6 +96,12 @@ USAGE_EMAIL_TEMPLATE_PREVIEW = "email_template_preview"
 USAGE_EMAIL_TEST_SEND = "email_test_send"
 USAGE_EMAIL_DIGEST_RENDER = "email_digest_render"
 
+# Типы usage для Telegram-уведомлений (v0.5.4). Бесплатны в MVP (реальной доставки нет).
+USAGE_TELEGRAM_BINDING_CREATE = "telegram_binding_create"
+USAGE_TELEGRAM_NOTIFICATION_PREVIEW = "telegram_notification_preview"
+USAGE_TELEGRAM_TEST_SEND = "telegram_test_send"
+USAGE_TELEGRAM_DIGEST_RENDER = "telegram_digest_render"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -171,6 +177,11 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_EMAIL_TEMPLATE_PREVIEW: 0,
     USAGE_EMAIL_TEST_SEND: 0,
     USAGE_EMAIL_DIGEST_RENDER: 0,
+    # v0.5.4: Telegram-уведомления — бесплатно в MVP (реальной Telegram-доставки нет).
+    USAGE_TELEGRAM_BINDING_CREATE: 0,
+    USAGE_TELEGRAM_NOTIFICATION_PREVIEW: 0,
+    USAGE_TELEGRAM_TEST_SEND: 0,
+    USAGE_TELEGRAM_DIGEST_RENDER: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

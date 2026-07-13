@@ -121,6 +121,7 @@ class NotificationDeliveryService:
         status, reason = self._initial_status(db, channel, notification, destination)
         # Для email/digest рендерим шаблон: subject берём из письма; в metadata — тип шаблона.
         subject = sanitize_text(notification.title, 255)
+        message_preview = sanitize_text(notification.message, 200)
         request_metadata: dict[str, Any] = {"notification_type": notification.notification_type}
         if channel in ("email", "digest"):
             rendered = self._render_email(db, notification)
@@ -133,6 +134,29 @@ class NotificationDeliveryService:
                         "has_unsubscribe_footer": bool(rendered.get("has_unsubscribe_footer")),
                     }
                 )
+        elif channel == "telegram":
+            # message_preview = превью Telegram-текста (без chat_id/токена); binding_id в metadata.
+            rendered = self._render_telegram(db, notification)
+            binding = (
+                self._telegram_binding_svc().get_active_binding(
+                    db, notification.recipient_user_id, notification.project_id
+                )
+                if notification.recipient_user_id
+                else None
+            )
+            if rendered is not None:
+                subject = sanitize_text(rendered.get("subject") or subject, 255)
+                message_preview = sanitize_text(rendered.get("text") or message_preview, 200)
+            request_metadata.update(
+                {
+                    "template_type": (rendered or {}).get("template_type"),
+                    "parse_mode": (rendered or {}).get(
+                        "parse_mode", self._resolve_settings().notification_telegram_parse_mode
+                    ),
+                    "binding_id": binding.id if binding is not None else None,
+                    "live_blocked_reason": reason,
+                }
+            )
         log = delivery_repo.create_delivery_log(
             db,
             account_id=notification.account_id,
@@ -144,7 +168,7 @@ class NotificationDeliveryService:
             status=status,
             destination_masked=mask_destination(channel, destination),
             subject=subject,
-            message_preview=sanitize_text(notification.message, 200),
+            message_preview=message_preview,
             error_message=reason,
             request_metadata=request_metadata,
         )
@@ -202,6 +226,13 @@ class NotificationDeliveryService:
                 message = rendered.get("text_body") or message
                 if rendered.get("html_body"):
                     request_metadata["html_body"] = rendered["html_body"]
+        # Для telegram рендерим короткий текст в ЗАПРОС (chat_id резолвится в destination ниже).
+        elif log.channel == "telegram" and notification is not None:
+            rendered = self._render_telegram(db, notification)
+            if rendered is not None:
+                subject = rendered.get("subject") or subject
+                message = rendered.get("text") or message
+                request_metadata["parse_mode"] = rendered.get("parse_mode", "none")
         request = NotificationDeliveryRequest(
             provider=provider.provider_name,
             channel=log.channel,
@@ -386,6 +417,9 @@ class NotificationDeliveryService:
         uid = notification.recipient_user_id
         # 1. Нет адреса доставки (для digest адрес — email получателя, проверяем тоже).
         if not destination:
+            # Для telegram отсутствие адреса = нет верифицированной привязки.
+            if channel == "telegram":
+                return "disabled", "missing_verified_telegram_binding"
             return "disabled", "missing_destination"
         # 2. Предпочтение канала выключено.
         pref = (
@@ -449,8 +483,17 @@ class NotificationDeliveryService:
             user = user_repository.get_user_by_id(db, uid) if uid else None
             return user.email if user is not None else None
         if channel == "telegram":
+            # Адрес Telegram — расшифрованный chat_id верифицированной привязки (только внутри
+            # сервис/provider-пути; наружу — только masked). Нет привязки → нет адреса.
+            if uid is not None:
+                dest = self._telegram_binding_svc().get_delivery_destination(
+                    db, uid, notification.project_id
+                )
+                if dest:
+                    return str(dest)
+            # Фолбэк на сконфигурированный default chat_id (для локальной отладки, если задан).
             configured = self._resolve_settings().notification_telegram_default_chat_id
-            return configured or (f"chat:{uid}" if uid else None)
+            return configured or None
         if channel == "webhook":
             return "https://sandbox.local/notify"
         return None
@@ -579,6 +622,43 @@ class NotificationDeliveryService:
             )
         except Exception:  # noqa: BLE001 — рендер не критичен для доставки
             logger.warning("email render failed for notification_id=%s", notification.id)
+            return None
+
+    def _telegram_binding_svc(self) -> Any:
+        if getattr(self, "_tg_binding_svc", None) is None:
+            from app.services.notification_telegram_binding_service import (
+                NotificationTelegramBindingService,
+            )
+
+            self._tg_binding_svc = NotificationTelegramBindingService(settings=self._settings)
+        return self._tg_binding_svc
+
+    def _telegram_tpl_svc(self) -> Any:
+        if getattr(self, "_tg_tpl_svc", None) is None:
+            from app.services.telegram_notification_template_service import (
+                TelegramNotificationTemplateService,
+            )
+
+            self._tg_tpl_svc = TelegramNotificationTemplateService(settings=self._settings)
+        return self._tg_tpl_svc
+
+    def _render_telegram(self, db: Session, notification: Any) -> dict[str, Any] | None:
+        """Отрендерить короткий Telegram-текст для уведомления (безопасно; не роняет доставку)."""
+        if not bool(
+            getattr(
+                self._resolve_settings(),
+                "notification_telegram_templates_enabled_effective",
+                True,
+            )
+        ):
+            return None
+        try:
+            rendered: dict[str, Any] = self._telegram_tpl_svc().render_notification_telegram(
+                db, notification.id
+            )
+            return rendered
+        except Exception:  # noqa: BLE001 — рендер не критичен для доставки
+            logger.warning("telegram render failed for notification_id=%s", notification.id)
             return None
 
     def _record_rate_attempt(self, db: Session, log: NotificationDeliveryLog) -> None:

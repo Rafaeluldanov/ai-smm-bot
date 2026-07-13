@@ -43,14 +43,17 @@ def test_modules_no_publish_due() -> None:
 
 
 def test_no_network_libraries_in_delivery() -> None:
-    # HTTP-библиотеки запрещены везде; stdlib smtplib разрешён ТОЛЬКО в smtp_email_provider
-    # (live-ready foundation за всеми флагами; по умолчанию провайдер отказывает — см. ниже).
-    http_tokens = ("requests.", "httpx.", "urllib.request", "aiosmtp")
+    # HTTP-библиотеки запрещены везде; stdlib smtplib разрешён ТОЛЬКО в smtp_email_provider, а
+    # httpx — ТОЛЬКО в telegram_notification_provider (live-ready foundation за всеми флагами;
+    # по умолчанию провайдеры отказывают — см. ниже). Импорт httpx там ленивый (в live-пути).
     smtp_module = "app.services.notification_delivery.smtp_email_provider"
+    telegram_module = "app.services.notification_delivery.telegram_notification_provider"
     for module in _MODULES:
         src = _source(module).lower()
-        for token in http_tokens:
+        for token in ("requests.", "urllib.request", "aiosmtp"):
             assert token not in src, f"{token} в {module}"
+        if module != telegram_module:
+            assert "httpx" not in src, f"httpx в {module}"
         if module != smtp_module:
             for token in ("smtplib", "socket."):
                 assert token not in src, f"{token} в {module}"

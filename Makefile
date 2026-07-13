@@ -38,6 +38,7 @@ BIN := $(VENV)/bin
         notification-safety-dashboard notification-opt-out notification-suppression-clear \
         webhook-subscription-create webhook-subscription-preview \
         email-template-preview email-notification-preview email-test-send \
+        telegram-binding-create telegram-binding-verify telegram-notification-preview telegram-test-send \
         smoke
 
 help: ## Показать список команд
@@ -313,6 +314,18 @@ email-notification-preview: ## Предпросмотр email уведомлен
 
 email-test-send: ## Тестовая отправка email (DRY-RUN only): make email-test-send to=user@example.ru [template_type=system_notice]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.email_test_send --to "$(to)" --template-type "$(or $(template_type),system_notice)"
+
+telegram-binding-create: ## Создать привязку Telegram (token один раз): make telegram-binding-create user_id=1 [project_id=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_binding_create --user-id "$(user_id)" $(if $(account_id),--account-id "$(account_id)",) $(if $(project_id),--project-id "$(project_id)",)
+
+telegram-binding-verify: ## Верифицировать привязку Telegram (dry/локально): make telegram-binding-verify token=TOKEN chat_id=123456 [username=user]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_binding_verify --token "$(token)" --chat-id "$(chat_id)" $(if $(username),--username "$(username)",) --show-unsafe "$(or $(show_unsafe),false)"
+
+telegram-notification-preview: ## Предпросмотр Telegram-текста (sandbox): make telegram-notification-preview notification_id=1 [digest_id=1] [list=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_notification_preview $(if $(filter true,$(list)),--list,) $(if $(notification_id),--notification-id "$(notification_id)",) $(if $(digest_id),--digest-id "$(digest_id)",)
+
+telegram-test-send: ## Тестовая Telegram-отправка (DRY-RUN only): make telegram-test-send user_id=1 [template_type=system_notice] [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_test_send --user-id "$(user_id)" --template-type "$(or $(template_type),system_notice)" --dry-run "$(or $(dry_run),true)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

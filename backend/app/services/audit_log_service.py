@@ -238,6 +238,17 @@ ACTION_EMAIL_TEST_SEND_BLOCKED = "email_test_send.blocked"
 ACTION_SMTP_DELIVERY_BLOCKED = "smtp_delivery.blocked"
 ACTION_SMTP_DELIVERY_SENT = "smtp_delivery.sent"
 ACTION_SMTP_DELIVERY_FAILED = "smtp_delivery.failed"
+# Telegram notification delivery foundation (v0.5.4).
+ACTION_TELEGRAM_BINDING_CREATED = "telegram_binding.created"
+ACTION_TELEGRAM_BINDING_VERIFIED = "telegram_binding.verified"
+ACTION_TELEGRAM_BINDING_DISABLED = "telegram_binding.disabled"
+ACTION_TELEGRAM_BINDING_REVOKED = "telegram_binding.revoked"
+ACTION_TELEGRAM_NOTIFICATION_PREVIEWED = "telegram_notification.previewed"
+ACTION_TELEGRAM_TEST_SEND_PREVIEWED = "telegram_test_send.previewed"
+ACTION_TELEGRAM_TEST_SEND_BLOCKED = "telegram_test_send.blocked"
+ACTION_TELEGRAM_DELIVERY_BLOCKED = "telegram_delivery.blocked"
+ACTION_TELEGRAM_DELIVERY_SENT = "telegram_delivery.sent"
+ACTION_TELEGRAM_DELIVERY_FAILED = "telegram_delivery.failed"
 
 
 class AuditLogService:

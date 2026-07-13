@@ -2638,6 +2638,15 @@ def ui_settings() -> HTMLResponse:
         "<li>SMTP: <b>не live</b>; SMTP-пароль хранится только в env и не показывается.</li>"
         "</ul>"
         "<p class='muted'>Preview email-шаблонов: <a href='/ui/email-templates'>Email-шаблоны →</a></p></div>"
+        # Telegram-уведомления (v0.5.4).
+        "<div class='card' id='telegram-settings'><h3>📨 Telegram-уведомления</h3>"
+        "<ul class='muted'>"
+        "<li>Telegram-доставка: <b>выключена</b> (live send off, external delivery off).</li>"
+        "<li>Привязка чата: включена; chat_id хранится зашифрованно и маской.</li>"
+        "<li>Тестовая отправка: выключена по умолчанию (только dry-run).</li>"
+        "<li>Bot token хранится только в env и не показывается.</li>"
+        "</ul>"
+        "<p class='muted'>Подключение и preview: <a href='/ui/notification-telegram'>Telegram-уведомления →</a></p></div>"
         # Индикаторы безопасности.
         "<div class='card'><h3>🔒 Безопасность</h3><ul class='muted'>"
         "<li>Live-публикации выключены по умолчанию.</li>"
@@ -4785,10 +4794,13 @@ def ui_notification_delivery() -> HTMLResponse:
         "<div class='inline'><a href='/ui/notifications'><button class='sec mini'>← Уведомления</button></a>"
         "<a href='/ui/notification-digests'><button class='ghost mini'>Дайджесты</button></a>"
         "<a href='/ui/notification-safety'><button class='ghost mini'>Безопасность</button></a>"
-        "<a href='/ui/email-templates'><button class='ghost mini'>Email-шаблоны</button></a></div>"
+        "<a href='/ui/email-templates'><button class='ghost mini'>Email-шаблоны</button></a>"
+        "<a href='/ui/notification-telegram'><button class='ghost mini'>Telegram</button></a></div>"
         "<h2>Доставка уведомлений</h2>"
         "<div class='muted'>Email-провайдер: mock/sandbox (SMTP live выключен). "
         "<a href='/ui/email-templates'>Preview email-шаблонов →</a></div>"
+        "<div class='muted'>Telegram-провайдер: mock/sandbox (live выключен; нужна verified "
+        "привязка). <a href='/ui/notification-telegram'>Telegram-уведомления →</a></div>"
         f"{_DELIVERY_BANNER}"
         "<div class='grid'>"
         "<div class='pcard'><div class='muted'>pending</div><div id='dl-pending' class='an-big'>—</div></div>"
@@ -5142,3 +5154,92 @@ def ui_email_templates() -> HTMLResponse:
         "window.etPreview=etPreview;loadET();"
     )
     return _page("Email-шаблоны", body, script, active="notifications")
+
+
+def _telegram_body(project_id: int | None = None) -> tuple[str, str]:
+    """Собрать body+script страницы Telegram-уведомлений (общий для глобальной/проектной)."""
+    _s = get_settings()
+
+    def _yn(value: bool) -> str:
+        return "вкл" if value else "выкл"
+
+    body = (
+        "<div class='inline'><a href='/ui/notification-delivery'><button class='sec mini'>← Доставка</button></a>"
+        "<a href='/ui/email-templates'><button class='ghost mini'>Email-шаблоны</button></a></div>"
+        "<h2>Telegram-уведомления</h2>"
+        "<div class='callout warn'><b>Реальная Telegram-доставка выключена.</b> Сейчас доступен "
+        "preview/sandbox: сообщения рендерятся и «отправляются» через mock, но наружу ничего не "
+        "идёт. Bot token хранится только в env; chat_id хранится зашифрованно и показывается "
+        "только маской.</div>"
+        "<div class='grid'>"
+        f"<div class='pcard'><div class='muted'>Telegram live</div><div class='an-big'>{_yn(_s.notification_telegram_live_send_enabled_effective)}</div></div>"
+        f"<div class='pcard'><div class='muted'>External delivery</div><div class='an-big'>{_yn(_s.notification_external_delivery_enabled_effective)}</div></div>"
+        f"<div class='pcard'><div class='muted'>Провайдер</div><div class='an-big'>mock</div></div>"
+        f"<div class='pcard'><div class='muted'>Привязок</div><div id='tg-count' class='an-big'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Подключение Telegram</h3>"
+        "<p class='muted'>1. Откройте вашего Telegram-бота Botfleet. "
+        "2. Отправьте боту команду <code>/start &lt;token&gt;</code>. "
+        "3. Нажмите «Проверить» (в MVP — введите chat_id вручную ниже).</p>"
+        "<div class='inline'><button class='mini' onclick='tgCreate()'>Создать токен привязки</button></div>"
+        "<div id='tg-token' class='muted' style='margin-top:8px'></div>"
+        "<div style='margin-top:8px'><div class='muted'>Ручная проверка (MVP)</div><div class='inline'>"
+        "<input id='tg-vtoken' placeholder='token'>"
+        "<input id='tg-chat' placeholder='chat_id'>"
+        "<input id='tg-user' placeholder='username'>"
+        "<button class='mini sec' onclick='tgVerify()'>Проверить</button></div></div></div>"
+        "<div class='card'><h3>Мои привязки</h3><div id='tg-list' class='muted'>Загрузка…</div></div>"
+        "<div class='card'><h3>Preview / тест (dry-run)</h3><div class='inline'>"
+        "<input id='tg-nid' placeholder='notification_id' style='max-width:160px'>"
+        "<button class='mini' onclick='tgPreview()'>Preview уведомления</button>"
+        "<button class='mini ghost' onclick='tgTest()'>Тест dry-run</button></div>"
+        "<div class='muted' style='margin-top:8px'>Subject</div><div id='tg-subject' class='card'></div>"
+        "<div class='muted'>Текст</div><pre id='tg-text' class='card' style='white-space:pre-wrap'></pre></div>"
+        "<div class='muted'>Логи доставки: <a href='/ui/notification-delivery'>Доставка уведомлений →</a></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "async function tgLoad(){try{const rows=await api('GET','/notification-telegram/bindings');"
+        "document.getElementById('tg-count').textContent=rows.length;"
+        "const h=document.getElementById('tg-list');h.classList.remove('muted');"
+        "h.innerHTML=rows.length?rows.map(b=>`<div class='sched-task'><span class='pill'>${esc(b.status)}</span> "
+        "chat ${esc(b.chat_id_masked||'—')} <span class='muted'>${esc(b.username||'')}</span> "
+        "<button class='mini ghost' onclick='tgDisable(${b.id})'>Отключить</button> "
+        "<button class='mini ghost' onclick='tgRevoke(${b.id})'>Отозвать</button></div>`).join(''):"
+        "'<span class=muted>Привязок пока нет.</span>';}catch(x){err(eEl,x)}}"
+        "async function tgCreate(){try{const r=await api('POST','/notification-telegram/bindings',{});"
+        "document.getElementById('tg-token').innerHTML='<b>Команда для бота:</b> <code>'+esc(r.bot_command)+"
+        "'</code><br><span class=muted>Токен показан один раз. Скопируйте и отправьте боту.</span>';"
+        "document.getElementById('tg-vtoken').value=r.verification_token;tgLoad();}catch(x){err(eEl,x)}}"
+        "async function tgVerify(){try{const r=await api('POST','/notification-telegram/bindings/verify',"
+        "{token:document.getElementById('tg-vtoken').value,chat_id:document.getElementById('tg-chat').value,"
+        "username:document.getElementById('tg-user').value});tgLoad();}catch(x){err(eEl,x)}}"
+        "async function tgDisable(id){try{await api('POST','/notification-telegram/bindings/'+id+'/disable',{});tgLoad();}catch(x){err(eEl,x)}}"
+        "async function tgRevoke(id){try{await api('POST','/notification-telegram/bindings/'+id+'/revoke',{});tgLoad();}catch(x){err(eEl,x)}}"
+        "async function tgPreview(){try{const id=document.getElementById('tg-nid').value;"
+        "const r=await api('POST','/notification-telegram/notifications/'+id+'/preview',{});"
+        "document.getElementById('tg-subject').textContent=r.subject;document.getElementById('tg-text').textContent=r.text;}catch(x){err(eEl,x)}}"
+        "async function tgTest(){try{const r=await api('POST','/notification-telegram/test-send-dry',{template_type:'system_notice'});"
+        "document.getElementById('tg-subject').textContent=r.subject;"
+        "document.getElementById('tg-text').textContent=(r.text||r.reason||'')+' [dry-run]';}catch(x){err(eEl,x)}}"
+        "window.tgCreate=tgCreate;window.tgVerify=tgVerify;window.tgDisable=tgDisable;"
+        "window.tgRevoke=tgRevoke;window.tgPreview=tgPreview;window.tgTest=tgTest;tgLoad();"
+    )
+    return body, script
+
+
+@router.get("/notification-telegram", response_class=HTMLResponse)
+def ui_notification_telegram() -> HTMLResponse:
+    """Telegram-уведомления: привязки, preview, тест dry-run, safety-баннер."""
+    body, script = _telegram_body()
+    return _page("Telegram-уведомления", body, script, active="notifications")
+
+
+@router.get("/projects/{project_id}/notification-telegram", response_class=HTMLResponse)
+def ui_project_notification_telegram(project_id: int) -> HTMLResponse:
+    """Telegram-уведомления в контексте проекта (привязки/preview/тест — sandbox)."""
+    body, script = _telegram_body(project_id)
+    return _page(
+        "Telegram-уведомления", body, script, active="notifications", active_pid=project_id
+    )

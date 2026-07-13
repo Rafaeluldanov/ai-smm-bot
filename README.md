@@ -1911,3 +1911,27 @@ SMTP-клиент внедряется фабрикой, реальной сет
 `SMTP_LIVE_SEND_ENABLED=false`, `SMTP_DRY_RUN=true`, `EMAIL_TEST_SEND_ENABLED=false`,
 `NOTIFICATION_EMAIL_LIVE_ENABLED=false`, `NOTIFICATION_EXTERNAL_DELIVERY_ENABLED=false`. Подробно —
 [Докс/50_Botfleet_Email_Templates_SMTP_Sandbox.md](./Докс/50_Botfleet_Email_Templates_SMTP_Sandbox.md).
+
+## Telegram-уведомления: привязка чата, шаблоны, sandbox/live-ready (v0.5.4)
+
+Слой **Telegram как канала уведомлений** с **live-ready, но выключенной** реальной доставкой.
+Пользователь подключает Telegram: система выдаёт **verification token**, пользователь отправляет
+боту `/start <token>`, Botfleet сохраняет **chat binding** — при этом `chat_id`/`telegram_user_id`
+хранятся **зашифрованно + masked + sha256-hash** (сырой chat_id наружу не отдаётся), а токен
+хранится только как hash+prefix и показывается **один раз** при создании. Короткие **Telegram-
+шаблоны** (`review_assigned`, `review_mentioned`, `task_overdue`, `post_needs_review`,
+`experiment_winner_selected`, `billing_balance_low`, `digest_daily/weekly`, `system_notice`, …)
+рендерятся `{{ var }}`-движком в plain text (parse_mode `none` по умолчанию), санитизируются от
+секретов и обрезаются до лимита. **Telegram-провайдер** — live-ready foundation: mock-провайдер
+не ходит в сеть (`sandbox=true`), а live-провайдер **отказывает** (`disabled`), пока не включены
+**все** флаги (external delivery + telegram live + telegram live send + bot token настроен) — в
+live-пути `httpx` импортируется **лениво**, в тестах HTTP-отправитель внедряется (сети нет), bot
+token никогда не логируется/не возвращается. Доставка уважает **verified binding** (нет привязки →
+`disabled: missing_verified_telegram_binding`) и все safety-гейты v0.5.2 (opt-out/rate-limit/
+suppression/preferences). UI — `/ui/notification-telegram` (баннер «Реальная Telegram-доставка
+выключена», подключение `/start`, ручная верификация для MVP, preview, тест dry-run) + блок
+«Telegram-уведомления» в `/ui/settings`. Всё **бесплатно** в MVP. Дефолты безопасны:
+`NOTIFICATION_TELEGRAM_LIVE_SEND_ENABLED=false`, `NOTIFICATION_TELEGRAM_TEST_SEND_ENABLED=false`,
+`NOTIFICATION_TELEGRAM_TEST_SEND_DRY_RUN=true`, `NOTIFICATION_TELEGRAM_LIVE_ENABLED=false`,
+`NOTIFICATION_EXTERNAL_DELIVERY_ENABLED=false`; `NOTIFICATION_TELEGRAM_BOT_TOKEN` — только в env.
+Подробно — [Докс/51_Botfleet_Telegram_Notification_Delivery.md](./Докс/51_Botfleet_Telegram_Notification_Delivery.md).

@@ -400,6 +400,22 @@ class Settings(BaseSettings):
     notification_telegram_bot_token: str = ""
     notification_telegram_default_chat_id: str = ""
 
+    # --- Telegram notification templates + chat binding (v0.5.4) ---
+    # Foundation Telegram-канала уведомлений: шаблоны, chat binding, live-ready adapter. РЕАЛЬНАЯ
+    # Telegram-доставка ВЫКЛЮЧЕНА по умолчанию (live send false, test send false, dry-run true) и
+    # требует ещё external+telegram live-флаги + verified binding. Bot token — только в env.
+    notification_telegram_templates_enabled: bool = True
+    notification_telegram_binding_enabled: bool = True
+    notification_telegram_binding_token_bytes: int = 24
+    notification_telegram_binding_token_ttl_days: int = 30
+    notification_telegram_parse_mode: str = "none"
+    notification_telegram_test_send_enabled: bool = False
+    notification_telegram_test_send_dry_run: bool = True
+    notification_telegram_max_message_chars: int = 3900
+    notification_telegram_live_send_enabled: bool = False
+    notification_telegram_require_verified_binding: bool = True
+    notification_telegram_allow_unverified_test: bool = False
+
     notification_webhook_enabled: bool = False
     notification_webhook_provider: str = "mock"
     notification_webhook_live_enabled: bool = False
@@ -1149,6 +1165,49 @@ class Settings(BaseSettings):
         """Список разрешённых получателей тестовой отправки (из CSV)."""
         raw = str(self.email_test_allowed_recipients or "")
         return [x.strip().lower() for x in raw.split(",") if x.strip()]
+
+    # --- Telegram notifications: производные (effective) свойства (v0.5.4) ---
+
+    @property
+    def notification_telegram_templates_enabled_effective(self) -> bool:
+        """Доступны ли Telegram-шаблоны (нужно и общее notifications-включение)."""
+        return bool(self.notifications_enabled and self.notification_telegram_templates_enabled)
+
+    @property
+    def notification_telegram_binding_enabled_effective(self) -> bool:
+        """Доступна ли привязка Telegram-чата (binding). По умолчанию включено (sandbox)."""
+        return bool(self.notifications_enabled and self.notification_telegram_binding_enabled)
+
+    @property
+    def notification_telegram_test_send_enabled_effective(self) -> bool:
+        """Доступна ли тестовая Telegram-отправка (по умолчанию false — только dry-run)."""
+        return bool(
+            self.notification_telegram_templates_enabled_effective
+            and self.notification_telegram_test_send_enabled
+        )
+
+    @property
+    def notification_telegram_live_send_enabled_effective(self) -> bool:
+        """Разрешена ли РЕАЛЬНАЯ Telegram-отправка. По умолчанию false — требует всех флагов.
+
+        Нужны: внешняя доставка + telegram live + telegram live send + bot token настроен.
+        """
+        return bool(
+            self.notification_telegram_enabled_effective
+            and self.notification_telegram_live_send_enabled
+            and self.notification_telegram_configured
+        )
+
+    @property
+    def notification_telegram_binding_token_ttl_seconds(self) -> int:
+        """TTL verification-токена в секундах (не меньше 1 часа)."""
+        days = int(self.notification_telegram_binding_token_ttl_days or 30)
+        return max(3600, days * 86400)
+
+    @property
+    def notification_telegram_max_message_chars_safe(self) -> int:
+        """Максимум символов Telegram-сообщения (в границах 1..4096)."""
+        return max(1, min(4096, int(self.notification_telegram_max_message_chars or 3900)))
 
     # --- Auth / session: производные (effective) свойства ---
 

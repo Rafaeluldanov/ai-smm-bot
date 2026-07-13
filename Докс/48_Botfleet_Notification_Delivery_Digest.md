@@ -158,3 +158,8 @@ project-гардом. Адрес доставки — только маской;
 > (subject/text/HTML + футер отписки с маскированным токеном), но реальная отправка выключена
 > (SMTP-провайдер отказывает, пока не включены все флаги). См.
 > [50_Botfleet_Email_Templates_SMTP_Sandbox.md](50_Botfleet_Email_Templates_SMTP_Sandbox.md).
+>
+> **Продолжение (v0.5.4):** Telegram-канал уведомлений — привязка чата (`/start <token>`,
+> chat_id encrypted/masked/hash), короткие шаблоны и mock/live-ready adapter (по умолчанию
+> отказывает). См.
+> [51_Botfleet_Telegram_Notification_Delivery.md](51_Botfleet_Telegram_Notification_Delivery.md).

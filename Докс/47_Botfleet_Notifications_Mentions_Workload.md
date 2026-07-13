@@ -164,3 +164,7 @@ project-гардом. Межклиентских уведомлений нет; 
 > **Продолжение (v0.5.2):** safety-слой перед реальной доставкой — отписки, лимиты, подавление,
 > подписанные webhook-подписки. См.
 > [49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md](49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md).
+>
+> **Продолжение (v0.5.3–v0.5.4):** каналы доставки — email-шаблоны + SMTP sandbox
+> ([50](50_Botfleet_Email_Templates_SMTP_Sandbox.md)) и Telegram-канал с привязкой чата
+> ([51](51_Botfleet_Telegram_Notification_Delivery.md)); реальная внешняя доставка выключена.

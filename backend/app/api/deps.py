@@ -23,12 +23,18 @@ if TYPE_CHECKING:
     from app.services.notification_rate_limit_service import NotificationRateLimitService
     from app.services.notification_service import NotificationService
     from app.services.notification_suppression_service import NotificationSuppressionService
+    from app.services.notification_telegram_binding_service import (
+        NotificationTelegramBindingService,
+    )
     from app.services.notification_unsubscribe_service import NotificationUnsubscribeService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
     from app.services.review_workflow_service import ReviewWorkflowService
     from app.services.schedule_media_decision_service import ScheduleMediaDecisionService
     from app.services.schedule_topic_decision_service import ScheduleTopicDecisionService
+    from app.services.telegram_notification_template_service import (
+        TelegramNotificationTemplateService,
+    )
     from app.services.topic_optimization_service import TopicOptimizationService
     from app.services.webhook_subscription_service import WebhookSubscriptionService
 
@@ -362,6 +368,24 @@ def get_email_template_service() -> "EmailTemplateService":
     from app.services.email_template_service import EmailTemplateService
 
     return EmailTemplateService(settings=get_settings())
+
+
+def get_telegram_notification_template_service() -> "TelegramNotificationTemplateService":
+    """Построить сервис Telegram-шаблонов (preview/render; реальной отправки нет)."""
+    from app.services.telegram_notification_template_service import (
+        TelegramNotificationTemplateService,
+    )
+
+    return TelegramNotificationTemplateService(settings=get_settings())
+
+
+def get_notification_telegram_binding_service() -> "NotificationTelegramBindingService":
+    """Построить сервис привязок Telegram-чата (chat_id encrypted/masked; sandbox по умолчанию)."""
+    from app.services.notification_telegram_binding_service import (
+        NotificationTelegramBindingService,
+    )
+
+    return NotificationTelegramBindingService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":
