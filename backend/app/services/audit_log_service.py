@@ -219,6 +219,17 @@ ACTION_NOTIFICATION_DIGEST_GENERATED = "notification_digest.generated"
 ACTION_NOTIFICATION_DIGEST_SENT = "notification_digest.sent"
 ACTION_NOTIFICATION_DIGEST_FAILED = "notification_digest.failed"
 ACTION_NOTIFICATION_DIGEST_SCHEDULER_PREVIEWED = "notification_digest.scheduler.previewed"
+# Notification safety: unsubscribe, rate limits, suppression, webhooks (v0.5.2).
+ACTION_NOTIFICATION_OPT_OUT_CREATED = "notification.opt_out.created"
+ACTION_NOTIFICATION_OPT_OUT_REVOKED = "notification.opt_out.revoked"
+ACTION_NOTIFICATION_SUPPRESSION_CREATED = "notification.suppression.created"
+ACTION_NOTIFICATION_SUPPRESSION_CLEARED = "notification.suppression.cleared"
+ACTION_NOTIFICATION_RATE_LIMITED = "notification.rate_limited"
+ACTION_WEBHOOK_SUBSCRIPTION_CREATED = "webhook_subscription.created"
+ACTION_WEBHOOK_SUBSCRIPTION_UPDATED = "webhook_subscription.updated"
+ACTION_WEBHOOK_SUBSCRIPTION_REVOKED = "webhook_subscription.revoked"
+ACTION_WEBHOOK_SUBSCRIPTION_PREVIEWED = "webhook_subscription.previewed"
+ACTION_NOTIFICATION_DELIVERY_BLOCKED = "notification.delivery.blocked"
 
 
 class AuditLogService:

@@ -415,6 +415,28 @@ class Settings(BaseSettings):
     notification_delivery_max_attempts: int = 3
     notification_delivery_retry_backoff_seconds: int = 300
 
+    # --- Notification safety: unsubscribe, rate limits, suppression, webhooks (v0.5.2) ---
+    # Safety-слой ПЕРЕД реальной внешней доставкой: отписки, лимиты, подавление, подписанные
+    # webhook. Реальная внешняя доставка/webhook по-прежнему ВЫКЛЮЧЕНЫ по умолчанию; секреты
+    # webhook хранятся зашифрованно/masked и наружу не отдаются.
+    notification_safety_enabled: bool = True
+    notification_unsubscribe_enabled: bool = True
+    notification_unsubscribe_token_secret: str = ""
+    notification_unsubscribe_token_ttl_days: int = 365
+    notification_rate_limit_enabled: bool = True
+    notification_rate_limit_email_per_hour: int = 20
+    notification_rate_limit_telegram_per_hour: int = 30
+    notification_rate_limit_webhook_per_hour: int = 60
+    notification_rate_limit_digest_per_day: int = 2
+    notification_suppression_enabled: bool = True
+    notification_suppression_failure_threshold: int = 5
+    notification_suppression_ttl_hours: int = 24
+    notification_webhook_subscriptions_enabled: bool = True
+    notification_webhook_subscriptions_live_enabled: bool = False
+    notification_webhook_signature_header: str = "X-Botfleet-Signature"
+    notification_webhook_timestamp_header: str = "X-Botfleet-Timestamp"
+    notification_webhook_max_payload_bytes: int = 262144
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -981,6 +1003,74 @@ class Settings(BaseSettings):
     def notification_webhook_signing_configured(self) -> bool:
         """Задан ли секрет подписи webhook (наличие, без раскрытия значения)."""
         return bool(self.notification_webhook_signing_secret.strip())
+
+    # --- Notification safety: производные (effective) свойства (v0.5.2) ---
+
+    @property
+    def notification_safety_enabled_effective(self) -> bool:
+        """Включён ли safety-слой уведомлений (opt-out/лимиты/подавление/webhooks)."""
+        return bool(self.notifications_enabled and self.notification_safety_enabled)
+
+    @property
+    def notification_unsubscribe_enabled_effective(self) -> bool:
+        """Доступна ли отписка (opt-out) через токен."""
+        return bool(
+            self.notification_safety_enabled_effective and self.notification_unsubscribe_enabled
+        )
+
+    @property
+    def notification_rate_limit_enabled_effective(self) -> bool:
+        """Действуют ли лимиты доставки."""
+        return bool(
+            self.notification_safety_enabled_effective and self.notification_rate_limit_enabled
+        )
+
+    @property
+    def notification_suppression_enabled_effective(self) -> bool:
+        """Действует ли подавление доставки при ошибках."""
+        return bool(
+            self.notification_safety_enabled_effective and self.notification_suppression_enabled
+        )
+
+    @property
+    def notification_webhook_subscriptions_enabled_effective(self) -> bool:
+        """Доступны ли webhook-подписки (создание/preview; live-вызов — отдельно)."""
+        return bool(
+            self.notification_safety_enabled_effective
+            and self.notification_webhook_subscriptions_enabled
+        )
+
+    @property
+    def notification_webhook_subscriptions_live_enabled_effective(self) -> bool:
+        """Разрешён ли РЕАЛЬНЫЙ вызов webhook. По умолчанию false — в MVP только mock preview."""
+        return bool(
+            self.notification_webhook_subscriptions_enabled_effective
+            and self.notification_external_delivery_enabled_effective
+            and self.notification_webhook_subscriptions_live_enabled
+        )
+
+    @property
+    def notification_suppression_ttl_seconds(self) -> int:
+        """TTL подавления в секундах (из часов; не отрицательное)."""
+        return max(1, int(self.notification_suppression_ttl_hours or 1)) * 3600
+
+    @property
+    def notification_suppression_failure_threshold_safe(self) -> int:
+        """Порог числа ошибок до подавления (не меньше 1)."""
+        return max(1, int(self.notification_suppression_failure_threshold or 1))
+
+    @property
+    def notification_unsubscribe_token_ttl_seconds(self) -> int:
+        """TTL токена отписки в секундах (из дней; не отрицательное)."""
+        return max(1, int(self.notification_unsubscribe_token_ttl_days or 1)) * 86400
+
+    @property
+    def notification_unsubscribe_token_secret_effective(self) -> str:
+        """Секрет подписи токена отписки: свой или (вне production) фолбэк на auth-секрет."""
+        configured = self.notification_unsubscribe_token_secret.strip()
+        if configured:
+            return configured
+        return self.auth_token_secret_effective
 
     # --- Auth / session: производные (effective) свойства ---
 

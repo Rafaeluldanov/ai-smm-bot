@@ -2626,7 +2626,9 @@ def ui_settings() -> HTMLResponse:
         "умолчанию и в MVP не отправляется. "
         "<a href='/ui/notifications'>Уведомления →</a> · "
         "<a href='/ui/notification-delivery'>Доставка уведомлений →</a> · "
-        "<a href='/ui/notification-digests'>Дайджесты →</a></p></div>"
+        "<a href='/ui/notification-digests'>Дайджесты →</a> · "
+        "<a href='/ui/notification-safety'>Безопасность →</a> · "
+        "<a href='/ui/notification-preferences'>Настройки уведомлений →</a></p></div>"
         # Индикаторы безопасности.
         "<div class='card'><h3>🔒 Безопасность</h3><ul class='muted'>"
         "<li>Live-публикации выключены по умолчанию.</li>"
@@ -4772,7 +4774,8 @@ def ui_notification_delivery() -> HTMLResponse:
     """Доставка уведомлений (sandbox): статусы, каналы, логи, preview/send-dry/retry-dry."""
     body = (
         "<div class='inline'><a href='/ui/notifications'><button class='sec mini'>← Уведомления</button></a>"
-        "<a href='/ui/notification-digests'><button class='ghost mini'>Дайджесты</button></a></div>"
+        "<a href='/ui/notification-digests'><button class='ghost mini'>Дайджесты</button></a>"
+        "<a href='/ui/notification-safety'><button class='ghost mini'>Безопасность</button></a></div>"
         "<h2>Доставка уведомлений</h2>"
         f"{_DELIVERY_BANNER}"
         "<div class='grid'>"
@@ -4899,3 +4902,182 @@ def ui_notification_digests() -> HTMLResponse:
         "window.dgPreview=dgPreview;window.dgGenDry=dgGenDry;loadDG();"
     )
     return _page("Дайджесты уведомлений", body, script, active="notifications")
+
+
+_SAFETY_BANNER = (
+    "<div class='callout warn'><b>Внешняя доставка выключена.</b> Настройки безопасности "
+    "(отписки, лимиты, подавление, webhook) применятся, когда доставка будет включена. Реальный "
+    "webhook выключен; секреты хранятся зашифрованно и наружу не отдаются.</div>"
+)
+
+
+@router.get("/notification-safety", response_class=HTMLResponse)
+def ui_notification_safety() -> HTMLResponse:
+    """Безопасность уведомлений: отписки, лимиты, подавление (для текущего пользователя)."""
+    body = (
+        "<div class='inline'><a href='/ui/notifications'><button class='sec mini'>← Уведомления</button></a>"
+        "<a href='/ui/notification-preferences'><button class='ghost mini'>Настройки</button></a>"
+        "<a href='/ui/notification-delivery'><button class='ghost mini'>Доставка</button></a></div>"
+        "<h2>Безопасность уведомлений</h2>"
+        f"{_SAFETY_BANNER}"
+        "<div class='card'><h3>Отписки (opt-out)</h3>"
+        "<div class='inline'>"
+        "<select id='oo-scope'><option value='channel'>канал</option><option value='global'>всё</option>"
+        "<option value='notification_type'>тип</option></select>"
+        "<select id='oo-channel'><option>email</option><option>telegram</option><option>webhook</option><option>digest</option></select>"
+        "<button class='mini' onclick='ooCreate()'>Отписаться</button></div>"
+        "<div id='oo-list' class='muted' style='margin-top:8px'>Загрузка…</div></div>"
+        "<div class='card'><h3>Лимиты доставки</h3><div id='rl-list' class='muted'>Загрузка…</div></div>"
+        "<div class='card'><h3>Подавление (suppression)</h3><div id='sp-list' class='muted'>Загрузка…</div></div>"
+        "<div id='ns-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');const msg=document.getElementById('ns-msg');"
+        "async function loadOO(){try{const rows=await api('GET','/notification-safety/opt-outs');"
+        "const h=document.getElementById('oo-list');h.classList.remove('muted');"
+        "h.innerHTML=rows.length?rows.map(o=>`<div class='sched-task'><span class='pill'>${esc(o.scope)}</span> "
+        "${esc(o.channel||'—')} <b>${esc(o.status)}</b> "
+        "<button class='mini ghost' onclick='ooRevoke(${o.id})'>Вернуть</button></div>`).join(''):"
+        "\"<div class='muted'>Отписок нет.</div>\";}catch(x){err(eEl,x)}}"
+        "async function ooCreate(){try{const scope=document.getElementById('oo-scope').value;"
+        "const ch=document.getElementById('oo-channel').value;"
+        "await api('POST','/notification-safety/opt-outs',{scope:scope,channel:scope==='global'?null:ch});"
+        "msg.textContent='Отписка создана.';loadOO();}catch(x){err(eEl,x)}}"
+        "async function ooRevoke(id){try{await api('POST','/notification-safety/opt-outs/'+id+'/revoke',{});loadOO();}catch(x){err(eEl,x)}}"
+        "async function loadRL(){try{const d=await api('GET','/notification-safety/rate-limits');"
+        "const h=document.getElementById('rl-list');h.classList.remove('muted');"
+        "h.innerHTML=d.buckets.length?d.buckets.map(b=>`<div class='sched-task'><span class='pill'>${esc(b.channel||'—')}</span> "
+        "${b.count}/${b.limit} · осталось ${b.remaining}</div>`).join(''):"
+        "\"<div class='muted'>Активных лимитов нет.</div>\";}catch(x){err(eEl,x)}}"
+        "async function loadSP(){try{const rows=await api('GET','/notification-safety/suppressions');"
+        "const h=document.getElementById('sp-list');h.classList.remove('muted');"
+        "h.innerHTML=rows.length?rows.map(s=>`<div class='sched-task'><span class='pill'>${esc(s.channel)}</span> "
+        "<b>${esc(s.status)}</b> · ${esc(s.reason)} · ошибок ${s.failure_count} "
+        "${s.status==='active'?`<button class='mini ghost' onclick='spClear(${s.id})'>Снять</button>`:''}</div>`).join(''):"
+        "\"<div class='muted'>Подавлений нет.</div>\";}catch(x){err(eEl,x)}}"
+        "async function spClear(id){try{await api('POST','/notification-safety/suppressions/'+id+'/clear',{});loadSP();}catch(x){err(eEl,x)}}"
+        "window.ooCreate=ooCreate;window.ooRevoke=ooRevoke;window.spClear=spClear;loadOO();loadRL();loadSP();"
+    )
+    return _page("Безопасность уведомлений", body, script, active="notifications")
+
+
+@router.get("/notification-preferences", response_class=HTMLResponse)
+def ui_notification_preferences() -> HTMLResponse:
+    """Настройки уведомлений: каналы (masked), отписки, ссылки на безопасность."""
+    body = (
+        "<div class='inline'><a href='/ui/notification-safety'><button class='sec mini'>← Безопасность</button></a></div>"
+        "<h2>Настройки уведомлений</h2>"
+        f"{_SAFETY_BANNER}"
+        "<div class='card'><h3>Каналы</h3>"
+        "<div id='np-info' class='muted'>Загрузка…</div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<label><input type='checkbox' checked disabled> В приложении (in-app)</label>"
+        "<label><input type='checkbox' disabled> Email</label>"
+        "<label><input type='checkbox' disabled> Telegram</label>"
+        "<label><input type='checkbox' disabled> Дайджест</label>"
+        "<label><input type='checkbox' disabled> Webhook</label></div>"
+        "<p class='muted'>Внешние каналы выключены по умолчанию. Управление отписками: "
+        "<a href='/ui/notification-safety'>Безопасность уведомлений →</a></p></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "(async()=>{try{const pr=await api('GET','/notifications/preferences');"
+        "document.getElementById('np-info').textContent='in-app: '+(pr.in_app_enabled?'вкл':'выкл')+' · внешняя доставка: '+(pr.external_delivery_enabled?'вкл':'выкл (по умолчанию)');"
+        "}catch(e){document.getElementById('np-info').textContent='—';}})();"
+    )
+    return _page("Настройки уведомлений", body, script, active="notifications")
+
+
+@router.get("/unsubscribe", response_class=HTMLResponse)
+def ui_unsubscribe() -> HTMLResponse:
+    """Инфо-страница отписки (реальная отписка — по ссылке /unsubscribe?token=...)."""
+    body = (
+        "<h2>Отписка от уведомлений</h2>"
+        "<div class='callout'>Отписка выполняется по персональной ссылке из письма "
+        "(<code>/unsubscribe?token=…</code>). Управлять подписками можно в кабинете: "
+        "<a href='/ui/notification-safety'>Безопасность уведомлений →</a></div>"
+        "<p class='muted'>Внешняя доставка выключена — сейчас это управление подпиской на будущее.</p>"
+    )
+    return _page("Отписка", body, "", sidebar=False)
+
+
+@router.get("/projects/{project_id}/notification-safety", response_class=HTMLResponse)
+def ui_project_notification_safety(project_id: int) -> HTMLResponse:
+    """Безопасность уведомлений проекта: подавления и лимиты."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/notifications'>"
+        "<button class='sec mini'>← Уведомления проекта</button></a>"
+        f"<a href='/ui/projects/{project_id}/webhooks'><button class='ghost mini'>Webhooks</button></a></div>"
+        "<h2>Безопасность уведомлений проекта</h2>"
+        f"{_SAFETY_BANNER}"
+        "<div class='grid'>"
+        "<div class='pcard'><div class='muted'>Подавлений (активных)</div><div id='ps-active' class='an-big'>—</div></div>"
+        "<div class='pcard'><div class='muted'>Лимит-бакетов</div><div id='ps-buckets' class='an-big'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Подавления</h3><div id='ps-sup' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "async function load(){try{"
+        "const sup=await api('GET','/notification-safety/suppressions');"
+        "document.getElementById('ps-active').textContent=sup.filter(s=>s.status==='active').length;"
+        "const rl=await api('GET','/notification-safety/rate-limits');"
+        "document.getElementById('ps-buckets').textContent=(rl.buckets||[]).length;"
+        "const h=document.getElementById('ps-sup');h.classList.remove('muted');"
+        "h.innerHTML=sup.length?sup.map(s=>`<div class='sched-task'><span class='pill'>${esc(s.channel)}</span> ${esc(s.status)} · ${esc(s.reason)}</div>`).join(''):"
+        "\"<div class='muted'>Подавлений нет.</div>\";}catch(x){err(eEl,x)}}load();"
+    )
+    return _page(
+        "Безопасность уведомлений проекта",
+        body,
+        script,
+        active="notifications",
+        active_pid=project_id,
+    )
+
+
+@router.get("/projects/{project_id}/webhooks", response_class=HTMLResponse)
+def ui_project_webhooks(project_id: int) -> HTMLResponse:
+    """Webhook-подписки проекта: список, создание, preview, отзыв (URL/secret masked)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/notification-safety'>"
+        "<button class='sec mini'>← Безопасность</button></a></div>"
+        "<h2>Webhook-подписки</h2>"
+        "<div class='callout warn'><b>Реальный вызов webhook выключен.</b> URL и signing secret "
+        "хранятся зашифрованно; наружу показываются только маской. Доступен подписанный preview "
+        "без реальной отправки.</div>"
+        "<div class='card'><h3>Новая подписка</h3><div class='inline'>"
+        "<input id='wh-title' placeholder='название' style='width:140px'>"
+        "<input id='wh-url' placeholder='https://…' style='width:40%'>"
+        "<button class='mini' onclick='whCreate()'>Создать</button></div>"
+        "<div class='muted' style='margin-top:4px'>Signing secret сгенерируется автоматически (masked).</div></div>"
+        "<div id='wh-msg' class='muted'></div>"
+        "<div class='card'><h3>Подписки</h3><div id='wh-list' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('wh-msg');let AID=null;"
+        "async function acct(){if(AID)return AID;const d=await api('GET','/saas/projects/'+PID+'/dashboard');"
+        "AID=d.account_id||(d.extra&&d.extra.account_id);return AID;}"
+        "function whrow(w){return `<div class='sched-task'><span class='pill'>${esc(w.status)}</span> "
+        "<b>${esc(w.title)}</b> · ${esc(w.url_masked||'—')} · secret ${w.signing_secret_present?esc(w.signing_secret_masked||'•'):'нет'} "
+        "· ${esc(w.signature_algorithm)}"
+        "<div class='inline' style='margin-top:4px'><button class='mini sec' onclick='whPreview(${w.id})'>Preview</button>"
+        "<button class='mini ghost' onclick='whRevoke(${w.id})'>Отозвать</button></div>"
+        "<div id='wh-pv-${w.id}' class='muted'></div></div>`;}"
+        "async function loadWH(){try{const aid=await acct();"
+        "const rows=await api('GET','/notification-safety/webhooks?account_id='+aid+'&project_id='+PID);"
+        "const h=document.getElementById('wh-list');h.classList.remove('muted');"
+        "h.innerHTML=rows.length?rows.map(whrow).join(''):\"<div class='muted'>Подписок нет.</div>\";}catch(x){err(eEl,x)}}"
+        "async function whCreate(){try{const aid=await acct();const url=document.getElementById('wh-url').value.trim();"
+        "if(!url)return;await api('POST','/notification-safety/webhooks',{account_id:aid,project_id:PID,title:document.getElementById('wh-title').value||'webhook',url:url});"
+        "msg.textContent='Подписка создана (URL/secret скрыты).';loadWH();}catch(x){err(eEl,x)}}"
+        "async function whPreview(id){try{const pv=await api('POST','/notification-safety/webhooks/'+id+'/preview',{});"
+        "document.getElementById('wh-pv-'+id).textContent='Подпись: '+pv.signature.slice(0,20)+'… · would_send: '+pv.would_send;}catch(x){err(eEl,x)}}"
+        "async function whRevoke(id){try{await api('POST','/notification-safety/webhooks/'+id+'/revoke',{});loadWH();}catch(x){err(eEl,x)}}"
+        "window.whCreate=whCreate;window.whPreview=whPreview;window.whRevoke=whRevoke;loadWH();"
+    )
+    return _page("Webhook-подписки", body, script, active="notifications", active_pid=project_id)

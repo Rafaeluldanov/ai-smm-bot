@@ -35,6 +35,8 @@ BIN := $(VENV)/bin
         notifications-inbox notifications-overdue-scan notifications-workload \
         notification-delivery-preview notification-delivery-send notification-delivery-retry \
         notification-digest-preview notification-digest-generate notification-digest-scheduler \
+        notification-safety-dashboard notification-opt-out notification-suppression-clear \
+        webhook-subscription-create webhook-subscription-preview \
         smoke
 
 help: ## Показать список команд
@@ -286,6 +288,21 @@ notification-digest-generate: ## Генерация дайджеста (dry-run 
 
 notification-digest-scheduler: ## Планировщик дайджестов (dry-run по умолчанию): make notification-digest-scheduler [frequency=daily] [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_digest_scheduler --frequency "$(or $(frequency),daily)" --dry-run "$(or $(dry_run),true)"
+
+notification-safety-dashboard: ## Сводка безопасности уведомлений: make notification-safety-dashboard user_id=1 [project_id=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_safety_dashboard --user-id "$(user_id)" $(if $(project_id),--project-id "$(project_id)",)
+
+notification-opt-out: ## Создать отписку (dry-run по умолчанию): make notification-opt-out user_id=1 scope=channel channel=email [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_opt_out --user-id "$(user_id)" --scope "$(or $(scope),global)" $(if $(channel),--channel "$(channel)",) $(if $(project_id),--project-id "$(project_id)",) --dry-run "$(or $(dry_run),true)"
+
+notification-suppression-clear: ## Снять подавление (dry-run по умолчанию): make notification-suppression-clear suppression_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.notification_suppression_clear --suppression-id "$(suppression_id)" --dry-run "$(or $(dry_run),true)"
+
+webhook-subscription-create: ## Создать webhook-подписку (dry-run по умолчанию): make webhook-subscription-create account_id=1 url=https://... [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.webhook_subscription_create --account-id "$(account_id)" --url "$(url)" $(if $(project_id),--project-id "$(project_id)",) --dry-run "$(or $(dry_run),true)"
+
+webhook-subscription-preview: ## Preview доставки webhook (без реального вызова): make webhook-subscription-preview subscription_id=1 [notification_id=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.webhook_subscription_preview --subscription-id "$(subscription_id)" $(if $(notification_id),--notification-id "$(notification_id)",)
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

@@ -27,6 +27,7 @@ from app.api.media_proxy import router as media_proxy_router
 from app.api.media_quality import router as media_quality_router
 from app.api.metrics_import import router as metrics_import_router
 from app.api.notification_delivery import router as notification_delivery_router
+from app.api.notification_safety import router as notification_safety_router
 from app.api.notifications import router as notifications_router
 from app.api.platform_connections import router as platform_connections_router
 from app.api.post_publications import router as post_publications_router
@@ -96,6 +97,7 @@ def create_app() -> FastAPI:
     app.include_router(media_curation_review_router)
     app.include_router(notifications_router)
     app.include_router(notification_delivery_router)
+    app.include_router(notification_safety_router)
     app.include_router(post_publications_router)
     app.include_router(analytics_router)
     app.include_router(platform_connections_router)

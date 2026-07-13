@@ -149,3 +149,7 @@ project-гардом. Адрес доставки — только маской;
 - digest-worker (периодический планировщик);
 - управление отпиской (unsubscribe);
 - rate limits доставки.
+
+> **Продолжение (v0.5.2):** safety-слой перед реальной доставкой реализован — отписки, лимиты,
+> подавление и подписанные webhook-подписки; конвейер доставки уважает эти гейты. См.
+> [49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md](49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md).

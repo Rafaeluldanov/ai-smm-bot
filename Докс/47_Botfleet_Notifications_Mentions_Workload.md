@@ -160,3 +160,7 @@ project-гардом. Межклиентских уведомлений нет; 
 > реализован как **sandbox** — delivery-задачи, журнал, retry/backoff, планировщик; реальная
 > доставка выключена по умолчанию (mock-провайдеры). См.
 > [48_Botfleet_Notification_Delivery_Digest.md](48_Botfleet_Notification_Delivery_Digest.md).
+>
+> **Продолжение (v0.5.2):** safety-слой перед реальной доставкой — отписки, лимиты, подавление,
+> подписанные webhook-подписки. См.
+> [49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md](49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md).

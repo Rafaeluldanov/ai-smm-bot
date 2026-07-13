@@ -19,13 +19,17 @@ if TYPE_CHECKING:
     from app.services.metrics_import_service import MetricsImportService
     from app.services.notification_delivery_service import NotificationDeliveryService
     from app.services.notification_digest_service import NotificationDigestService
+    from app.services.notification_rate_limit_service import NotificationRateLimitService
     from app.services.notification_service import NotificationService
+    from app.services.notification_suppression_service import NotificationSuppressionService
+    from app.services.notification_unsubscribe_service import NotificationUnsubscribeService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
     from app.services.review_workflow_service import ReviewWorkflowService
     from app.services.schedule_media_decision_service import ScheduleMediaDecisionService
     from app.services.schedule_topic_decision_service import ScheduleTopicDecisionService
     from app.services.topic_optimization_service import TopicOptimizationService
+    from app.services.webhook_subscription_service import WebhookSubscriptionService
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -322,6 +326,34 @@ def get_notification_digest_service() -> "NotificationDigestService":
     from app.services.notification_digest_service import NotificationDigestService
 
     return NotificationDigestService(settings=get_settings())
+
+
+def get_notification_unsubscribe_service() -> "NotificationUnsubscribeService":
+    """Построить сервис отписки (opt-out) уведомлений."""
+    from app.services.notification_unsubscribe_service import NotificationUnsubscribeService
+
+    return NotificationUnsubscribeService(settings=get_settings())
+
+
+def get_notification_rate_limit_service() -> "NotificationRateLimitService":
+    """Построить сервис rate-limit доставки уведомлений."""
+    from app.services.notification_rate_limit_service import NotificationRateLimitService
+
+    return NotificationRateLimitService(settings=get_settings())
+
+
+def get_notification_suppression_service() -> "NotificationSuppressionService":
+    """Построить сервис подавления доставки уведомлений."""
+    from app.services.notification_suppression_service import NotificationSuppressionService
+
+    return NotificationSuppressionService(settings=get_settings())
+
+
+def get_webhook_subscription_service() -> "WebhookSubscriptionService":
+    """Построить сервис webhook-подписок (encrypted/masked; live-вызов выключен)."""
+    from app.services.webhook_subscription_service import WebhookSubscriptionService
+
+    return WebhookSubscriptionService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":

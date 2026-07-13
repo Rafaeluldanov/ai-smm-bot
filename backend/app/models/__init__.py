@@ -39,7 +39,10 @@ from app.models.media_quality_snapshot import MediaQualitySnapshot
 from app.models.metric_import_run import MetricImportRun
 from app.models.notification_delivery_log import NotificationDeliveryLog
 from app.models.notification_digest import NotificationDigest
+from app.models.notification_opt_out import NotificationOptOut
 from app.models.notification_preference import NotificationPreference
+from app.models.notification_rate_limit_bucket import NotificationRateLimitBucket
+from app.models.notification_suppression import NotificationSuppression
 from app.models.payment import (
     BillingProfile,
     PaymentInvoice,
@@ -59,6 +62,7 @@ from app.models.schedule_topic_decision import ScheduleTopicDecision
 from app.models.scheduler_worker_lease import SchedulerWorkerLease
 from app.models.topic import Topic
 from app.models.user import User
+from app.models.webhook_subscription import WebhookSubscription
 
 __all__ = [
     "Account",
@@ -97,7 +101,10 @@ __all__ = [
     "MetricImportRun",
     "NotificationDeliveryLog",
     "NotificationDigest",
+    "NotificationOptOut",
     "NotificationPreference",
+    "NotificationRateLimitBucket",
+    "NotificationSuppression",
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",
@@ -114,4 +121,5 @@ __all__ = [
     "Topic",
     "UsageEvent",
     "User",
+    "WebhookSubscription",
 ]

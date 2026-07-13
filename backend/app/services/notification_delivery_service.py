@@ -24,6 +24,9 @@ from app.repositories import (
     project_repository,
     user_repository,
 )
+from app.repositories import (
+    notification_safety_repository as safety_repo,
+)
 from app.services import audit_log_service as audit_actions
 from app.services.notification_delivery import (
     NotificationDeliveryProviderRegistry,
@@ -38,6 +41,8 @@ if TYPE_CHECKING:
     from app.models.app_notification import AppNotification
     from app.models.notification_delivery_log import NotificationDeliveryLog
     from app.services.audit_log_service import AuditLogService
+    from app.services.notification_rate_limit_service import NotificationRateLimitService
+    from app.services.notification_suppression_service import NotificationSuppressionService
 
 logger = get_logger(__name__)
 
@@ -113,7 +118,7 @@ class NotificationDeliveryService:
         channel = self._valid_channel(channel)
         provider = self._registry().resolve(channel)
         destination = self._resolve_destination(db, channel, notification)
-        status, reason = self._initial_status(db, channel, notification)
+        status, reason = self._initial_status(db, channel, notification, destination)
         log = delivery_repo.create_delivery_log(
             db,
             account_id=notification.account_id,
@@ -135,6 +140,13 @@ class NotificationDeliveryService:
             notification,
             {"delivery_log_id": log.id, "channel": channel, "status": status},
         )
+        if status != "pending":
+            self._write_audit(
+                db,
+                audit_actions.ACTION_NOTIFICATION_DELIVERY_BLOCKED,
+                notification,
+                {"delivery_log_id": log.id, "channel": channel, "reason": reason},
+            )
         return log
 
     # ------------------------------------------------------------------ #
@@ -178,18 +190,40 @@ class NotificationDeliveryService:
             result = provider.send(request)
         except Exception as exc:  # noqa: BLE001 — доставка не роняет workflow
             logger.warning("delivery provider raised for log_id=%s", delivery_log_id)
+            self._suppression().record_delivery_failure(
+                db,
+                log.recipient_user_id,
+                log.channel,
+                destination=request.destination,
+                account_id=log.account_id,
+                project_id=log.project_id,
+            )
             return self._handle_failure(
                 db, log, sanitize_error(str(exc)) or "provider error", {"delivered": False}
             )
 
         if result.ok and result.status == "sent":
             delivery_repo.mark_sent(db, log, result.provider_message_id, result.response_metadata)
+            # Safety-учёт: попытка съедает лимит, успех снимает подавление.
+            self._record_rate_attempt(db, log)
+            self._suppression().record_delivery_success(
+                db, log.recipient_user_id, log.channel, destination=request.destination
+            )
             self._audit_log(db, audit_actions.ACTION_NOTIFICATION_DELIVERY_SENT, log)
             return {**self._log_view(log), "outcome": "sent"}
         if result.status == "disabled":
             delivery_repo.mark_disabled(db, log, sanitize_error(result.error_message))
             self._audit_log(db, audit_actions.ACTION_NOTIFICATION_DELIVERY_DISABLED, log)
             return {**self._log_view(log), "outcome": "disabled"}
+        # Ошибка доставки — фиксируем в подавлении (порог → suppress).
+        self._suppression().record_delivery_failure(
+            db,
+            log.recipient_user_id,
+            log.channel,
+            destination=request.destination,
+            account_id=log.account_id,
+            project_id=log.project_id,
+        )
         return self._handle_failure(
             db, log, sanitize_error(result.error_message), result.response_metadata
         )
@@ -315,19 +349,53 @@ class NotificationDeliveryService:
         return {**self._log_view(log), "outcome": "failed"}
 
     def _initial_status(
-        self, db: Session, channel: str, notification: AppNotification
+        self,
+        db: Session,
+        channel: str,
+        notification: AppNotification,
+        destination: str | None = None,
     ) -> tuple[str, str | None]:
+        """Определить статус задачи с учётом safety-гейтов (opt-out/suppression/rate-limit)."""
         if not self._delivery_enabled():
-            return "disabled", "delivery subsystem disabled"
+            return "disabled", "external_delivery_disabled"
+        uid = notification.recipient_user_id
+        # 1. Нет адреса доставки (для digest адрес — email получателя, проверяем тоже).
+        if not destination:
+            return "disabled", "missing_destination"
+        # 2. Предпочтение канала выключено.
         pref = (
-            notification_repository.get_preference(
-                db, notification.recipient_user_id, channel, None, notification.account_id
-            )
-            if notification.recipient_user_id
+            notification_repository.get_preference(db, uid, channel, None, notification.account_id)
+            if uid
             else None
         )
         if pref is not None and not pref.enabled:
-            return "skipped", "channel preference disabled"
+            return "skipped", "preference_disabled"
+        # 3-5. Safety-гейты (только если safety включён и есть получатель).
+        if self._safety_enabled() and uid is not None:
+            if (
+                safety_repo.is_opted_out(
+                    db,
+                    uid,
+                    channel=channel,
+                    notification_type=notification.notification_type,
+                    project_id=notification.project_id,
+                    account_id=notification.account_id,
+                )
+                is not None
+            ):
+                return "disabled", "user_unsubscribed"
+            if self._suppression().is_suppressed(db, uid, channel, destination=destination):
+                return "disabled", "too_many_failures"
+            rl = self._rate_limit().check_delivery_allowed(
+                db,
+                uid,
+                channel,
+                project_id=notification.project_id,
+                notification_type=notification.notification_type,
+                account_id=notification.account_id,
+            )
+            if not rl.get("allowed", True):
+                return "skipped", "rate_limited"
         return "pending", None
 
     def _disabled_reasons(self, channel: str) -> list[str]:
@@ -451,6 +519,35 @@ class NotificationDeliveryService:
         if self._providers is None:
             self._providers = NotificationDeliveryProviderRegistry(self._resolve_settings())
         return self._providers
+
+    def _safety_enabled(self) -> bool:
+        return bool(self._resolve_settings().notification_safety_enabled_effective)
+
+    def _suppression(self) -> NotificationSuppressionService:
+        if getattr(self, "_suppression_svc", None) is None:
+            from app.services.notification_suppression_service import (
+                NotificationSuppressionService,
+            )
+
+            self._suppression_svc = NotificationSuppressionService(settings=self._settings)
+        return self._suppression_svc
+
+    def _rate_limit(self) -> NotificationRateLimitService:
+        if getattr(self, "_rate_limit_svc", None) is None:
+            from app.services.notification_rate_limit_service import NotificationRateLimitService
+
+            self._rate_limit_svc = NotificationRateLimitService(settings=self._settings)
+        return self._rate_limit_svc
+
+    def _record_rate_attempt(self, db: Session, log: NotificationDeliveryLog) -> None:
+        self._rate_limit().record_delivery_attempt(
+            db,
+            log.recipient_user_id,
+            log.channel,
+            provider=log.provider,
+            project_id=log.project_id,
+            account_id=log.account_id,
+        )
 
     def _delivery_enabled(self) -> bool:
         return bool(self._resolve_settings().notification_delivery_enabled_effective)

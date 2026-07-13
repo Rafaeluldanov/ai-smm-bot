@@ -1874,3 +1874,18 @@ UI (`/ui/notification-delivery`, `/ui/notification-digests`). **Реальная
 worker выключены; dry-run по умолчанию. Адрес доставки — только маской (`s***@domain.ru`);
 токенов/секретов в логах/UI/API нет. Sandbox-доставка **бесплатна** в MVP. Подробно —
 [Докс/48_Botfleet_Notification_Delivery_Digest.md](./Докс/48_Botfleet_Notification_Delivery_Digest.md).
+
+## Безопасность уведомлений: отписка, лимиты, подавление, webhook (v0.5.2)
+
+Safety-слой **перед** реальной внешней доставкой: **отписка** (unsubscribe/opt-out по токену
+HMAC или напрямую — глобально/по аккаунту/проекту/типу/каналу), **лимиты доставки** (per user/
+channel: email 20/ч, telegram 30/ч, webhook 60/ч, digest 2/сутки), **подавление** (канал/адрес
+подавляется после N ошибок; хранится только SHA-256 hash адреса) и **подписанные
+webhook-подписки** (URL и signing secret хранятся зашифрованно + masked; payload подписывается
+HMAC-SHA256; доступен подписанный preview без отправки). Конвейер доставки уже уважает все
+гейты: при opt-out/suppression/rate-limit задача создаётся как `disabled`/`skipped` с причиной,
+без внешней отправки. **Реальный вызов webhook и внешняя доставка выключены по умолчанию**
+(`NOTIFICATION_WEBHOOK_SUBSCRIPTIONS_LIVE_ENABLED=false`, `NOTIFICATION_EXTERNAL_DELIVERY_ENABLED=false`);
+сырых URL/секретов/адресов в API/UI/логах нет; всё **бесплатно** в MVP. UI —
+`/ui/notification-safety`, `/ui/projects/{id}/webhooks`. Подробно —
+[Докс/49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md](./Докс/49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md).

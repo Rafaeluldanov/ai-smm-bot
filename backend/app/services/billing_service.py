@@ -86,6 +86,11 @@ USAGE_NOTIFICATION_DELIVERY_SEND = "notification_delivery_send"
 USAGE_NOTIFICATION_DIGEST_GENERATE = "notification_digest_generate"
 USAGE_NOTIFICATION_DIGEST_SEND = "notification_digest_send"
 
+# Типы usage для safety-слоя уведомлений (v0.5.2). Бесплатны в MVP.
+USAGE_NOTIFICATION_SAFETY_CHECK = "notification_safety_check"
+USAGE_WEBHOOK_SUBSCRIPTION_CREATE = "webhook_subscription_create"
+USAGE_WEBHOOK_DELIVERY_PREVIEW = "webhook_delivery_preview"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -153,6 +158,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_NOTIFICATION_DELIVERY_SEND: 0,
     USAGE_NOTIFICATION_DIGEST_GENERATE: 0,
     USAGE_NOTIFICATION_DIGEST_SEND: 0,
+    # v0.5.2: safety-слой уведомлений — бесплатно в MVP (реальной доставки нет).
+    USAGE_NOTIFICATION_SAFETY_CHECK: 0,
+    USAGE_WEBHOOK_SUBSCRIPTION_CREATE: 0,
+    USAGE_WEBHOOK_DELIVERY_PREVIEW: 0,
 }
 _DEFAULT_ACTION_COST = 1
 
