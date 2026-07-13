@@ -91,6 +91,11 @@ USAGE_NOTIFICATION_SAFETY_CHECK = "notification_safety_check"
 USAGE_WEBHOOK_SUBSCRIPTION_CREATE = "webhook_subscription_create"
 USAGE_WEBHOOK_DELIVERY_PREVIEW = "webhook_delivery_preview"
 
+# Типы usage для email-шаблонов/SMTP-sandbox (v0.5.3). Бесплатны в MVP (реальной доставки нет).
+USAGE_EMAIL_TEMPLATE_PREVIEW = "email_template_preview"
+USAGE_EMAIL_TEST_SEND = "email_test_send"
+USAGE_EMAIL_DIGEST_RENDER = "email_digest_render"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -162,6 +167,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_NOTIFICATION_SAFETY_CHECK: 0,
     USAGE_WEBHOOK_SUBSCRIPTION_CREATE: 0,
     USAGE_WEBHOOK_DELIVERY_PREVIEW: 0,
+    # v0.5.3: email-шаблоны/SMTP-sandbox — бесплатно в MVP (реальной email-доставки нет).
+    USAGE_EMAIL_TEMPLATE_PREVIEW: 0,
+    USAGE_EMAIL_TEST_SEND: 0,
+    USAGE_EMAIL_DIGEST_RENDER: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

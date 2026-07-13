@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.services.automation_settings_service import AutomationSettingsService
     from app.services.client_learning_service import ClientLearningService
     from app.services.content_scoring_service import ContentScoringService
+    from app.services.email_template_service import EmailTemplateService
     from app.services.experiment_suggestion_service import ExperimentSuggestionService
     from app.services.media_curation_review_service import MediaCurationReviewService
     from app.services.media_curation_service import MediaCurationService
@@ -354,6 +355,13 @@ def get_webhook_subscription_service() -> "WebhookSubscriptionService":
     from app.services.webhook_subscription_service import WebhookSubscriptionService
 
     return WebhookSubscriptionService(settings=get_settings())
+
+
+def get_email_template_service() -> "EmailTemplateService":
+    """Построить сервис email-шаблонов (preview/render; реальной отправки нет)."""
+    from app.services.email_template_service import EmailTemplateService
+
+    return EmailTemplateService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":

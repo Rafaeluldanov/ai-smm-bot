@@ -37,6 +37,7 @@ BIN := $(VENV)/bin
         notification-digest-preview notification-digest-generate notification-digest-scheduler \
         notification-safety-dashboard notification-opt-out notification-suppression-clear \
         webhook-subscription-create webhook-subscription-preview \
+        email-template-preview email-notification-preview email-test-send \
         smoke
 
 help: ## Показать список команд
@@ -303,6 +304,15 @@ webhook-subscription-create: ## Создать webhook-подписку (dry-run
 
 webhook-subscription-preview: ## Preview доставки webhook (без реального вызова): make webhook-subscription-preview subscription_id=1 [notification_id=1]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.webhook_subscription_preview --subscription-id "$(subscription_id)" $(if $(notification_id),--notification-id "$(notification_id)",)
+
+email-template-preview: ## Предпросмотр email-шаблона (sandbox): make email-template-preview template_type=review_assigned [list=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.email_template_preview $(if $(filter true,$(list)),--list,--template-type "$(or $(template_type),system_notice)")
+
+email-notification-preview: ## Предпросмотр email уведомления/дайджеста (sandbox): make email-notification-preview notification_id=1 [show_unsafe_url=false]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.email_notification_preview $(if $(notification_id),--notification-id "$(notification_id)",) $(if $(digest_id),--digest-id "$(digest_id)",) --show-unsafe-url "$(or $(show_unsafe_url),false)"
+
+email-test-send: ## Тестовая отправка email (DRY-RUN only): make email-test-send to=user@example.ru [template_type=system_notice]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.email_test_send --to "$(to)" --template-type "$(or $(template_type),system_notice)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

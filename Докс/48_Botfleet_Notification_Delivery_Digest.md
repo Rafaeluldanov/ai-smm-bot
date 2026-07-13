@@ -153,3 +153,8 @@ project-гардом. Адрес доставки — только маской;
 > **Продолжение (v0.5.2):** safety-слой перед реальной доставкой реализован — отписки, лимиты,
 > подавление и подписанные webhook-подписки; конвейер доставки уважает эти гейты. См.
 > [49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md](49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md).
+>
+> **Продолжение (v0.5.3):** email-шаблоны и SMTP sandbox/live-ready — письма рендерятся
+> (subject/text/HTML + футер отписки с маскированным токеном), но реальная отправка выключена
+> (SMTP-провайдер отказывает, пока не включены все флаги). См.
+> [50_Botfleet_Email_Templates_SMTP_Sandbox.md](50_Botfleet_Email_Templates_SMTP_Sandbox.md).

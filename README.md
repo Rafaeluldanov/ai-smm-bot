@@ -1889,3 +1889,25 @@ HMAC-SHA256; доступен подписанный preview без отправ
 сырых URL/секретов/адресов в API/UI/логах нет; всё **бесплатно** в MVP. UI —
 `/ui/notification-safety`, `/ui/projects/{id}/webhooks`. Подробно —
 [Докс/49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md](./Докс/49_Botfleet_Notification_Safety_Unsubscribe_Webhooks.md).
+
+## Email-шаблоны и SMTP sandbox / live-ready (v0.5.3)
+
+Слой **генерации и предпросмотра email** для уведомлений с **live-ready, но выключенной**
+реальной доставкой. Системные шаблоны (`review_assigned`, `review_mentioned`, `task_overdue`,
+`post_needs_review`, `experiment_suggestion_created`, `billing_balance_low`, `digest_daily`,
+`digest_weekly`, `system_notice`, …) рендерятся в subject/text/HTML простым `{{ var }}`-движком
+(неизвестные переменные → пусто; значения в HTML экранируются). Каждое письмо получает **футер
+отписки** с токеном из unsubscribe-сервиса (v0.5.2), при этом в preview/логах токен **маскируется**
+(`/unsubscribe?token=abc123***`); сырой токен доступен только по явному флагу `--show-unsafe-url`
+в CLI и никогда не пишется в лог/аудит/delivery-метаданные. SMTP-провайдер — **live-ready
+foundation**: отправляет только когда включены **все** флаги (external delivery + email live +
+SMTP live + SMTP настроен + не dry-run) — по умолчанию **отказывает** (`disabled`); в тестах
+SMTP-клиент внедряется фабрикой, реальной сети нет, `SMTP_PASSWORD` никогда не логируется/не
+возвращается (даже в тексте ошибки он вычищается). Тестовая отправка (`test-send-dry`,
+`make email-test-send`) — строго **dry-run**: рендер + проверка гейтов/allowlist, получатель
+маской, реальной отправки нет. UI — `/ui/email-templates` (баннер «Реальная email-доставка
+выключена», список шаблонов, preview subject/text/HTML, safety-карточки) + блок «Email-уведомления»
+в `/ui/settings`. Всё **бесплатно** в MVP. Дефолты безопасны:
+`SMTP_LIVE_SEND_ENABLED=false`, `SMTP_DRY_RUN=true`, `EMAIL_TEST_SEND_ENABLED=false`,
+`NOTIFICATION_EMAIL_LIVE_ENABLED=false`, `NOTIFICATION_EXTERNAL_DELIVERY_ENABLED=false`. Подробно —
+[Докс/50_Botfleet_Email_Templates_SMTP_Sandbox.md](./Докс/50_Botfleet_Email_Templates_SMTP_Sandbox.md).

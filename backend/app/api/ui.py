@@ -2629,6 +2629,15 @@ def ui_settings() -> HTMLResponse:
         "<a href='/ui/notification-digests'>Дайджесты →</a> · "
         "<a href='/ui/notification-safety'>Безопасность →</a> · "
         "<a href='/ui/notification-preferences'>Настройки уведомлений →</a></p></div>"
+        # Email-уведомления (v0.5.3).
+        "<div class='card' id='email-settings'><h3>✉️ Email-уведомления</h3>"
+        "<ul class='muted'>"
+        "<li>Email-доставка: <b>выключена</b> (SMTP live off, external delivery off).</li>"
+        "<li>Дайджест-email: выключен по умолчанию.</li>"
+        "<li>Отписка (unsubscribe footer): включена.</li>"
+        "<li>SMTP: <b>не live</b>; SMTP-пароль хранится только в env и не показывается.</li>"
+        "</ul>"
+        "<p class='muted'>Preview email-шаблонов: <a href='/ui/email-templates'>Email-шаблоны →</a></p></div>"
         # Индикаторы безопасности.
         "<div class='card'><h3>🔒 Безопасность</h3><ul class='muted'>"
         "<li>Live-публикации выключены по умолчанию.</li>"
@@ -4775,8 +4784,11 @@ def ui_notification_delivery() -> HTMLResponse:
     body = (
         "<div class='inline'><a href='/ui/notifications'><button class='sec mini'>← Уведомления</button></a>"
         "<a href='/ui/notification-digests'><button class='ghost mini'>Дайджесты</button></a>"
-        "<a href='/ui/notification-safety'><button class='ghost mini'>Безопасность</button></a></div>"
+        "<a href='/ui/notification-safety'><button class='ghost mini'>Безопасность</button></a>"
+        "<a href='/ui/email-templates'><button class='ghost mini'>Email-шаблоны</button></a></div>"
         "<h2>Доставка уведомлений</h2>"
+        "<div class='muted'>Email-провайдер: mock/sandbox (SMTP live выключен). "
+        "<a href='/ui/email-templates'>Preview email-шаблонов →</a></div>"
         f"{_DELIVERY_BANNER}"
         "<div class='grid'>"
         "<div class='pcard'><div class='muted'>pending</div><div id='dl-pending' class='an-big'>—</div></div>"
@@ -4872,10 +4884,12 @@ def ui_notification_digests() -> HTMLResponse:
     """Дайджесты уведомлений: preview daily/weekly, список, generate dry-run."""
     body = (
         "<div class='inline'><a href='/ui/notification-delivery'>"
-        "<button class='sec mini'>← Доставка</button></a></div>"
+        "<button class='sec mini'>← Доставка</button></a>"
+        "<a href='/ui/email-templates'><button class='ghost mini'>Email-шаблоны</button></a></div>"
         "<h2>Дайджесты уведомлений</h2>"
         "<div class='callout warn'><b>Внешняя доставка выключена.</b> Дайджест можно "
-        "сгенерировать и посмотреть, но наружу он не отправляется (email выключен).</div>"
+        "сгенерировать и посмотреть, но наружу он не отправляется (email выключен). "
+        "Email-предпросмотр дайджеста: <a href='/ui/email-templates'>Email-шаблоны →</a></div>"
         "<div class='card'><div class='inline'>"
         "<label>Частота <select id='dg-freq'><option>daily</option><option>weekly</option></select></label>"
         "<button class='mini sec' onclick='dgPreview()'>Preview</button>"
@@ -5081,3 +5095,50 @@ def ui_project_webhooks(project_id: int) -> HTMLResponse:
         "window.whCreate=whCreate;window.whPreview=whPreview;window.whRevoke=whRevoke;loadWH();"
     )
     return _page("Webhook-подписки", body, script, active="notifications", active_pid=project_id)
+
+
+@router.get("/email-templates", response_class=HTMLResponse)
+def ui_email_templates() -> HTMLResponse:
+    """Email-шаблоны: список, preview (subject/text/html), safety-карточки, баннер."""
+    _s = get_settings()
+
+    def _yn(value: bool) -> str:
+        return "вкл" if value else "выкл"
+
+    body = (
+        "<div class='inline'><a href='/ui/notification-delivery'><button class='sec mini'>← Доставка</button></a>"
+        "<a href='/ui/notification-digests'><button class='ghost mini'>Дайджесты</button></a></div>"
+        "<h2>Email-шаблоны</h2>"
+        "<div class='callout warn'><b>Реальная email-доставка выключена.</b> Сейчас доступен "
+        "preview/sandbox: письма рендерятся, но наружу не отправляются. SMTP-пароль хранится "
+        "только в env и нигде не показывается.</div>"
+        "<div class='grid'>"
+        f"<div class='pcard'><div class='muted'>SMTP live</div><div class='an-big'>{_yn(_s.smtp_live_send_enabled_effective)}</div></div>"
+        f"<div class='pcard'><div class='muted'>Email live</div><div class='an-big'>{_yn(_s.notification_email_enabled_effective)}</div></div>"
+        f"<div class='pcard'><div class='muted'>External delivery</div><div class='an-big'>{_yn(_s.notification_external_delivery_enabled_effective)}</div></div>"
+        f"<div class='pcard'><div class='muted'>Unsubscribe footer</div><div class='an-big'>{_yn(_s.email_unsubscribe_footer_enabled_effective)}</div></div>"
+        "</div>"
+        "<div class='card'><h3>Preview</h3><div class='inline'>"
+        "<select id='et-type'></select>"
+        "<button class='mini' onclick='etPreview()'>Показать</button></div>"
+        "<div style='margin-top:8px'><div class='muted'>Subject</div><div id='et-subject' class='card'></div>"
+        "<div class='muted'>Text</div><pre id='et-text' class='card' style='white-space:pre-wrap'></pre>"
+        "<div class='muted'>HTML (экранированный предпросмотр)</div><pre id='et-html' class='card' style='white-space:pre-wrap'></pre></div></div>"
+        "<div class='card'><h3>Шаблоны</h3><div id='et-list' class='muted'>Загрузка…</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');"
+        "async function loadET(){try{const rows=await api('GET','/email-templates');"
+        "const sel=document.getElementById('et-type');sel.innerHTML=rows.map(t=>`<option>${esc(t.template_type)}</option>`).join('');"
+        "const h=document.getElementById('et-list');h.classList.remove('muted');"
+        "h.innerHTML=rows.map(t=>`<div class='sched-task'><span class='pill'>${esc(t.status)}</span> "
+        "<b>${esc(t.template_type)}</b> <span class='muted'>${esc(t.purpose)}</span></div>`).join('');}catch(x){err(eEl,x)}}"
+        "async function etPreview(){try{const tt=document.getElementById('et-type').value;"
+        "const r=await api('POST','/email-templates/preview',{template_type:tt});"
+        "document.getElementById('et-subject').textContent=r.subject;"
+        "document.getElementById('et-text').textContent=r.text_body;"
+        "document.getElementById('et-html').textContent=r.html_body;}catch(x){err(eEl,x)}}"
+        "window.etPreview=etPreview;loadET();"
+    )
+    return _page("Email-шаблоны", body, script, active="notifications")

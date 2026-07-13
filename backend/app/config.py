@@ -437,6 +437,24 @@ class Settings(BaseSettings):
     notification_webhook_timestamp_header: str = "X-Botfleet-Timestamp"
     notification_webhook_max_payload_bytes: int = 262144
 
+    # --- Email templates and SMTP sandbox/live-ready (v0.5.3) ---
+    # Email-шаблоны + SMTP-adapter как live-ready foundation. РЕАЛЬНАЯ SMTP-отправка ВЫКЛЮЧЕНА по
+    # умолчанию (SMTP_LIVE_SEND_ENABLED=false, SMTP_DRY_RUN=true) и требует ещё external+email
+    # live-флаги. Тестовая отправка выключена; preview/sandbox доступны. Секреты — только в env.
+    email_templates_enabled: bool = True
+    email_template_overrides_enabled: bool = False
+    email_template_preview_enabled: bool = True
+    email_unsubscribe_footer_enabled: bool = True
+    smtp_live_send_enabled: bool = False
+    smtp_dry_run: bool = True
+    smtp_timeout_seconds: int = 20
+    smtp_max_recipients_per_message: int = 1
+    smtp_require_tls: bool = True
+    smtp_allow_self_signed: bool = False
+    email_test_send_enabled: bool = False
+    email_test_send_dry_run: bool = True
+    email_test_allowed_recipients: str = ""
+
     # --- Платежи (Россия). РЕАЛЬНЫЕ ПЛАТЕЖИ ВЫКЛЮЧЕНЫ по умолчанию ---
     # Без payments_live_enabled=true все счета создаются как mock/sandbox; баланс
     # пополняется только после статуса paid (mock-pay/webhook). Секреты провайдеров
@@ -1071,6 +1089,66 @@ class Settings(BaseSettings):
         if configured:
             return configured
         return self.auth_token_secret_effective
+
+    # --- Email templates / SMTP: производные (effective) свойства (v0.5.3) ---
+
+    @property
+    def email_templates_enabled_effective(self) -> bool:
+        """Доступны ли email-шаблоны (нужно и общее notifications-включение)."""
+        return bool(self.notifications_enabled and self.email_templates_enabled)
+
+    @property
+    def email_template_preview_enabled_effective(self) -> bool:
+        """Доступен ли preview email-шаблонов."""
+        return bool(self.email_templates_enabled_effective and self.email_template_preview_enabled)
+
+    @property
+    def email_unsubscribe_footer_enabled_effective(self) -> bool:
+        """Добавлять ли футер отписки в email (нужно и включённую отписку)."""
+        return bool(
+            self.email_templates_enabled_effective
+            and self.email_unsubscribe_footer_enabled
+            and self.notification_unsubscribe_enabled_effective
+        )
+
+    @property
+    def smtp_dry_run_effective(self) -> bool:
+        """Dry-run SMTP (по умолчанию true — реальной отправки нет)."""
+        return bool(self.smtp_dry_run)
+
+    @property
+    def smtp_live_send_enabled_effective(self) -> bool:
+        """Разрешена ли РЕАЛЬНАЯ SMTP-отправка. По умолчанию false — требует всех флагов.
+
+        Нужны: внешняя доставка + email live + SMTP live + SMTP настроен + НЕ dry-run.
+        """
+        return bool(
+            self.notification_email_enabled_effective
+            and self.smtp_live_send_enabled
+            and self.smtp_configured
+            and not self.smtp_dry_run
+        )
+
+    @property
+    def smtp_timeout_seconds_safe(self) -> int:
+        """Таймаут SMTP в секундах (в границах 1..120)."""
+        return max(1, min(120, int(self.smtp_timeout_seconds or 20)))
+
+    @property
+    def smtp_max_recipients_per_message_safe(self) -> int:
+        """Максимум получателей на одно письмо (не меньше 1)."""
+        return max(1, int(self.smtp_max_recipients_per_message or 1))
+
+    @property
+    def email_test_send_enabled_effective(self) -> bool:
+        """Доступна ли тестовая отправка email (по умолчанию false)."""
+        return bool(self.email_templates_enabled_effective and self.email_test_send_enabled)
+
+    @property
+    def email_test_allowed_recipients_list(self) -> list[str]:
+        """Список разрешённых получателей тестовой отправки (из CSV)."""
+        raw = str(self.email_test_allowed_recipients or "")
+        return [x.strip().lower() for x in raw.split(",") if x.strip()]
 
     # --- Auth / session: производные (effective) свойства ---
 

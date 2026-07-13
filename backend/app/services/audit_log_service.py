@@ -230,6 +230,14 @@ ACTION_WEBHOOK_SUBSCRIPTION_UPDATED = "webhook_subscription.updated"
 ACTION_WEBHOOK_SUBSCRIPTION_REVOKED = "webhook_subscription.revoked"
 ACTION_WEBHOOK_SUBSCRIPTION_PREVIEWED = "webhook_subscription.previewed"
 ACTION_NOTIFICATION_DELIVERY_BLOCKED = "notification.delivery.blocked"
+# Email templates and SMTP sandbox (v0.5.3).
+ACTION_EMAIL_TEMPLATE_PREVIEWED = "email_template.previewed"
+ACTION_EMAIL_NOTIFICATION_PREVIEWED = "email_notification.previewed"
+ACTION_EMAIL_TEST_SEND_PREVIEWED = "email_test_send.previewed"
+ACTION_EMAIL_TEST_SEND_BLOCKED = "email_test_send.blocked"
+ACTION_SMTP_DELIVERY_BLOCKED = "smtp_delivery.blocked"
+ACTION_SMTP_DELIVERY_SENT = "smtp_delivery.sent"
+ACTION_SMTP_DELIVERY_FAILED = "smtp_delivery.failed"
 
 
 class AuditLogService:

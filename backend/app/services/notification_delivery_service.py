@@ -119,6 +119,20 @@ class NotificationDeliveryService:
         provider = self._registry().resolve(channel)
         destination = self._resolve_destination(db, channel, notification)
         status, reason = self._initial_status(db, channel, notification, destination)
+        # Для email/digest рендерим шаблон: subject берём из письма; в metadata — тип шаблона.
+        subject = sanitize_text(notification.title, 255)
+        request_metadata: dict[str, Any] = {"notification_type": notification.notification_type}
+        if channel in ("email", "digest"):
+            rendered = self._render_email(db, notification)
+            if rendered is not None:
+                subject = sanitize_text(rendered.get("subject") or subject, 255)
+                request_metadata.update(
+                    {
+                        "template_type": rendered.get("template_type"),
+                        "render_format": "both",
+                        "has_unsubscribe_footer": bool(rendered.get("has_unsubscribe_footer")),
+                    }
+                )
         log = delivery_repo.create_delivery_log(
             db,
             account_id=notification.account_id,
@@ -129,10 +143,10 @@ class NotificationDeliveryService:
             channel=channel,
             status=status,
             destination_masked=mask_destination(channel, destination),
-            subject=sanitize_text(notification.title, 255),
+            subject=subject,
             message_preview=sanitize_text(notification.message, 200),
             error_message=reason,
-            request_metadata={"notification_type": notification.notification_type},
+            request_metadata=request_metadata,
         )
         self._write_audit(
             db,
@@ -177,14 +191,25 @@ class NotificationDeliveryService:
             if log.notification_id
             else None
         )
+        subject = log.subject or ""
+        message = log.message_preview or ""
+        request_metadata: dict[str, Any] = {}
+        # Для email рендерим полное письмо (subject/text/html) в ЗАПРОС (не в лог: без токена).
+        if log.channel in ("email", "digest") and notification is not None:
+            rendered = self._render_email(db, notification)
+            if rendered is not None:
+                subject = rendered.get("subject") or subject
+                message = rendered.get("text_body") or message
+                if rendered.get("html_body"):
+                    request_metadata["html_body"] = rendered["html_body"]
         request = NotificationDeliveryRequest(
             provider=provider.provider_name,
             channel=log.channel,
             recipient_user_id=log.recipient_user_id,
             destination=self._resolve_destination(db, log.channel, notification),
-            subject=log.subject or "",
-            message=log.message_preview or "",
-            metadata={},
+            subject=subject,
+            message=message,
+            metadata=request_metadata,
         )
         try:
             result = provider.send(request)
@@ -538,6 +563,23 @@ class NotificationDeliveryService:
 
             self._rate_limit_svc = NotificationRateLimitService(settings=self._settings)
         return self._rate_limit_svc
+
+    def _render_email(self, db: Session, notification: Any) -> dict[str, Any] | None:
+        """Отрендерить email для уведомления (безопасно; не роняет доставку)."""
+        if not bool(getattr(self._resolve_settings(), "email_templates_enabled_effective", True)):
+            return None
+        try:
+            from app.services.email_template_service import EmailTemplateService
+
+            if getattr(self, "_email_tpl_svc", None) is None:
+                self._email_tpl_svc = EmailTemplateService(settings=self._settings)
+            # reveal=False: в лог/запрос попадает ТОЛЬКО masked unsubscribe URL (без сырого токена).
+            return self._email_tpl_svc.render_notification_email(
+                db, notification.id, reveal_unsubscribe=False
+            )
+        except Exception:  # noqa: BLE001 — рендер не критичен для доставки
+            logger.warning("email render failed for notification_id=%s", notification.id)
+            return None
 
     def _record_rate_attempt(self, db: Session, log: NotificationDeliveryLog) -> None:
         self._rate_limit().record_delivery_attempt(

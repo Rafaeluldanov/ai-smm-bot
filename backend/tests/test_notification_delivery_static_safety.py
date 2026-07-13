@@ -43,11 +43,17 @@ def test_modules_no_publish_due() -> None:
 
 
 def test_no_network_libraries_in_delivery() -> None:
-    # Ни один провайдер/сервис доставки не импортирует сетевые библиотеки.
+    # HTTP-библиотеки запрещены везде; stdlib smtplib разрешён ТОЛЬКО в smtp_email_provider
+    # (live-ready foundation за всеми флагами; по умолчанию провайдер отказывает — см. ниже).
+    http_tokens = ("requests.", "httpx.", "urllib.request", "aiosmtp")
+    smtp_module = "app.services.notification_delivery.smtp_email_provider"
     for module in _MODULES:
         src = _source(module).lower()
-        for token in _NETWORK_TOKENS:
+        for token in http_tokens:
             assert token not in src, f"{token} в {module}"
+        if module != smtp_module:
+            for token in ("smtplib", "socket."):
+                assert token not in src, f"{token} в {module}"
 
 
 def test_live_providers_refuse_without_external_flag() -> None:
