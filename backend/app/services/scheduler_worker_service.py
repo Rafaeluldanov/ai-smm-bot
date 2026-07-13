@@ -54,6 +54,9 @@ from app.services.audit_log_service import (
     ACTION_WORKER_TOPIC_DECISION_FAILED,
     ACTION_WORKER_TOPIC_DECISION_PREVIEWED,
     ACTION_WORKER_TOPIC_DECISION_SKIPPED,
+    ACTION_WORKER_YANDEX_SYNC_COMPLETED,
+    ACTION_WORKER_YANDEX_SYNC_FAILED,
+    ACTION_WORKER_YANDEX_SYNC_PREVIEWED,
     AuditLogService,
 )
 from app.services.schedule_automation_service import ScheduleAutomationService
@@ -137,6 +140,14 @@ class SchedulerWorkerTickResult:
     media_curation_hidden_count: int = 0
     media_curation_retag_count: int = 0
     media_curation_errors: list[str] = field(default_factory=list)
+    # Авто-синхронизация Яндекс Диска (v0.5.7). Worker выключен по умолчанию; сети/удаления нет.
+    yandex_auto_sync_enabled: bool = False
+    yandex_auto_sync_dry_run: bool = False
+    yandex_sync_profiles_scanned: int = 0
+    yandex_sync_runs_created: int = 0
+    yandex_sync_media_imported: int = 0
+    yandex_sync_errors: list[str] = field(default_factory=list)
+    yandex_sync_blockers: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     started_at: str | None = None
     finished_at: str | None = None
@@ -429,6 +440,8 @@ class SchedulerWorkerService:
             self._process_media_fingerprints(db, targets, owner_id, effective_dry, result)
             # v0.4.8: задачи курирования медиатеки (без авто-apply/hide/delete, без live).
             self._process_media_curation(db, targets, owner_id, effective_dry, result)
+            # v0.5.7: авто-синхронизация Яндекс Диска (worker выключен по умолчанию; без сети).
+            self._process_yandex_sync(db, targets, owner_id, effective_dry, result)
         except Exception as exc:  # noqa: BLE001 — тик не роняет процесс
             result.errors.append(f"tick error: {type(exc).__name__}")
             self._audit.record(
@@ -802,6 +815,71 @@ class SchedulerWorkerService:
                 entity_type="scheduler_worker",
                 metadata={**base_meta, "errors": len(result.media_curation_errors)},
             )
+
+    def _process_yandex_sync(
+        self,
+        db: Session,
+        targets: list[ScheduleWorkerTarget],
+        owner_id: str,
+        schedule_dry_run: bool,
+        result: SchedulerWorkerTickResult,
+    ) -> None:
+        """Авто-синхронизация Яндекс Диска для проектов. Без сети/удаления/live по умолчанию.
+
+        Управляется YANDEX_AUTO_SYNC_WORKER_ENABLED (выключено по умолчанию); реальная сеть
+        требует ещё YANDEX_AUTO_SYNC_NETWORK_ENABLED. Файлы никогда не удаляются/не скрываются.
+        """
+        s = self._settings
+        enabled = s.yandex_auto_sync_worker_enabled_effective
+        result.yandex_auto_sync_enabled = enabled
+        dry_run = bool(schedule_dry_run or s.yandex_auto_sync_dry_run_effective)
+        result.yandex_auto_sync_dry_run = dry_run
+        if not enabled:
+            return
+        seen: set[int] = set()
+        for target in targets:
+            if target.project_id in seen:
+                continue
+            seen.add(target.project_id)
+            result.yandex_sync_profiles_scanned += 1
+            try:
+                run = self._yandex_sync_svc().run_sync(
+                    db, target.project_id, dry_run=dry_run, worker_owner_id=owner_id
+                )
+                result.yandex_sync_runs_created += 1
+                result.yandex_sync_media_imported += int(run.get("files_imported", 0))
+                for b in run.get("blockers", []) or []:
+                    result.yandex_sync_blockers.append(str(b.get("type", "")))
+            except Exception as exc:  # noqa: BLE001 — синхронизация не роняет тик
+                result.yandex_sync_errors.append(f"p{target.project_id}: {type(exc).__name__}")
+        action = (
+            ACTION_WORKER_YANDEX_SYNC_PREVIEWED if dry_run else ACTION_WORKER_YANDEX_SYNC_COMPLETED
+        )
+        base_meta = {
+            "owner_id": owner_id,
+            "dry_run": dry_run,
+            "profiles_scanned": result.yandex_sync_profiles_scanned,
+            "runs_created": result.yandex_sync_runs_created,
+            "media_imported": result.yandex_sync_media_imported,
+            "network_enabled": s.yandex_auto_sync_network_enabled_effective,
+            "auto_delete": False,
+            "live_publish": False,
+        }
+        self._audit.record(db, action, entity_type="scheduler_worker", metadata=base_meta)
+        if result.yandex_sync_errors:
+            self._audit.record(
+                db,
+                ACTION_WORKER_YANDEX_SYNC_FAILED,
+                entity_type="scheduler_worker",
+                metadata={**base_meta, "errors": len(result.yandex_sync_errors)},
+            )
+
+    def _yandex_sync_svc(self) -> Any:
+        if getattr(self, "_yandex_sync_service", None) is None:
+            from app.services.yandex_auto_sync_service import YandexAutoSyncService
+
+            self._yandex_sync_service = YandexAutoSyncService(settings=self._settings)
+        return self._yandex_sync_service
 
     # ------------------------------------------------------------------ #
     # Предложения экспериментов (v0.4.3, без live-публикации)             #

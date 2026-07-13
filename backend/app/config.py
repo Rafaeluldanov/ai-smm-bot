@@ -461,6 +461,27 @@ class Settings(BaseSettings):
     autopilot_default_publish_time: str = "10:00"
     autopilot_default_timezone: str = "Europe/Moscow"
 
+    # --- Yandex Disk auto-sync worker (v0.5.7) ---
+    # Клиент загружает картинки в Яндекс Диск — Botfleet сам синхронизирует медиатеку для
+    # автопостинга. РЕАЛЬНАЯ сеть/worker ВЫКЛЮЧЕНЫ по умолчанию (dry-run true, network false),
+    # файлы НЕ удаляются/не скрываются. Public URL — публичная ссылка, не секрет.
+    yandex_auto_sync_enabled: bool = True
+    yandex_auto_sync_worker_enabled: bool = False
+    yandex_auto_sync_dry_run: bool = True
+    yandex_auto_sync_network_enabled: bool = False
+    yandex_auto_sync_public_url_enabled: bool = True
+    yandex_auto_sync_oauth_enabled: bool = False
+    yandex_auto_sync_default_frequency_minutes: int = 60
+    yandex_auto_sync_max_projects_per_tick: int = 20
+    yandex_auto_sync_max_files_per_run: int = 500
+    yandex_auto_sync_min_media_assets: int = 5
+    yandex_auto_sync_recommended_media_assets: int = 30
+    yandex_auto_sync_run_quality_scoring: bool = True
+    yandex_auto_sync_run_fingerprinting: bool = True
+    yandex_auto_sync_run_curation_preview: bool = True
+    yandex_auto_sync_auto_delete: bool = False
+    yandex_auto_sync_auto_hide: bool = False
+
     notification_webhook_enabled: bool = False
     notification_webhook_provider: str = "mock"
     notification_webhook_live_enabled: bool = False
@@ -1408,6 +1429,56 @@ class Settings(BaseSettings):
     def autopilot_default_timezone_safe(self) -> str:
         """Часовой пояс по умолчанию (непустой; иначе Europe/Moscow)."""
         return str(self.autopilot_default_timezone or "").strip() or "Europe/Moscow"
+
+    # --- Yandex Disk auto-sync: производные (effective) свойства (v0.5.7) ---
+
+    @property
+    def yandex_auto_sync_enabled_effective(self) -> bool:
+        """Доступна ли авто-синхронизация Яндекс Диска (UI/API; по умолчанию включено)."""
+        return bool(self.yandex_auto_sync_enabled)
+
+    @property
+    def yandex_auto_sync_worker_enabled_effective(self) -> bool:
+        """Включён ли фоновый sync-worker (по умолчанию false)."""
+        return bool(self.yandex_auto_sync_enabled and self.yandex_auto_sync_worker_enabled)
+
+    @property
+    def yandex_auto_sync_dry_run_effective(self) -> bool:
+        """Dry-run синхронизации (по умолчанию true — без записи медиа)."""
+        return bool(self.yandex_auto_sync_dry_run)
+
+    @property
+    def yandex_auto_sync_network_enabled_effective(self) -> bool:
+        """Разрешены ли реальные сетевые вызовы к Яндекс Диску. По умолчанию false (безопасно)."""
+        return bool(self.yandex_auto_sync_network_enabled)
+
+    @property
+    def yandex_auto_sync_default_frequency_minutes_safe(self) -> int:
+        """Частота синхронизации в минутах (в границах 5..1440)."""
+        return max(5, min(1440, int(self.yandex_auto_sync_default_frequency_minutes or 60)))
+
+    @property
+    def yandex_auto_sync_max_projects_per_tick_safe(self) -> int:
+        """Максимум проектов за один tick воркера (в границах 1..200)."""
+        return max(1, min(200, int(self.yandex_auto_sync_max_projects_per_tick or 20)))
+
+    @property
+    def yandex_auto_sync_max_files_per_run_safe(self) -> int:
+        """Максимум файлов за один прогон (в границах 1..5000)."""
+        return max(1, min(5000, int(self.yandex_auto_sync_max_files_per_run or 500)))
+
+    @property
+    def yandex_auto_sync_min_media_assets_safe(self) -> int:
+        """Минимум медиа для автопилота (в границах 1..100)."""
+        return max(1, min(100, int(self.yandex_auto_sync_min_media_assets or 5)))
+
+    @property
+    def yandex_auto_sync_recommended_media_assets_safe(self) -> int:
+        """Рекомендуемый объём медиатеки (не меньше минимума)."""
+        return max(
+            self.yandex_auto_sync_min_media_assets_safe,
+            min(1000, int(self.yandex_auto_sync_recommended_media_assets or 30)),
+        )
 
     # --- Auth / session: производные (effective) свойства ---
 

@@ -40,6 +40,7 @@ BIN := $(VENV)/bin
         email-template-preview email-notification-preview email-test-send \
         telegram-binding-create telegram-binding-verify telegram-notification-preview telegram-test-send \
         telegram-update-simulate telegram-webhook-info telegram-webhook-set telegram-polling-dry \
+        yandex-sync-profile yandex-sync-preview yandex-sync-run yandex-sync-worker-tick \
         smoke
 
 help: ## Показать список команд
@@ -339,6 +340,18 @@ telegram-webhook-set: ## setWebhook (dry-run, sandbox): make telegram-webhook-se
 
 telegram-polling-dry: ## getUpdates (dry-run, sandbox): make telegram-polling-dry [limit=10] [offset=0]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_polling_dry $(if $(limit),--limit "$(limit)",) $(if $(offset),--offset "$(offset)",)
+
+yandex-sync-profile: ## Профиль синхронизации Яндекс Диска: make yandex-sync-profile project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.yandex_sync_profile --project-id "$(project_id)"
+
+yandex-sync-preview: ## Предпросмотр синхронизации (без записи): make yandex-sync-preview project_id=1 [limit=50]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.yandex_sync_preview --project-id "$(project_id)" $(if $(limit),--limit "$(limit)",)
+
+yandex-sync-run: ## Синхронизация (DRY-RUN по умолчанию): make yandex-sync-run project_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.yandex_sync_run --project-id "$(project_id)" --dry-run "$(or $(dry_run),true)"
+
+yandex-sync-worker-tick: ## Tick воркера синхронизации (dry-run): make yandex-sync-worker-tick [dry_run=true] [limit=20]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.yandex_sync_worker_tick --dry-run "$(or $(dry_run),true)" $(if $(limit),--limit "$(limit)",)
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

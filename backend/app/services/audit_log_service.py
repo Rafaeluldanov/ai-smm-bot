@@ -271,6 +271,18 @@ ACTION_AUTOPILOT_STARTED = "autopilot.started"
 ACTION_AUTOPILOT_PAUSED = "autopilot.paused"
 ACTION_AUTOPILOT_BLOCKED = "autopilot.blocked"
 ACTION_AUTOPILOT_FIRST_DRAFT_CREATED = "autopilot.first_draft_created"
+# Yandex Disk auto-sync (v0.5.7).
+ACTION_YANDEX_SYNC_PROFILE_CREATED = "yandex_sync.profile.created"
+ACTION_YANDEX_SYNC_PROFILE_UPDATED = "yandex_sync.profile.updated"
+ACTION_YANDEX_SYNC_PREVIEWED = "yandex_sync.previewed"
+ACTION_YANDEX_SYNC_STARTED = "yandex_sync.started"
+ACTION_YANDEX_SYNC_COMPLETED = "yandex_sync.completed"
+ACTION_YANDEX_SYNC_FAILED = "yandex_sync.failed"
+ACTION_YANDEX_SYNC_PAUSED = "yandex_sync.paused"
+ACTION_YANDEX_SYNC_RESUMED = "yandex_sync.resumed"
+ACTION_WORKER_YANDEX_SYNC_PREVIEWED = "scheduler.worker.yandex_sync.previewed"
+ACTION_WORKER_YANDEX_SYNC_COMPLETED = "scheduler.worker.yandex_sync.completed"
+ACTION_WORKER_YANDEX_SYNC_FAILED = "scheduler.worker.yandex_sync.failed"
 
 
 class AuditLogService:

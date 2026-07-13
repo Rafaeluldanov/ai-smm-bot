@@ -59,6 +59,7 @@ from app.models.post_publication import PostPublication
 from app.models.post_review_action import PostReviewAction
 from app.models.project import Project
 from app.models.project_autopilot_profile import ProjectAutopilotProfile
+from app.models.project_yandex_sync_profile import ProjectYandexSyncProfile
 from app.models.public_media_link import PublicMediaLink
 from app.models.schedule_media_decision import ScheduleMediaDecision
 from app.models.schedule_run import ScheduleRun
@@ -67,6 +68,7 @@ from app.models.scheduler_worker_lease import SchedulerWorkerLease
 from app.models.topic import Topic
 from app.models.user import User
 from app.models.webhook_subscription import WebhookSubscription
+from app.models.yandex_auto_sync_run import YandexAutoSyncRun
 
 __all__ = [
     "Account",
@@ -122,6 +124,7 @@ __all__ = [
     "PostReviewAction",
     "Project",
     "ProjectAutopilotProfile",
+    "ProjectYandexSyncProfile",
     "PublicMediaLink",
     "ScheduleRun",
     "SchedulerWorkerLease",
@@ -130,4 +133,5 @@ __all__ = [
     "UsageEvent",
     "User",
     "WebhookSubscription",
+    "YandexAutoSyncRun",
 ]

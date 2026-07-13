@@ -125,6 +125,8 @@ class AutopilotService:
         connected = [c for c in connections if c.get("connected")]
         media_count = media_asset_repository.count_media_assets(db, project_id=project_id)
         yandex = self._yandex_connection(connections)
+        # v0.5.7: Яндекс Диск может быть задан и через профиль авто-синхронизации.
+        has_yandex = yandex is not None or self._yandex_sync_has_url(db, project_id)
         plans = self._active_plans(db, project_id)
         balance_units = self._balance_units(db, project.account_id)
         settings = self._resolve_settings()
@@ -158,7 +160,7 @@ class AutopilotService:
                     )
                 )
 
-        if self._require_yandex_disk() and yandex is None:
+        if self._require_yandex_disk() and not has_yandex:
             blockers.append(
                 self._blocker(
                     "no_yandex_disk",
@@ -296,7 +298,7 @@ class AutopilotService:
                 for c in connections
                 if c["platform_key"] != "yandex_disk"
             ],
-            "yandex_disk_status": self._yandex_status(connections),
+            "yandex_disk_status": self._yandex_status(connections, db, project_id),
             "media_status": media,
             "calendar_status": self._calendar_status(plans, profile),
             "next_posts": self.preview_next_posts(db, project_id).get("entries", []),
@@ -717,15 +719,43 @@ class AutopilotService:
                 return c
         return None
 
-    def _yandex_status(self, connections: list[dict[str, Any]]) -> dict[str, Any]:
+    def _yandex_status(
+        self,
+        connections: list[dict[str, Any]],
+        db: Session | None = None,
+        project_id: int | None = None,
+    ) -> dict[str, Any]:
         yandex = self._yandex_connection(connections)
-        if yandex is None:
-            return {"connected": False}
-        return {
-            "connected": True,
-            "root_folder": yandex.get("root_folder"),
-            "has_public_url": bool(yandex.get("public_media_url") or yandex.get("url")),
-        }
+        if yandex is not None:
+            return {
+                "connected": True,
+                "root_folder": yandex.get("root_folder"),
+                "has_public_url": bool(yandex.get("public_media_url") or yandex.get("url")),
+            }
+        # v0.5.7: fallback на профиль авто-синхронизации Яндекс Диска.
+        if db is not None and project_id is not None:
+            sync = self._yandex_sync_profile(db, project_id)
+            if sync is not None and (sync.public_url or "").strip():
+                return {
+                    "connected": True,
+                    "root_folder": sync.root_folder,
+                    "has_public_url": True,
+                    "auto_sync": True,
+                }
+        return {"connected": False}
+
+    @staticmethod
+    def _yandex_sync_profile(db: Session, project_id: int) -> Any:
+        try:
+            from app.repositories import yandex_auto_sync_repository
+
+            return yandex_auto_sync_repository.get_profile_by_project_id(db, project_id)
+        except Exception:  # noqa: BLE001 — отсутствие профиля синхронизации не критично
+            return None
+
+    def _yandex_sync_has_url(self, db: Session, project_id: int) -> bool:
+        sync = self._yandex_sync_profile(db, project_id)
+        return bool(sync is not None and (sync.public_url or "").strip())
 
     def _media_summary(self, db: Session, project_id: int) -> dict[str, Any]:
         count = media_asset_repository.count_media_assets(db, project_id=project_id)

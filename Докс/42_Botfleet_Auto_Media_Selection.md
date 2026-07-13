@@ -203,3 +203,5 @@ live-auto
 
 
 > **Autopilot-first (v0.5.6):** этот слой скрыт за клиентским автопилотом — клиент подключает Яндекс Диск и календарь, а Botfleet сам всё делает. См. [53_Botfleet_Autopilot_First_Workspace.md](53_Botfleet_Autopilot_First_Workspace.md).
+
+> **Yandex Disk auto-sync (v0.5.7):** клиент загружает картинки в Яндекс Диск — Botfleet сам синхронизирует медиатеку (dry-run/без сети по умолчанию, файлы не удаляются). См. [54_Botfleet_Yandex_Disk_Auto_Sync.md](54_Botfleet_Yandex_Disk_Auto_Sync.md).

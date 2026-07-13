@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     )
     from app.services.topic_optimization_service import TopicOptimizationService
     from app.services.webhook_subscription_service import WebhookSubscriptionService
+    from app.services.yandex_auto_sync_service import YandexAutoSyncService
 
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
@@ -410,6 +411,13 @@ def get_autopilot_service() -> "AutopilotService":
     from app.services.autopilot_service import AutopilotService
 
     return AutopilotService(settings=get_settings())
+
+
+def get_yandex_auto_sync_service() -> "YandexAutoSyncService":
+    """Построить сервис авто-синхронизации Яндекс Диска (dry-run/без сети по умолчанию)."""
+    from app.services.yandex_auto_sync_service import YandexAutoSyncService
+
+    return YandexAutoSyncService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":

@@ -107,6 +107,11 @@ USAGE_TELEGRAM_UPDATE_SIMULATE = "telegram_update_simulate"
 USAGE_TELEGRAM_WEBHOOK_PREVIEW = "telegram_webhook_preview"
 USAGE_TELEGRAM_POLLING_PREVIEW = "telegram_polling_preview"
 
+# Типы usage для авто-синхронизации Яндекс Диска (v0.5.7). Бесплатны в MVP.
+USAGE_YANDEX_SYNC_PREVIEW = "yandex_sync_preview"
+USAGE_YANDEX_SYNC_RUN = "yandex_sync_run"
+USAGE_YANDEX_SYNC_WORKER_TICK = "yandex_sync_worker_tick"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -191,6 +196,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_TELEGRAM_UPDATE_SIMULATE: 0,
     USAGE_TELEGRAM_WEBHOOK_PREVIEW: 0,
     USAGE_TELEGRAM_POLLING_PREVIEW: 0,
+    # v0.5.7: авто-синхронизация Яндекс Диска — бесплатно в MVP (реальной сети нет по умолчанию).
+    USAGE_YANDEX_SYNC_PREVIEW: 0,
+    USAGE_YANDEX_SYNC_RUN: 0,
+    USAGE_YANDEX_SYNC_WORKER_TICK: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

@@ -50,6 +50,7 @@ from app.api.seo import router as seo_router
 from app.api.topic_decisions import router as topic_decisions_router
 from app.api.topics import router as topics_router
 from app.api.ui import router as ui_router
+from app.api.yandex_auto_sync import router as yandex_auto_sync_router
 from app.config import get_settings, production_security_errors
 from app.core.logging import configure_logging, get_logger
 from app.middleware.request_logging import AccessLogMiddleware, RequestIDMiddleware
@@ -113,6 +114,7 @@ def create_app() -> FastAPI:
     app.include_router(external_images_router)
     app.include_router(autonomous_runs_router)
     app.include_router(autopilot_router)
+    app.include_router(yandex_auto_sync_router)
     app.include_router(seo_router)
     app.include_router(crm_bot_smm_router)
     app.include_router(auth_router)
