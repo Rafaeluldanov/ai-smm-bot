@@ -173,6 +173,22 @@ def require_publication_access(
     _guard_project(db, settings, user, publication.project_id)
 
 
+def require_live_attempt_access(
+    attempt_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к попытке live-публикации (через её проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import live_publish_attempt_repository
+
+    attempt = live_publish_attempt_repository.get_attempt_by_id(db, attempt_id)
+    if attempt is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, attempt.project_id)
+
+
 def require_experiment_access(
     experiment_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

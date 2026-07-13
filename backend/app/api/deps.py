@@ -39,6 +39,7 @@ if TYPE_CHECKING:
     from app.services.schedule_topic_decision_service import ScheduleTopicDecisionService
     from app.services.telegram_bot_management_service import TelegramBotManagementService
     from app.services.telegram_incoming_service import TelegramIncomingService
+    from app.services.telegram_live_rollout_service import TelegramLiveRolloutService
     from app.services.telegram_notification_template_service import (
         TelegramNotificationTemplateService,
     )
@@ -431,6 +432,13 @@ def get_live_readiness_service() -> "LiveReadinessService":
     from app.services.live_readiness_service import LiveReadinessService
 
     return LiveReadinessService(settings=get_settings())
+
+
+def get_telegram_live_rollout_service() -> "TelegramLiveRolloutService":
+    """Построить сервис Telegram live rollout (реальная отправка — только под всеми гейтами)."""
+    from app.services.telegram_live_rollout_service import TelegramLiveRolloutService
+
+    return TelegramLiveRolloutService(settings=get_settings())
 
 
 def get_yandex_auto_sync_service() -> "YandexAutoSyncService":

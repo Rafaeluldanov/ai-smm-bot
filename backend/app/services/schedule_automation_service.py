@@ -553,6 +553,8 @@ class ScheduleAutomationService:
             outcome["auto_publish_attempted"] = True
             outcome["auto_publish_blocked_reason"] = reason
             outcome["auto_published"] = reason is None
+            # v0.6.0: журнал live-попытки (Telegram-first). Fail-safe — не ломает прогон.
+            self._record_live_publish_attempt(db, account_id, project_id, entry, run, post, reason)
         return {**self.mask_run(run), **outcome}
 
     # ------------------------------------------------------------------ #
@@ -962,6 +964,65 @@ class ScheduleAutomationService:
         except Exception:  # noqa: BLE001 — fail-safe: не публикуем при любой ошибке гейта
             logger.warning("live-readiness gate failed for project_id=%s — blocking", project_id)
             return []
+
+    def _record_live_publish_attempt(
+        self,
+        db: Session,
+        account_id: int,
+        project_id: int,
+        entry: _DueEntry,
+        run: Any,
+        post: Post,
+        reason: str | None,
+    ) -> None:
+        """Записать LivePublishAttempt по итогу авто-публикации (Telegram-first). Fail-safe.
+
+        Глобальные флаги и клиентские гейты уже проверены в ``_attempt_auto_publish`` — здесь только
+        журналируем результат. Заблокированная попытка не списывает деньги (это гарантирует
+        ``_attempt_auto_publish``); журнал секретов не хранит.
+        """
+        if entry.platform != "telegram":
+            return
+        try:
+            from app.repositories import live_publish_attempt_repository as attempt_repo
+            from app.services.live_readiness_service import LiveReadinessService
+
+            key = f"{entry.idempotency_key}-liveattempt"
+            if attempt_repo.get_by_idempotency_key(db, key) is not None:
+                return
+            gate = LiveReadinessService(
+                settings=self._resolve_settings()
+            ).build_effective_live_gate(db, project_id, "telegram")
+            if reason is None:
+                status, mode, live_attempted = "published", "live", True
+            elif reason == "publish_failed":
+                status, mode, live_attempted = "failed", "live", True
+            else:
+                status, mode, live_attempted = "blocked", "live_blocked", False
+            attempt_repo.create_attempt(
+                db,
+                account_id=account_id,
+                project_id=project_id,
+                platform_key="telegram",
+                post_id=post.id,
+                schedule_run_id=getattr(run, "id", None),
+                trigger="schedule_due",
+                mode=mode,
+                status=status,
+                global_live_enabled=bool(gate.get("global_live_enabled")),
+                project_live_enabled=bool(gate.get("project_live_enabled")),
+                platform_live_enabled=bool(gate.get("platform_live_enabled")),
+                full_auto_live_enabled=bool(gate.get("full_auto_live_enabled")),
+                readiness_ready=bool(gate.get("readiness_ready")),
+                balance_ok=True,
+                live_attempted=live_attempted,
+                blockers=([{"type": reason}] if reason else []),
+                idempotency_key=key,
+            )
+        except Exception:  # noqa: BLE001 — журнал не должен ронять прогон расписания
+            logger.warning("live-attempt record failed for project_id=%s", project_id)
+            with contextlib.suppress(Exception):
+                db.rollback()
 
     def _learning_service(self) -> Any:
         if self._learning is None:

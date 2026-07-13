@@ -31,6 +31,7 @@ from app.models.crm_bot_smm import (
 from app.models.email_template_override import EmailTemplateOverride
 from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
+from app.models.live_publish_attempt import LivePublishAttempt
 from app.models.media_asset import MediaAsset
 from app.models.media_asset_variant import MediaAssetVariant
 from app.models.media_curation_comment import MediaCurationComment
@@ -99,6 +100,7 @@ __all__ = [
     "EmailTemplateOverride",
     "ExperimentSuggestion",
     "ExternalImageCandidate",
+    "LivePublishAttempt",
     "ScheduleMediaDecision",
     "ScheduleTopicDecision",
     "BillingProfile",

@@ -527,6 +527,23 @@ class Settings(BaseSettings):
     live_autopilot_confirmation_text: str = "ENABLE_LIVE_AUTOPILOT"
     live_platform_confirmation_text: str = "ENABLE_PLATFORM_LIVE"
 
+    # --- Telegram-first live rollout (v0.6.0) ---
+    # Первый реальный live-канал автопилота. Эти флаги НЕ включают live: реальная отправка требует
+    # глобального TELEGRAM_LIVE_PUBLISHING_ENABLED + per-project/per-platform live + подтверждения.
+    # allow_real_send=false по умолчанию — реальная отправка выключена даже при прочих условиях.
+    telegram_live_rollout_enabled: bool = True
+    telegram_live_rollout_dry_run: bool = True
+    telegram_live_rollout_run_once_enabled: bool = True
+    telegram_live_rollout_require_confirmation: bool = True
+    telegram_live_rollout_confirmation_text: str = "ENABLE_TELEGRAM_LIVE"
+    telegram_live_rollout_allow_real_send: bool = False
+    telegram_live_rollout_require_readiness: bool = True
+    telegram_live_rollout_require_full_auto: bool = True
+    telegram_live_rollout_max_attempts_per_post: int = 1
+    telegram_live_rollout_notify_on_blocked: bool = True
+    telegram_live_rollout_notify_on_published: bool = True
+    telegram_live_rollout_record_payload_preview: bool = True
+
     notification_webhook_enabled: bool = False
     notification_webhook_provider: str = "mock"
     notification_webhook_live_enabled: bool = False
@@ -1637,6 +1654,48 @@ class Settings(BaseSettings):
     def live_platform_confirmation_text_safe(self) -> str:
         """Текст подтверждения включения live для площадки (непустой)."""
         return str(self.live_platform_confirmation_text or "").strip() or "ENABLE_PLATFORM_LIVE"
+
+    # --- Telegram-first live rollout (v0.6.0): производные (effective) свойства ---
+
+    @property
+    def telegram_live_rollout_enabled_effective(self) -> bool:
+        """Доступен ли Telegram live rollout (UI/API/CLI)."""
+        return bool(self.telegram_live_rollout_enabled)
+
+    @property
+    def telegram_live_rollout_dry_run_effective(self) -> bool:
+        """Dry-run rollout по умолчанию (без реальной отправки)."""
+        return bool(self.telegram_live_rollout_dry_run)
+
+    @property
+    def telegram_live_rollout_run_once_enabled_effective(self) -> bool:
+        """Доступен ли run-once flow (по умолчанию да; сама отправка — за allow_real_send)."""
+        return bool(
+            self.telegram_live_rollout_enabled and self.telegram_live_rollout_run_once_enabled
+        )
+
+    @property
+    def telegram_live_rollout_allow_real_send_effective(self) -> bool:
+        """Разрешена ли РЕАЛЬНАЯ отправка (по умолчанию НЕТ; глобальный флаг всё равно нужен)."""
+        return bool(
+            self.telegram_live_rollout_enabled and self.telegram_live_rollout_allow_real_send
+        )
+
+    @property
+    def telegram_live_rollout_require_confirmation_effective(self) -> bool:
+        """Требуется ли подтверждение перед live-попыткой (по умолчанию да)."""
+        return bool(self.telegram_live_rollout_require_confirmation)
+
+    @property
+    def telegram_live_rollout_confirmation_text_safe(self) -> str:
+        """Текст подтверждения включения Telegram live (непустой)."""
+        raw = str(self.telegram_live_rollout_confirmation_text or "").strip()
+        return raw or "ENABLE_TELEGRAM_LIVE"
+
+    @property
+    def telegram_live_rollout_max_attempts_per_post_safe(self) -> int:
+        """Максимум live-попыток на один пост (в границах 1..10)."""
+        return max(1, min(10, int(self.telegram_live_rollout_max_attempts_per_post or 1)))
 
     # --- Auth / session: производные (effective) свойства ---
 

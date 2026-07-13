@@ -121,3 +121,5 @@ status/live-переключателям. Секретов не хранят.
 - VK user-token photo strategy (загрузка фото);
 - завершение Instagram API;
 - упрощённый публичный лендинг и тарифы.
+
+> **Дальше — Telegram-first live rollout (v0.6.0):** первый реальный live-канал автопилота. Когда готовность подтверждена, Telegram включается первым (под всеми гейтами + `ENABLE_TELEGRAM_LIVE` + `TELEGRAM_LIVE_ROLLOUT_ALLOW_REAL_SEND`), а каждая попытка пишется в `LivePublishAttempt`. См. [57_Botfleet_Telegram_Live_Rollout.md](57_Botfleet_Telegram_Live_Rollout.md).

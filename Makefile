@@ -43,6 +43,7 @@ BIN := $(VENV)/bin
         yandex-sync-profile yandex-sync-preview yandex-sync-run yandex-sync-worker-tick \
         autopilot-calendar-preview autopilot-calendar-create autopilot-calendar-apply autopilot-calendar-dashboard \
         live-readiness-check live-readiness-platform-check live-readiness-enable live-readiness-effective-gate \
+        telegram-live-rollout-dashboard telegram-live-rollout-preview telegram-live-rollout-run-dry telegram-live-rollout-publish-once \
         smoke
 
 help: ## Показать список команд
@@ -378,6 +379,18 @@ live-readiness-enable: ## Включить per-project live (dry-run): make live
 
 live-readiness-effective-gate: ## Эффективный live-гейт: make live-readiness-effective-gate project_id=1 platform=telegram
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.live_readiness_effective_gate --project-id "$(project_id)" --platform "$(platform)"
+
+telegram-live-rollout-dashboard: ## Дашборд Telegram live rollout: make telegram-live-rollout-dashboard project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_live_rollout_dashboard --project-id "$(project_id)"
+
+telegram-live-rollout-preview: ## Предпросмотр Telegram live: make telegram-live-rollout-preview project_id=1 [post_id=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_live_rollout_preview --project-id "$(project_id)" $(if $(post_id),--post-id "$(post_id)",)
+
+telegram-live-rollout-run-dry: ## Тестовый прогон Telegram (без отправки): make telegram-live-rollout-run-dry project_id=1 [post_id=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_live_rollout_run_dry --project-id "$(project_id)" $(if $(post_id),--post-id "$(post_id)",)
+
+telegram-live-rollout-publish-once: ## Live-попытка Telegram (DRY-RUN по умолчанию): make telegram-live-rollout-publish-once project_id=1 post_id=1 confirmation=ENABLE_TELEGRAM_LIVE [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_live_rollout_publish_once --project-id "$(project_id)" $(if $(post_id),--post-id "$(post_id)",) --confirmation "$(or $(confirmation),ENABLE_TELEGRAM_LIVE)" --dry-run "$(or $(dry_run),true)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

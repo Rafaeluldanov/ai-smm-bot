@@ -49,6 +49,7 @@ from app.api.security_middleware import (
     SecurityHeadersMiddleware,
 )
 from app.api.seo import router as seo_router
+from app.api.telegram_live_rollout import router as telegram_live_rollout_router
 from app.api.topic_decisions import router as topic_decisions_router
 from app.api.topics import router as topics_router
 from app.api.ui import router as ui_router
@@ -118,6 +119,7 @@ def create_app() -> FastAPI:
     app.include_router(autopilot_router)
     app.include_router(autopilot_calendar_router)
     app.include_router(live_readiness_router)
+    app.include_router(telegram_live_rollout_router)
     app.include_router(yandex_auto_sync_router)
     app.include_router(seo_router)
     app.include_router(crm_bot_smm_router)

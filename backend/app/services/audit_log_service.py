@@ -304,6 +304,15 @@ ACTION_LIVE_READINESS_FULL_AUTO_DISABLED = "live_readiness.full_auto_disabled"
 ACTION_LIVE_READINESS_BLOCKED = "live_readiness.blocked"
 ACTION_LIVE_READINESS_EFFECTIVE_GATE_CHECKED = "live_readiness.effective_gate_checked"
 
+# --- Telegram-first live rollout (v0.6.0) --- #
+ACTION_TELEGRAM_LIVE_ROLLOUT_DASHBOARD_VIEWED = "telegram_live_rollout.dashboard_viewed"
+ACTION_TELEGRAM_LIVE_ROLLOUT_PREVIEWED = "telegram_live_rollout.previewed"
+ACTION_TELEGRAM_LIVE_ROLLOUT_RUN_DRY = "telegram_live_rollout.run_dry"
+ACTION_TELEGRAM_LIVE_ROLLOUT_LIVE_BLOCKED = "telegram_live_rollout.live_blocked"
+ACTION_TELEGRAM_LIVE_ROLLOUT_LIVE_ATTEMPTED = "telegram_live_rollout.live_attempted"
+ACTION_TELEGRAM_LIVE_ROLLOUT_PUBLISHED = "telegram_live_rollout.published"
+ACTION_TELEGRAM_LIVE_ROLLOUT_FAILED = "telegram_live_rollout.failed"
+
 
 class AuditLogService:
     """Запись/чтение аудита действий (безопасно, без секретов)."""
