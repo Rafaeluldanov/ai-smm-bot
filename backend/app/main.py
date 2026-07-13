@@ -19,6 +19,7 @@ from app.api.experiments import router as experiments_router
 from app.api.external_images import router as external_images_router
 from app.api.health import router as health_router
 from app.api.integrations_vk import router as integrations_vk_router
+from app.api.live_readiness import router as live_readiness_router
 from app.api.media_assets import router as media_assets_router
 from app.api.media_curation import router as media_curation_router
 from app.api.media_curation_review import router as media_curation_review_router
@@ -116,6 +117,7 @@ def create_app() -> FastAPI:
     app.include_router(autonomous_runs_router)
     app.include_router(autopilot_router)
     app.include_router(autopilot_calendar_router)
+    app.include_router(live_readiness_router)
     app.include_router(yandex_auto_sync_router)
     app.include_router(seo_router)
     app.include_router(crm_bot_smm_router)

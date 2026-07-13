@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from app.services.content_scoring_service import ContentScoringService
     from app.services.email_template_service import EmailTemplateService
     from app.services.experiment_suggestion_service import ExperimentSuggestionService
+    from app.services.live_readiness_service import LiveReadinessService
     from app.services.media_curation_review_service import MediaCurationReviewService
     from app.services.media_curation_service import MediaCurationService
     from app.services.media_fingerprint_service import MediaFingerprintService
@@ -423,6 +424,13 @@ def get_autopilot_calendar_assistant_service() -> "AutopilotCalendarAssistantSer
     )
 
     return AutopilotCalendarAssistantService(settings=get_settings())
+
+
+def get_live_readiness_service() -> "LiveReadinessService":
+    """Построить сервис live-readiness (аудит готовности; live-флаги НЕ включает и не обходит)."""
+    from app.services.live_readiness_service import LiveReadinessService
+
+    return LiveReadinessService(settings=get_settings())
 
 
 def get_yandex_auto_sync_service() -> "YandexAutoSyncService":

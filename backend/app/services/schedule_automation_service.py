@@ -23,6 +23,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.core.logging import get_logger
 from app.models.crm_bot_smm import CrmPublishingPlan
 from app.models.post import Post
 from app.repositories import crm_bot_smm_repository as crm_repo
@@ -58,6 +59,8 @@ from app.services.unit_economics_service import (
     USAGE_SCHEDULE_GENERATION,
     UnitEconomicsService,
 )
+
+logger = get_logger(__name__)
 
 # Платное действие: генерация draft по due-слоту расписания.
 USAGE_SCHEDULE_DRAFT = "schedule_due_draft_generation"
@@ -854,6 +857,14 @@ class ScheduleAutomationService:
         if not sendable:
             return self._block_auto(db, run, post, project_id, "live_disabled")
 
+        # 4b) Live-readiness gate (v0.5.9): per-project/per-platform switch + порог готовности.
+        # НЕ обходит глобальные live-флаги (они уже проверены в would_send выше) — только
+        # добавляет обязательный клиентский слой готовности. Оставляем только площадки, где
+        # клиент явно включил live и проект готов.
+        sendable = self._filter_by_live_readiness(db, project_id, sendable)
+        if not sendable:
+            return self._block_auto(db, run, post, project_id, "live_readiness_blocked")
+
         # --- Все гейты пройдены: одобряем и публикуем ---
         from app.schemas.post_publication import PostPublishRequest
         from app.schemas.post_review import PostReviewDecisionRequest
@@ -918,6 +929,39 @@ class ScheduleAutomationService:
             )
         self._audit_run(db, ACTION_AUTOMATION_AUTO_PUBLISH_BLOCKED, run)
         return reason
+
+    def _filter_by_live_readiness(
+        self, db: Session, project_id: int, sendable: list[Any]
+    ) -> list[Any]:
+        """Оставить только площадки, где live разрешён по live-readiness (project×platform).
+
+        НЕ обходит глобальные live-флаги: их проверяет ``would_send`` до этого. Если readiness
+        выключен в конфиге — legacy-поведение (фильтр не применяется). Любой сбой → fail-safe
+        (пустой список = блокировка), чтобы случайная публикация была невозможна.
+        """
+        settings = self._resolve_settings()
+        if not settings.live_readiness_enabled_effective:
+            return sendable
+        try:
+            from app.services.live_readiness_service import LiveReadinessService
+
+            gate = LiveReadinessService(settings=settings)
+            allowed: list[Any] = []
+            for item in sendable:
+                result = gate.build_effective_live_gate(db, project_id, item.platform)
+                # Глобальный live-флаг уже обеспечен would_send (sendable) выше — здесь проверяем
+                # только клиентский слой готовности (project/platform/full_auto/readiness).
+                if (
+                    result.get("project_live_enabled")
+                    and result.get("platform_live_enabled")
+                    and result.get("full_auto_live_enabled")
+                    and result.get("readiness_ready")
+                ):
+                    allowed.append(item)
+            return allowed
+        except Exception:  # noqa: BLE001 — fail-safe: не публикуем при любой ошибке гейта
+            logger.warning("live-readiness gate failed for project_id=%s — blocking", project_id)
+            return []
 
     def _learning_service(self) -> Any:
         if self._learning is None:

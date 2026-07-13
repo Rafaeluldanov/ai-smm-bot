@@ -53,6 +53,7 @@ from app.models.payment import (
     PaymentTransaction,
     PaymentWebhookLog,
 )
+from app.models.platform_live_readiness import PlatformLiveReadiness
 from app.models.post import Post
 from app.models.post_analytics_snapshot import PostAnalyticsSnapshot
 from app.models.post_feedback_event import PostFeedbackEvent
@@ -60,6 +61,7 @@ from app.models.post_publication import PostPublication
 from app.models.post_review_action import PostReviewAction
 from app.models.project import Project
 from app.models.project_autopilot_profile import ProjectAutopilotProfile
+from app.models.project_live_readiness_profile import ProjectLiveReadinessProfile
 from app.models.project_yandex_sync_profile import ProjectYandexSyncProfile
 from app.models.public_media_link import PublicMediaLink
 from app.models.schedule_media_decision import ScheduleMediaDecision
@@ -119,6 +121,7 @@ __all__ = [
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",
+    "PlatformLiveReadiness",
     "Post",
     "PostAnalyticsSnapshot",
     "PostFeedbackEvent",
@@ -126,6 +129,7 @@ __all__ = [
     "PostReviewAction",
     "Project",
     "ProjectAutopilotProfile",
+    "ProjectLiveReadinessProfile",
     "ProjectYandexSyncProfile",
     "PublicMediaLink",
     "ScheduleRun",

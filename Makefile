@@ -42,6 +42,7 @@ BIN := $(VENV)/bin
         telegram-update-simulate telegram-webhook-info telegram-webhook-set telegram-polling-dry \
         yandex-sync-profile yandex-sync-preview yandex-sync-run yandex-sync-worker-tick \
         autopilot-calendar-preview autopilot-calendar-create autopilot-calendar-apply autopilot-calendar-dashboard \
+        live-readiness-check live-readiness-platform-check live-readiness-enable live-readiness-effective-gate \
         smoke
 
 help: ## Показать список команд
@@ -365,6 +366,18 @@ autopilot-calendar-apply: ## Применить календарь к автоп
 
 autopilot-calendar-dashboard: ## Дашборд календаря автопостинга: make autopilot-calendar-dashboard project_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.autopilot_calendar_dashboard --project-id "$(project_id)"
+
+live-readiness-check: ## Готовность проекта к автопубликации (dry-run): make live-readiness-check project_id=1 [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.live_readiness_check --project-id "$(project_id)" --dry-run "$(or $(dry_run),true)"
+
+live-readiness-platform-check: ## Готовность площадки: make live-readiness-platform-check project_id=1 platform=telegram [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.live_readiness_platform_check --project-id "$(project_id)" --platform "$(platform)" --dry-run "$(or $(dry_run),true)"
+
+live-readiness-enable: ## Включить per-project live (dry-run): make live-readiness-enable project_id=1 confirmation=ENABLE_LIVE_AUTOPILOT [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.live_readiness_enable --project-id "$(project_id)" --confirmation "$(or $(confirmation),ENABLE_LIVE_AUTOPILOT)" --dry-run "$(or $(dry_run),true)"
+
+live-readiness-effective-gate: ## Эффективный live-гейт: make live-readiness-effective-gate project_id=1 platform=telegram
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.live_readiness_effective_gate --project-id "$(project_id)" --platform "$(platform)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

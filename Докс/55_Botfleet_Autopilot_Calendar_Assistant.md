@@ -118,3 +118,8 @@ make autopilot-calendar-dashboard project_id=1
 
 Preview/create/apply тарифицируются 0 units (`autopilot_calendar_preview/create/apply`);
 стоимость появляется только при реальной генерации/публикации постов автопилотом.
+
+> **Дальше — Live autopost readiness (v0.5.9):** когда календарь применён, перед реальной
+> автопубликацией проверяется готовность проекта/площадок, а клиент включает live явно (с
+> подтверждением), не обходя глобальные live-флаги. См.
+> [56_Botfleet_Live_Autopost_Readiness.md](56_Botfleet_Live_Autopost_Readiness.md).

@@ -355,6 +355,11 @@ class ReviewWorkflowService:
             reason = self._infer_block_reason(preview["items"])
             return self._blocked(db, post, user_id, reason, preview)
 
+        # Live-readiness (v0.5.9): если клиент вовлёк систему готовности и НЕ включил live для
+        # проекта — блокируем (без списания). Глобальные флаги уже проверены в would_send выше.
+        if self._live_readiness_blocks(db, post.project_id):
+            return self._blocked(db, post, user_id, "live_readiness_blocked", preview)
+
         # Баланс проверяем ДО одобрения/публикации — заблокированный по балансу
         # publish-now должен быть no-op (без смены статуса поста и без списания).
         send_platforms = [item["platform"] for item in sendable]
@@ -426,6 +431,26 @@ class ReviewWorkflowService:
     # ------------------------------------------------------------------ #
     # Внутреннее                                                          #
     # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _live_readiness_blocks(db: Session, project_id: int) -> bool:
+        """Блокирует ли live-readiness ручную публикацию (engage-on-opt-in).
+
+        Возвращает True только если клиент уже создал профиль готовности проекта и НЕ включил
+        для него live. Если профиля нет — legacy-поведение (не блокируем). Глобальные live-флаги
+        проверяются отдельно (would_send) и этот метод их не обходит.
+        """
+        from app.config import get_settings
+
+        if not get_settings().live_readiness_enabled_effective:
+            return False
+        try:
+            from app.repositories import live_readiness_repository as readiness_repo
+
+            profile = readiness_repo.get_project_profile(db, project_id)
+        except Exception:  # noqa: BLE001
+            return False
+        return profile is not None and not profile.project_live_enabled
 
     def _blocked(
         self,

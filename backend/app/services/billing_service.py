@@ -117,6 +117,11 @@ USAGE_AUTOPILOT_CALENDAR_PREVIEW = "autopilot_calendar_preview"
 USAGE_AUTOPILOT_CALENDAR_CREATE = "autopilot_calendar_create"
 USAGE_AUTOPILOT_CALENDAR_APPLY = "autopilot_calendar_apply"
 
+# Типы usage для live-readiness audit (v0.5.9). Бесплатны в MVP; заблокированная публикация — 0.
+USAGE_LIVE_READINESS_CHECK = "live_readiness_check"
+USAGE_LIVE_READINESS_PLATFORM_CHECK = "live_readiness_platform_check"
+USAGE_LIVE_READINESS_ENABLE = "live_readiness_enable"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -209,6 +214,9 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_AUTOPILOT_CALENDAR_PREVIEW: 0,
     USAGE_AUTOPILOT_CALENDAR_CREATE: 0,
     USAGE_AUTOPILOT_CALENDAR_APPLY: 0,
+    USAGE_LIVE_READINESS_CHECK: 0,
+    USAGE_LIVE_READINESS_PLATFORM_CHECK: 0,
+    USAGE_LIVE_READINESS_ENABLE: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

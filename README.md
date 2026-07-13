@@ -2025,3 +2025,26 @@ scheduler worker (выключен по умолчанию). UI — `/ui/project
 («Календарь автопостинга», клиентский язык). CLI — `make autopilot-calendar-preview|create|apply|dashboard`
 (offline, dry-run по умолчанию). Всё **бесплатно** в MVP. Подробно —
 [Докс/55_Botfleet_Autopilot_Calendar_Assistant.md](./Докс/55_Botfleet_Autopilot_Calendar_Assistant.md).
+
+## Live autopost readiness audit (v0.5.9)
+
+Критический слой безопасного перехода от автопилота к **реальной автопубликации**: клиент видит
+«Автопилот готов к реальной публикации / не готов / что нужно исправить» и включает live **явно, с
+подтверждением** — по проекту (`ENABLE_LIVE_AUTOPILOT`), по площадке (`ENABLE_PLATFORM_LIVE`) и
+full-auto. `LiveReadinessService` проверяет автопилот, календарь, медиа, баланс, площадки
+(Telegram/VK/Instagram; MAX/OK — «скоро») и безопасность, считает `readiness_score` и хранит
+`ProjectLiveReadinessProfile`/`PlatformLiveReadiness` (без секретов). **Ключевой инвариант
+безопасности:** per-project/per-platform live-переключатели **НЕ включают и НЕ обходят** глобальные
+`*_LIVE_PUBLISHING_ENABLED` (управляются администратором) — реальная публикация возможна только когда
+**все** гейты true: `global AND project AND platform AND full_auto AND readiness_ready`. Защита
+движка: `ScheduleAutomationService._attempt_auto_publish` дополнительно фильтрует площадки через
+`build_effective_live_gate` (глобальный флаг уже обеспечен `would_send`); при блокировке — draft
+`needs_review`, причина `live_readiness_blocked`, **без списания**; любой сбой гейта → **fail-safe**
+(не публикуем). UI — `/ui/projects/{id}/live-readiness` («Готовность к реальной автопубликации»,
+клиентский язык, явное предупреждение про глобальные флаги, без кнопки прямой публикации). CLI —
+`make live-readiness-check|platform-check|enable|effective-gate` (offline, dry-run по умолчанию).
+Безопасные дефолты: `LIVE_READINESS_DRY_RUN=true`, `LIVE_READINESS_WORKER_ENABLED=false`,
+`LIVE_READINESS_AUTO_ENABLE=false`, `LIVE_READINESS_PROBE_EXTERNAL_API=false`,
+`LIVE_READINESS_ALLOW_GLOBAL_FLAG_OVERRIDE=false`; проверки free; `publish_due` не вызывается.
+Миграция `0041_live_readiness`. Всё **бесплатно** в MVP. Подробно —
+[Докс/56_Botfleet_Live_Autopost_Readiness.md](./Докс/56_Botfleet_Live_Autopost_Readiness.md).

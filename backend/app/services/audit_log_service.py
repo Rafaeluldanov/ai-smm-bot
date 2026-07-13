@@ -292,6 +292,18 @@ ACTION_AUTOPILOT_CALENDAR_RESUMED = "autopilot_calendar.resumed"
 ACTION_AUTOPILOT_CALENDAR_ARCHIVED = "autopilot_calendar.archived"
 ACTION_AUTOPILOT_CALENDAR_RECOMMENDED = "autopilot_calendar.recommended"
 
+# --- Live autopost readiness (v0.5.9) --- #
+ACTION_LIVE_READINESS_CHECKED = "live_readiness.checked"
+ACTION_LIVE_READINESS_PLATFORM_CHECKED = "live_readiness.platform_checked"
+ACTION_LIVE_READINESS_PROJECT_ENABLED = "live_readiness.project_enabled"
+ACTION_LIVE_READINESS_PROJECT_DISABLED = "live_readiness.project_disabled"
+ACTION_LIVE_READINESS_PLATFORM_ENABLED = "live_readiness.platform_enabled"
+ACTION_LIVE_READINESS_PLATFORM_DISABLED = "live_readiness.platform_disabled"
+ACTION_LIVE_READINESS_FULL_AUTO_ENABLED = "live_readiness.full_auto_enabled"
+ACTION_LIVE_READINESS_FULL_AUTO_DISABLED = "live_readiness.full_auto_disabled"
+ACTION_LIVE_READINESS_BLOCKED = "live_readiness.blocked"
+ACTION_LIVE_READINESS_EFFECTIVE_GATE_CHECKED = "live_readiness.effective_gate_checked"
+
 
 class AuditLogService:
     """Запись/чтение аудита действий (безопасно, без секретов)."""

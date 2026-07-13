@@ -92,6 +92,23 @@ def _fake_publication() -> PostPublicationService:
     return PostPublicationService(registry=registry, default_targets={"telegram": "@x"})
 
 
+def _enable_live_readiness(db: Session, account_id: int, project_id: int, platform: str) -> None:
+    """v0.5.9: включить per-project/per-platform live-readiness (профили ready + enabled), чтобы
+    live-readiness gate пропустил авто-публикацию с fake-клиентом. Глобальные флаги не трогаем —
+    их обходит только внедрённый fake-реестр (live_enabled=True)."""
+    from app.repositories import live_readiness_repository as lrr
+
+    pp = lrr.get_or_create_project_profile(db, account_id, project_id)
+    lrr.update_project_profile(
+        db,
+        pp,
+        {"status": "ready", "project_live_enabled": True, "full_auto_live_enabled": True},
+    )
+    plat = lrr.get_or_create_platform_profile(db, account_id, project_id, platform)
+    lrr.update_platform_profile(db, plat, {"status": "ready", "platform_live_enabled": True})
+    db.commit()
+
+
 def test_semi_auto_creates_needs_review(db_session: Session) -> None:
     acc, project, _plan = _seed(db_session, "sm-semi", mode="semi_auto")
     svc = ScheduleAutomationService()
@@ -165,6 +182,7 @@ def test_full_auto_all_gates_publishes_with_fake_client(db_session: Session) -> 
         min_quality=10,
         require_first=False,
     )
+    _enable_live_readiness(db_session, acc.id, project.id, "telegram")
     svc = ScheduleAutomationService(publication_service=_fake_publication())
     res = svc.run_due(db_session, acc.id, project.id, _DATE, _NOW)
     entry = res["entries"][0]
@@ -187,6 +205,7 @@ def test_full_auto_idempotent_no_duplicate(db_session: Session) -> None:
         min_quality=10,
         require_first=False,
     )
+    _enable_live_readiness(db_session, acc.id, project.id, "telegram")
     svc = ScheduleAutomationService(publication_service=_fake_publication())
     first = svc.run_due(db_session, acc.id, project.id, _DATE, _NOW)
     second = svc.run_due(db_session, acc.id, project.id, _DATE, _NOW)

@@ -501,6 +501,32 @@ class Settings(BaseSettings):
     autopilot_calendar_use_balance_estimate: bool = True
     autopilot_calendar_live_start_enabled: bool = False
 
+    # --- Live autopost readiness audit (v0.5.9) ---
+    # Готовность проекта/площадок к РЕАЛЬНОЙ автопубликации. Эти флаги НЕ включают live-публикацию:
+    # реальная публикация по-прежнему требует глобальных *_LIVE_PUBLISHING_ENABLED. Per-project/
+    # per-platform switch НЕ обходит глобальные флаги. Внешние probe и авто-включение — выключены.
+    live_readiness_enabled: bool = True
+    live_readiness_dry_run: bool = True
+    live_readiness_worker_enabled: bool = False
+    live_readiness_require_confirmation: bool = True
+    live_readiness_require_project_confirmation: bool = True
+    live_readiness_require_platform_confirmation: bool = True
+    live_readiness_min_score_to_enable: int = 85
+    live_readiness_allow_global_flag_override: bool = False
+    live_readiness_auto_enable: bool = False
+    live_readiness_probe_external_api: bool = False
+    live_readiness_notify_on_blockers: bool = True
+    live_readiness_check_balance: bool = True
+    live_readiness_check_media: bool = True
+    live_readiness_check_calendar: bool = True
+    live_readiness_check_security: bool = True
+
+    live_autopilot_enable_ui: bool = True
+    live_autopilot_enable_api: bool = True
+    live_autopilot_default_mode: str = "disabled"
+    live_autopilot_confirmation_text: str = "ENABLE_LIVE_AUTOPILOT"
+    live_platform_confirmation_text: str = "ENABLE_PLATFORM_LIVE"
+
     notification_webhook_enabled: bool = False
     notification_webhook_provider: str = "mock"
     notification_webhook_live_enabled: bool = False
@@ -1559,6 +1585,58 @@ class Settings(BaseSettings):
     def autopilot_calendar_max_platforms_safe(self) -> int:
         """Максимум площадок в календаре (в границах 1..10)."""
         return max(1, min(10, int(self.autopilot_calendar_max_platforms or 5)))
+
+    # --- Live autopost readiness (v0.5.9): производные (effective) свойства ---
+
+    @property
+    def live_readiness_enabled_effective(self) -> bool:
+        """Доступен ли live-readiness audit (по умолчанию включён)."""
+        return bool(self.live_readiness_enabled)
+
+    @property
+    def live_readiness_dry_run_effective(self) -> bool:
+        """Dry-run проверок готовности (по умолчанию true — без записи профилей)."""
+        return bool(self.live_readiness_dry_run)
+
+    @property
+    def live_readiness_worker_enabled_effective(self) -> bool:
+        """Включён ли фоновый worker readiness (по умолчанию выключен)."""
+        return bool(self.live_readiness_enabled and self.live_readiness_worker_enabled)
+
+    @property
+    def live_readiness_require_confirmation_effective(self) -> bool:
+        """Требуется ли явное подтверждение перед включением live (по умолчанию да)."""
+        return bool(self.live_readiness_require_confirmation)
+
+    @property
+    def live_readiness_min_score_to_enable_safe(self) -> int:
+        """Порог готовности для включения live (в границах 0..100; иначе 85)."""
+        return max(0, min(100, int(self.live_readiness_min_score_to_enable or 85)))
+
+    @property
+    def live_readiness_probe_external_api_effective(self) -> bool:
+        """Разрешены ли реальные внешние probe-вызовы (по умолчанию НЕТ)."""
+        return bool(self.live_readiness_probe_external_api)
+
+    @property
+    def live_autopilot_enable_ui_effective(self) -> bool:
+        """Показывать ли UI готовности к автопубликации (по умолчанию да)."""
+        return bool(self.live_readiness_enabled and self.live_autopilot_enable_ui)
+
+    @property
+    def live_autopilot_enable_api_effective(self) -> bool:
+        """Доступно ли API готовности к автопубликации (по умолчанию да)."""
+        return bool(self.live_readiness_enabled and self.live_autopilot_enable_api)
+
+    @property
+    def live_autopilot_confirmation_text_safe(self) -> str:
+        """Текст подтверждения включения live для проекта (непустой)."""
+        return str(self.live_autopilot_confirmation_text or "").strip() or "ENABLE_LIVE_AUTOPILOT"
+
+    @property
+    def live_platform_confirmation_text_safe(self) -> str:
+        """Текст подтверждения включения live для площадки (непустой)."""
+        return str(self.live_platform_confirmation_text or "").strip() or "ENABLE_PLATFORM_LIVE"
 
     # --- Auth / session: производные (effective) свойства ---
 

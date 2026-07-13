@@ -269,6 +269,10 @@ class AutopilotService:
             "has_calendar": bool(plans),
             "balance_units": balance_units,
             "live_platforms": live_platforms,
+            # Автопилот всегда может готовить черновики; реальная публикация — отдельный слой
+            # готовности (live-readiness) + глобальные условия публикации.
+            "can_create_drafts": True,
+            "can_publish_live": self._project_can_publish_live(db, project_id),
         }
 
     # ------------------------------------------------------------------ #
@@ -326,6 +330,7 @@ class AutopilotService:
                 "enabled": True,
                 "note": "Бот учится на метриках и улучшает посты.",
             },
+            "live_readiness": self._live_readiness_summary(db, project_id, profile),
             "simple_client_summary": self.summarize_for_client(db, project_id),
             "primary_action": health["next_best_action"],
             "advanced_hidden": not settings.autopilot_show_advanced_settings,
@@ -830,6 +835,51 @@ class AutopilotService:
             "estimated_posts_per_month": active.estimated_posts_per_month,
             "note": "Botfleet ведёт публикации по вашему календарю.",
             "link": f"/ui/projects/{project_id}/autopilot/calendar-assistant",
+        }
+
+    def _project_can_publish_live(self, db: Session, project_id: int) -> bool:
+        """Может ли проект РЕАЛЬНО публиковать (project+full_auto live включены). Не учитывает
+        глобальные флаги — те проверяются в момент публикации отдельным гейтом."""
+        try:
+            from app.repositories import live_readiness_repository as readiness_repo
+
+            lr = readiness_repo.get_project_profile(db, project_id)
+        except Exception:  # noqa: BLE001
+            return False
+        return bool(lr and lr.project_live_enabled and lr.full_auto_live_enabled)
+
+    def _live_readiness_summary(self, db: Session, project_id: int, profile: Any) -> dict[str, Any]:
+        """Короткая сводка готовности к реальной автопубликации (без техжаргона)."""
+        link = f"/ui/projects/{project_id}/live-readiness"
+        try:
+            from app.repositories import live_readiness_repository as readiness_repo
+
+            lr = readiness_repo.get_project_profile(db, project_id)
+        except Exception:  # noqa: BLE001
+            lr = None
+        if lr is None:
+            return {
+                "live_status": "not_checked",
+                "can_publish_live": False,
+                "note": "Проверьте, может ли автопилот публиковать сам.",
+                "link": link,
+            }
+        can_live = bool(lr.project_live_enabled and lr.full_auto_live_enabled)
+        if profile is not None and profile.is_enabled and not can_live:
+            note = "Автопилот готовит посты, но реальная публикация ещё не включена."
+        elif can_live:
+            note = "Реальная публикация включена (при включённых условиях публикации)."
+        else:
+            note = "Реальная публикация не включена."
+        return {
+            "live_status": lr.status,
+            "live_mode": lr.live_mode,
+            "project_live_enabled": bool(lr.project_live_enabled),
+            "full_auto_live_enabled": bool(lr.full_auto_live_enabled),
+            "readiness_score": lr.readiness_score,
+            "can_publish_live": can_live,
+            "note": note,
+            "link": link,
         }
 
     def _selected_platforms(self, profile: Any, plans: list[Any]) -> list[str]:
