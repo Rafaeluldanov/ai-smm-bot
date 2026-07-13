@@ -283,6 +283,14 @@ ACTION_YANDEX_SYNC_RESUMED = "yandex_sync.resumed"
 ACTION_WORKER_YANDEX_SYNC_PREVIEWED = "scheduler.worker.yandex_sync.previewed"
 ACTION_WORKER_YANDEX_SYNC_COMPLETED = "scheduler.worker.yandex_sync.completed"
 ACTION_WORKER_YANDEX_SYNC_FAILED = "scheduler.worker.yandex_sync.failed"
+# Autopilot Calendar Assistant (v0.5.8).
+ACTION_AUTOPILOT_CALENDAR_PREVIEWED = "autopilot_calendar.previewed"
+ACTION_AUTOPILOT_CALENDAR_CREATED = "autopilot_calendar.created"
+ACTION_AUTOPILOT_CALENDAR_APPLIED = "autopilot_calendar.applied"
+ACTION_AUTOPILOT_CALENDAR_PAUSED = "autopilot_calendar.paused"
+ACTION_AUTOPILOT_CALENDAR_RESUMED = "autopilot_calendar.resumed"
+ACTION_AUTOPILOT_CALENDAR_ARCHIVED = "autopilot_calendar.archived"
+ACTION_AUTOPILOT_CALENDAR_RECOMMENDED = "autopilot_calendar.recommended"
 
 
 class AuditLogService:

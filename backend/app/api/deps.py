@@ -8,6 +8,9 @@ if TYPE_CHECKING:
     from app.services.auth_session_service import AuthSessionService
     from app.services.auth_token_service import AuthTokenService
     from app.services.automation_settings_service import AutomationSettingsService
+    from app.services.autopilot_calendar_assistant_service import (
+        AutopilotCalendarAssistantService,
+    )
     from app.services.autopilot_service import AutopilotService
     from app.services.client_learning_service import ClientLearningService
     from app.services.content_scoring_service import ContentScoringService
@@ -411,6 +414,15 @@ def get_autopilot_service() -> "AutopilotService":
     from app.services.autopilot_service import AutopilotService
 
     return AutopilotService(settings=get_settings())
+
+
+def get_autopilot_calendar_assistant_service() -> "AutopilotCalendarAssistantService":
+    """Построить сервис Calendar Assistant (строит календарь; не публикует, live не трогает)."""
+    from app.services.autopilot_calendar_assistant_service import (
+        AutopilotCalendarAssistantService,
+    )
+
+    return AutopilotCalendarAssistantService(settings=get_settings())
 
 
 def get_yandex_auto_sync_service() -> "YandexAutoSyncService":

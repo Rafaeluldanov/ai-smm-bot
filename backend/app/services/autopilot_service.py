@@ -190,7 +190,11 @@ class AutopilotService:
                 )
             )
 
-        if self._require_calendar() and not plans:
+        if (
+            self._require_calendar()
+            and not plans
+            and not self._has_calendar_assistant_plan(db, project_id)
+        ):
             blockers.append(
                 self._blocker(
                     "no_calendar",
@@ -301,6 +305,7 @@ class AutopilotService:
             "yandex_disk_status": self._yandex_status(connections, db, project_id),
             "media_status": media,
             "calendar_status": self._calendar_status(plans, profile),
+            "calendar_assistant": self._calendar_assistant_summary(db, project_id),
             "next_posts": self.preview_next_posts(db, project_id).get("entries", []),
             "today_posts": [],
             "worker_status": {
@@ -791,6 +796,40 @@ class AutopilotService:
             "publish_times": list(plan.publish_times or []),
             "platforms": list(plan.platforms or []),
             "timezone": plan.timezone,
+        }
+
+    def _has_calendar_assistant_plan(self, db: Session, project_id: int) -> bool:
+        """Есть ли активный клиентский календарь (Calendar Assistant)."""
+        try:
+            from app.repositories import autopilot_calendar_repository as calendar_repo
+
+            return calendar_repo.get_active_plan_for_project(db, project_id) is not None
+        except Exception:  # noqa: BLE001 — необязательный сигнал
+            return False
+
+    def _calendar_assistant_summary(self, db: Session, project_id: int) -> dict[str, Any]:
+        """Короткая сводка клиентского календаря для дашборда автопилота."""
+        try:
+            from app.repositories import autopilot_calendar_repository as calendar_repo
+
+            active = calendar_repo.get_active_plan_for_project(db, project_id)
+        except Exception:  # noqa: BLE001
+            active = None
+        if active is None:
+            return {
+                "has_plan": False,
+                "note": "Календарь автопостинга ещё не создан.",
+                "link": f"/ui/projects/{project_id}/autopilot/calendar-assistant",
+            }
+        return {
+            "has_plan": True,
+            "preset": active.preset,
+            "goal": active.goal,
+            "weekdays": list(active.weekdays or []),
+            "publish_times": list(active.publish_times or []),
+            "estimated_posts_per_month": active.estimated_posts_per_month,
+            "note": "Botfleet ведёт публикации по вашему календарю.",
+            "link": f"/ui/projects/{project_id}/autopilot/calendar-assistant",
         }
 
     def _selected_platforms(self, profile: Any, plans: list[Any]) -> list[str]:

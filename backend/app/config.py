@@ -482,6 +482,25 @@ class Settings(BaseSettings):
     yandex_auto_sync_auto_delete: bool = False
     yandex_auto_sync_auto_hide: bool = False
 
+    # --- Autopilot Calendar Assistant (v0.5.8) ---
+    # Клиент выбирает цель и частоту — Botfleet строит календарь автопостинга. Применение
+    # календаря создаёт/обновляет CrmPublishingPlan, но НЕ публикует и НЕ включает live-флаги.
+    autopilot_calendar_assistant_enabled: bool = True
+    autopilot_calendar_assistant_dry_run: bool = True
+    autopilot_calendar_auto_apply_enabled: bool = True
+    autopilot_calendar_default_preset: str = "three_per_week"
+    autopilot_calendar_default_goal: str = "mixed"
+    autopilot_calendar_default_timezone: str = "Europe/Moscow"
+    autopilot_calendar_default_time: str = "10:00"
+    autopilot_calendar_max_posts_per_day: int = 3
+    autopilot_calendar_max_platforms: int = 5
+    autopilot_calendar_min_media_per_month: int = 10
+    autopilot_calendar_require_media: bool = True
+    autopilot_calendar_require_platform: bool = True
+    autopilot_calendar_use_learning_best_times: bool = True
+    autopilot_calendar_use_balance_estimate: bool = True
+    autopilot_calendar_live_start_enabled: bool = False
+
     notification_webhook_enabled: bool = False
     notification_webhook_provider: str = "mock"
     notification_webhook_live_enabled: bool = False
@@ -1479,6 +1498,67 @@ class Settings(BaseSettings):
             self.yandex_auto_sync_min_media_assets_safe,
             min(1000, int(self.yandex_auto_sync_recommended_media_assets or 30)),
         )
+
+    # --- Autopilot Calendar Assistant: производные (effective) свойства (v0.5.8) ---
+
+    @property
+    def autopilot_calendar_assistant_enabled_effective(self) -> bool:
+        """Доступен ли Calendar Assistant (по умолчанию включён)."""
+        return bool(self.autopilot_calendar_assistant_enabled)
+
+    @property
+    def autopilot_calendar_assistant_dry_run_effective(self) -> bool:
+        """Dry-run построения календаря (по умолчанию true — без записи)."""
+        return bool(self.autopilot_calendar_assistant_dry_run)
+
+    @property
+    def autopilot_calendar_auto_apply_enabled_effective(self) -> bool:
+        """Разрешено ли применение календаря к проекту (создание CrmPublishingPlan)."""
+        return bool(
+            self.autopilot_calendar_assistant_enabled and self.autopilot_calendar_auto_apply_enabled
+        )
+
+    @property
+    def autopilot_calendar_default_preset_safe(self) -> str:
+        """Пресет по умолчанию (из известных; иначе three_per_week)."""
+        from app.models.autopilot_calendar_plan import AUTOPILOT_CALENDAR_PRESETS
+
+        preset = str(self.autopilot_calendar_default_preset or "").strip().lower()
+        return preset if preset in AUTOPILOT_CALENDAR_PRESETS else "three_per_week"
+
+    @property
+    def autopilot_calendar_default_goal_safe(self) -> str:
+        """Цель по умолчанию (из известных; иначе mixed)."""
+        from app.models.autopilot_calendar_plan import AUTOPILOT_CALENDAR_GOALS
+
+        goal = str(self.autopilot_calendar_default_goal or "").strip().lower()
+        return goal if goal in AUTOPILOT_CALENDAR_GOALS else "mixed"
+
+    @property
+    def autopilot_calendar_default_timezone_safe(self) -> str:
+        """Часовой пояс по умолчанию (непустой; иначе Europe/Moscow)."""
+        return str(self.autopilot_calendar_default_timezone or "").strip() or "Europe/Moscow"
+
+    @property
+    def autopilot_calendar_default_time_safe(self) -> str:
+        """Время публикации по умолчанию (HH:MM; иначе 10:00)."""
+        raw = str(self.autopilot_calendar_default_time or "10:00").strip()
+        parts = raw.split(":")
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            hh, mm = int(parts[0]), int(parts[1])
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                return f"{hh:02d}:{mm:02d}"
+        return "10:00"
+
+    @property
+    def autopilot_calendar_max_posts_per_day_safe(self) -> int:
+        """Максимум постов в день (в границах 1..10)."""
+        return max(1, min(10, int(self.autopilot_calendar_max_posts_per_day or 3)))
+
+    @property
+    def autopilot_calendar_max_platforms_safe(self) -> int:
+        """Максимум площадок в календаре (в границах 1..10)."""
+        return max(1, min(10, int(self.autopilot_calendar_max_platforms or 5)))
 
     # --- Auth / session: производные (effective) свойства ---
 

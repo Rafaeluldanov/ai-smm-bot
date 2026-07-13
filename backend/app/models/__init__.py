@@ -9,6 +9,7 @@ from app.models.audit_log import AuditLogEntry
 from app.models.auth_session import AuthSession
 from app.models.autonomous_run import AutonomousRun
 from app.models.autonomous_run_step import AutonomousRunStep
+from app.models.autopilot_calendar_plan import AutopilotCalendarPlan
 from app.models.billing import (
     BillingAccount,
     BillingLedgerEntry,
@@ -78,6 +79,7 @@ __all__ = [
     "AuditLogEntry",
     "AuthSession",
     "AutonomousRun",
+    "AutopilotCalendarPlan",
     "AutonomousRunStep",
     "Base",
     "BillingAccount",

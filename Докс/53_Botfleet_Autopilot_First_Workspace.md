@@ -151,3 +151,5 @@ webhooks, безопасность) вынесены в `/ui/advanced`. Sidebar 
 
 
 > **Yandex Disk auto-sync (v0.5.7):** клиент загружает картинки в Яндекс Диск — Botfleet сам синхронизирует медиатеку (dry-run/без сети по умолчанию, файлы не удаляются). См. [54_Botfleet_Yandex_Disk_Auto_Sync.md](54_Botfleet_Yandex_Disk_Auto_Sync.md).
+
+> **Calendar assistant (v0.5.8):** клиент выбирает цель и частоту — Botfleet сам строит календарь автопостинга (распределяет дни/время, учитывает площадки/медиа/баланс/обучение) и по нажатию применяет его к автопилоту. Построение/применение не публикуют и не включают live-флаги. См. [55_Botfleet_Autopilot_Calendar_Assistant.md](55_Botfleet_Autopilot_Calendar_Assistant.md).

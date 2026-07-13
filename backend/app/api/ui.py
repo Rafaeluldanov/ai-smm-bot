@@ -5385,7 +5385,9 @@ def ui_today() -> HTMLResponse:
         "const np=document.getElementById('td-next-posts');np.classList.remove('muted');"
         "np.innerHTML=nextPosts.length?nextPosts.slice(0,20).map(e=>`<div class='sched-task'>`+"
         "`<b>${esc(e.project)}</b> · ${esc(e.platform||'—')} · ${esc(e.date||'')} ${esc(e.time||'')} `+"
-        "`<span class='pill'>${esc(e.outcome||'план')}</span></div>`).join(''):'<span class=muted>Пока нет ближайших публикаций.</span>';"
+        "`<span class='pill'>${esc(e.outcome||'план')}</span></div>`).join(''):(firstProject?"
+        "`<span class=muted>Пока нет ближайших публикаций. </span><a href='/ui/projects/${firstProject.id}/autopilot/calendar-assistant'>Создать календарь автопостинга →</a>`:"
+        "'<span class=muted>Пока нет ближайших публикаций.</span>');"
         "}catch(x){err(eEl,x)}}tdLoad();"
     )
     return _page("Сегодня", body, script, active="today")
@@ -5463,7 +5465,8 @@ def ui_project_autopilot(project_id: int) -> HTMLResponse:
         "<div class='pcard'><h3>Откуда берём картинки</h3><div id='ap-media' class='meta'>—</div>"
         f"<a href='/ui/projects/{project_id}/autopilot/media'><button class='mini sec'>Яндекс Диск</button></a></div>"
         "<div class='pcard'><h3>Когда публикуем</h3><div id='ap-calendar' class='meta'>—</div>"
-        f"<a href='/ui/projects/{project_id}/autopilot/calendar'><button class='mini sec'>Календарь</button></a></div>"
+        f"<a href='/ui/projects/{project_id}/autopilot/calendar-assistant'><button class='mini sec'>Календарь автопостинга</button></a> "
+        f"<a href='/ui/projects/{project_id}/autopilot/calendar'><button class='mini ghost'>Вручную</button></a></div>"
         "<div class='pcard'><h3>Что бот делает сам</h3><div class='meta'>Пишет текст · выбирает "
         "картинки · адаптирует под площадку · публикует по календарю · анализирует и обучается.</div></div>"
         "</div>"
@@ -5505,7 +5508,7 @@ def ui_project_autopilot(project_id: int) -> HTMLResponse:
         "async function apStart(){try{const r=await api('POST','/autopilot/projects/'+PID+'/start',{});"
         "if(!r.ok){err(eEl,new Error(r.message||'Сначала завершите настройку'));}apLoad();}catch(x){err(eEl,x)}}"
         "async function apPause(){try{await api('POST','/autopilot/projects/'+PID+'/pause',{});apLoad();}catch(x){err(eEl,x)}}"
-        "function apDoAction(a){const map={connect_platform:'/platforms',connect_media:'/media',configure_calendar:'/calendar',open_billing:'',open_calendar:'/calendar',fix_blocker:''};"
+        "function apDoAction(a){const map={connect_platform:'/platforms',connect_media:'/media',configure_calendar:'/calendar-assistant',open_billing:'',open_calendar:'/calendar-assistant',fix_blocker:''};"
         "if(a==='start_autopilot'){apStart();return;}if(a==='open_billing'){location.href='/ui/tariffs';return;}"
         "location.href='/ui/projects/'+PID+'/autopilot'+(map[a]||'');}"
         "window.apStart=apStart;window.apPause=apPause;window.apDoAction=apDoAction;apLoad();"
@@ -5655,6 +5658,91 @@ def ui_project_autopilot_calendar(project_id: int) -> HTMLResponse:
         "window.calSave=calSave;"
     )
     return _page("Календарь", body, script, active="projects", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/autopilot/calendar-assistant", response_class=HTMLResponse)
+def ui_project_autopilot_calendar_assistant(project_id: int) -> HTMLResponse:
+    """Календарь автопостинга: клиент выбирает цель и частоту — Botfleet строит календарь сам."""
+    goals = [
+        ("mixed", "Смешанная"),
+        ("sales", "Продажи"),
+        ("leads", "Заявки"),
+        ("reach", "Охваты"),
+        ("trust", "Доверие"),
+        ("expertise", "Экспертность"),
+    ]
+    goal_opts = "".join(f"<option value='{k}'>{v}</option>" for k, v in goals)
+    body = (
+        f"{_ap_subnav(project_id, 'calendar')}"
+        "<div class='hero'><div class='ap-hero'>Календарь автопостинга</div>"
+        "<p class='muted'>Выберите цель и частоту — Botfleet сам построит календарь: распределит "
+        "дни и время, учтёт площадки, количество картинок и баланс. Botfleet сам будет писать "
+        "текст, выбирать картинки и публиковать по этому календарю.</p></div>"
+        "<div class='card'><div class='inline'>"
+        "<button class='mini sec' onclick='caRecommend()'>Подобрать за меня</button>"
+        "<span id='ca-reco' class='muted'></span></div></div>"
+        "<div class='card'><h3>Цель</h3>"
+        f"<select id='ca-goal'>{goal_opts}</select></div>"
+        "<div class='card'><h3>Как часто публиковать</h3>"
+        "<div id='ca-presets' class='muted'>Загрузка…</div></div>"
+        "<div class='card'><h3>Площадки</h3><div class='inline'>"
+        "<label><input type='checkbox' class='ca-pf' value='telegram' checked> Telegram</label>"
+        "<label><input type='checkbox' class='ca-pf' value='vk'> VK</label>"
+        "<label><input type='checkbox' class='ca-pf' value='instagram'> Instagram</label></div></div>"
+        "<div class='card'><h3>Время публикации</h3>"
+        "<div class='inline'><input id='ca-time' value='10:00' style='max-width:100px'>"
+        "<span class='muted'>по Москве · оставьте пустым, чтобы Botfleet выбрал лучшее время</span></div></div>"
+        "<div class='card'><div class='inline'>"
+        "<button class='ap-big-btn sec' onclick='caPreview()'>Предварительный просмотр</button>"
+        "<button class='ap-big-btn' onclick='caCreate()'>Создать календарь</button></div>"
+        "<div id='ca-preview' style='margin-top:10px'></div></div>"
+        "<div class='card' id='ca-apply-card' style='display:none'><h3>Применить к автопилоту</h3>"
+        "<div class='muted' style='margin-bottom:8px'>Календарь создан. Примените его — Botfleet "
+        "начнёт готовить публикации по плану (реальная публикация проходит условия безопасности).</div>"
+        "<div class='inline'>"
+        "<button class='ap-big-btn' onclick='caApply()'>Применить к автопилоту</button>"
+        f"<a href='/ui/projects/{project_id}/autopilot'><button class='ap-big-btn sec'>Вернуться к автопилоту</button></a></div>"
+        "<div id='ca-apply-status' class='muted' style='margin-top:8px'></div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "let CA_PRESET=null;let CA_PLAN=null;"
+        "function caPayload(){return{preset:CA_PRESET,goal:gv('ca-goal'),"
+        "platforms:[...document.querySelectorAll('.ca-pf:checked')].map(x=>x.value),"
+        "publish_times:gv('ca-time')?[gv('ca-time')]:[]};}"
+        "async function caLoadPresets(){try{const d=await api('GET','/autopilot-calendar/projects/'+PID+'/presets');"
+        "const el=document.getElementById('ca-presets');el.classList.remove('muted');"
+        "el.innerHTML=(d.presets||[]).map((p,i)=>`<label style='display:block;margin:4px 0'>`+"
+        "`<input type='radio' name='ca-preset' value='${esc(p.preset)}' ${i===0?'checked':''} onchange='caPick(\"'+p.preset+'\")'> `+"
+        "`<b>${esc(p.label)}</b> — ${esc(p.description)} `+"
+        "`<span class='pill'>~${p.estimated_posts_per_month} постов/мес</span>`+"
+        "((p.warnings&&p.warnings.length)?` <span class='muted'>${esc(p.warnings[0])}</span>`:'')+`</label>`).join('');"
+        "if((d.presets||[]).length){CA_PRESET=d.presets[0].preset;}}catch(x){err(eEl,x)}}"
+        "function caPick(p){CA_PRESET=p;}"
+        "window.caPick=caPick;"
+        "async function caRecommend(){try{const r=await api('POST','/autopilot-calendar/projects/'+PID+'/recommend',{});"
+        "CA_PRESET=r.recommended_preset;const rd=document.querySelector(`input[name=ca-preset][value=${CSS.escape(r.recommended_preset)}]`);"
+        "if(rd){rd.checked=true;}if(r.goal){document.getElementById('ca-goal').value=r.goal;}"
+        "document.getElementById('ca-reco').textContent='Рекомендуем: '+esc(r.reason||'');}catch(x){err(eEl,x)}}"
+        "function caRisks(rs){if(!rs||!rs.length)return '<span class=muted>Рисков не найдено ✓</span>';"
+        "return rs.map(r=>`<div class='sched-task'><span class='pill'>${r.severity==='setup'?'настройка':'инфо'}</span> ${esc(r.message)}</div>`).join('');}"
+        "async function caPreview(){try{const d=await api('POST','/autopilot-calendar/projects/'+PID+'/preview',caPayload());"
+        "const e=d.estimates||{};document.getElementById('ca-preview').innerHTML="
+        "`<div class='sched-task'>Дни: <b>${(d.weekday_labels||[]).join(', ')||'—'}</b> · время <b>${(d.publish_times||[]).join(', ')}</b></div>`+"
+        "`<div class='sched-task'>Постов в месяц: <b>${e.estimated_posts_per_month||0}</b> · нужно картинок ~<b>${e.estimated_media_needed||0}</b> · `+"
+        "`стоимость ~<b>${e.estimated_units_per_month||0}</b> units/мес</div>`+caRisks(d.risks);}catch(x){err(eEl,x)}}"
+        "async function caCreate(){try{const d=await api('POST','/autopilot-calendar/projects/'+PID+'/create',caPayload());"
+        "CA_PLAN=d.id;document.getElementById('ca-apply-card').style.display='';"
+        "document.getElementById('ca-apply-status').textContent='Календарь создан (черновик). Примените его к автопилоту.';"
+        "caPreview();}catch(x){err(eEl,x)}}"
+        "async function caApply(){try{if(!CA_PLAN){err(eEl,new Error('Сначала создайте календарь'));return;}"
+        "const r=await api('POST','/autopilot-calendar/projects/'+PID+'/plans/'+CA_PLAN+'/apply',{});"
+        "document.getElementById('ca-apply-status').textContent=r.note||'Календарь применён ✓';}catch(x){err(eEl,x)}}"
+        "window.caRecommend=caRecommend;window.caPreview=caPreview;window.caCreate=caCreate;window.caApply=caApply;"
+        "caLoadPresets();"
+    )
+    return _page("Календарь автопостинга", body, script, active="projects", active_pid=project_id)
 
 
 @router.get("/projects/{project_id}/autopilot/rules", response_class=HTMLResponse)

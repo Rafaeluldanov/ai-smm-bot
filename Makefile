@@ -41,6 +41,7 @@ BIN := $(VENV)/bin
         telegram-binding-create telegram-binding-verify telegram-notification-preview telegram-test-send \
         telegram-update-simulate telegram-webhook-info telegram-webhook-set telegram-polling-dry \
         yandex-sync-profile yandex-sync-preview yandex-sync-run yandex-sync-worker-tick \
+        autopilot-calendar-preview autopilot-calendar-create autopilot-calendar-apply autopilot-calendar-dashboard \
         smoke
 
 help: ## Показать список команд
@@ -352,6 +353,18 @@ yandex-sync-run: ## Синхронизация (DRY-RUN по умолчанию)
 
 yandex-sync-worker-tick: ## Tick воркера синхронизации (dry-run): make yandex-sync-worker-tick [dry_run=true] [limit=20]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.yandex_sync_worker_tick --dry-run "$(or $(dry_run),true)" $(if $(limit),--limit "$(limit)",)
+
+autopilot-calendar-preview: ## Предпросмотр календаря автопостинга (без записи): make autopilot-calendar-preview project_id=1 [preset=three_per_week] [goal=mixed] [time=10:00]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.autopilot_calendar_preview --project-id "$(project_id)" $(if $(preset),--preset "$(preset)",) $(if $(goal),--goal "$(goal)",) $(if $(time),--time "$(time)",) $(if $(platforms),--platforms "$(platforms)",)
+
+autopilot-calendar-create: ## Создать календарь (DRY-RUN по умолчанию): make autopilot-calendar-create project_id=1 [preset=...] [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.autopilot_calendar_create --project-id "$(project_id)" $(if $(preset),--preset "$(preset)",) $(if $(goal),--goal "$(goal)",) $(if $(time),--time "$(time)",) $(if $(platforms),--platforms "$(platforms)",) --dry-run "$(or $(dry_run),true)"
+
+autopilot-calendar-apply: ## Применить календарь к автопилоту: make autopilot-calendar-apply project_id=1 calendar_plan_id=3
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.autopilot_calendar_apply --project-id "$(project_id)" --calendar-plan-id "$(calendar_plan_id)"
+
+autopilot-calendar-dashboard: ## Дашборд календаря автопостинга: make autopilot-calendar-dashboard project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.autopilot_calendar_dashboard --project-id "$(project_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
