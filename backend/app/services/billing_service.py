@@ -102,6 +102,11 @@ USAGE_TELEGRAM_NOTIFICATION_PREVIEW = "telegram_notification_preview"
 USAGE_TELEGRAM_TEST_SEND = "telegram_test_send"
 USAGE_TELEGRAM_DIGEST_RENDER = "telegram_digest_render"
 
+# Типы usage для Telegram webhook/polling sandbox (v0.5.5). Бесплатны в MVP (реальных вызовов нет).
+USAGE_TELEGRAM_UPDATE_SIMULATE = "telegram_update_simulate"
+USAGE_TELEGRAM_WEBHOOK_PREVIEW = "telegram_webhook_preview"
+USAGE_TELEGRAM_POLLING_PREVIEW = "telegram_polling_preview"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -182,6 +187,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_TELEGRAM_NOTIFICATION_PREVIEW: 0,
     USAGE_TELEGRAM_TEST_SEND: 0,
     USAGE_TELEGRAM_DIGEST_RENDER: 0,
+    # v0.5.5: Telegram webhook/polling sandbox — бесплатно в MVP (реальных Telegram-вызовов нет).
+    USAGE_TELEGRAM_UPDATE_SIMULATE: 0,
+    USAGE_TELEGRAM_WEBHOOK_PREVIEW: 0,
+    USAGE_TELEGRAM_POLLING_PREVIEW: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

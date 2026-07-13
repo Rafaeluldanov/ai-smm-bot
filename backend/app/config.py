@@ -416,6 +416,27 @@ class Settings(BaseSettings):
     notification_telegram_require_verified_binding: bool = True
     notification_telegram_allow_unverified_test: bool = False
 
+    # --- Telegram bot webhook/polling sandbox (v0.5.5) ---
+    # Incoming webhook endpoint включён для local/sandbox; РЕАЛЬНЫЕ Telegram API-вызовы
+    # (setWebhook/getUpdates/deleteWebhook) ВЫКЛЮЧЕНЫ по умолчанию (live false, dry-run true) и
+    # требуют external+live-флаги + bot token. Secret token / bot token — только в env.
+    notification_telegram_webhook_enabled: bool = True
+    notification_telegram_webhook_live_enabled: bool = False
+    notification_telegram_webhook_secret_required: bool = False
+    notification_telegram_webhook_secret_token: str = ""
+    notification_telegram_webhook_public_url: str = ""
+    notification_telegram_webhook_path: str = "/notification-telegram/webhook"
+    notification_telegram_webhook_allow_local_without_secret: bool = True
+    notification_telegram_polling_enabled: bool = True
+    notification_telegram_polling_live_enabled: bool = False
+    notification_telegram_polling_dry_run: bool = True
+    notification_telegram_polling_limit: int = 20
+    notification_telegram_webhook_management_enabled: bool = True
+    notification_telegram_webhook_management_live_enabled: bool = False
+    notification_telegram_webhook_management_dry_run: bool = True
+    notification_telegram_incoming_update_log_enabled: bool = True
+    notification_telegram_incoming_max_text_preview: int = 200
+
     notification_webhook_enabled: bool = False
     notification_webhook_provider: str = "mock"
     notification_webhook_live_enabled: bool = False
@@ -1208,6 +1229,92 @@ class Settings(BaseSettings):
     def notification_telegram_max_message_chars_safe(self) -> int:
         """Максимум символов Telegram-сообщения (в границах 1..4096)."""
         return max(1, min(4096, int(self.notification_telegram_max_message_chars or 3900)))
+
+    # --- Telegram webhook/polling: производные (effective) свойства (v0.5.5) ---
+
+    @property
+    def notification_telegram_webhook_enabled_effective(self) -> bool:
+        """Доступен ли incoming webhook endpoint (по умолчанию включён — sandbox)."""
+        return bool(self.notifications_enabled and self.notification_telegram_webhook_enabled)
+
+    @property
+    def notification_telegram_webhook_live_enabled_effective(self) -> bool:
+        """Разрешён ли РЕАЛЬНЫЙ webhook наружу. По умолчанию false — требует всех флагов."""
+        return bool(
+            self.notification_external_delivery_enabled_effective
+            and self.notification_telegram_webhook_live_enabled
+            and self.notification_telegram_configured
+        )
+
+    @property
+    def notification_telegram_webhook_secret_required_effective(self) -> bool:
+        """Требуется ли secret-заголовок вебхука (по умолчанию false — local/sandbox)."""
+        return bool(self.notification_telegram_webhook_secret_required)
+
+    @property
+    def notification_telegram_webhook_public_url_effective(self) -> str:
+        """Публичный webhook URL: явный public_url + path, иначе только path."""
+        base = str(self.notification_telegram_webhook_public_url or "").strip().rstrip("/")
+        path = self.notification_telegram_webhook_path_effective
+        return f"{base}{path}" if base else path
+
+    @property
+    def notification_telegram_webhook_path_effective(self) -> str:
+        """Путь webhook-эндпоинта (нормализованный, с ведущим слэшем)."""
+        path = str(self.notification_telegram_webhook_path or "").strip()
+        if not path:
+            return "/notification-telegram/webhook"
+        return path if path.startswith("/") else f"/{path}"
+
+    @property
+    def notification_telegram_polling_enabled_effective(self) -> bool:
+        """Доступен ли polling skeleton (dry-run; по умолчанию включён)."""
+        return bool(self.notifications_enabled and self.notification_telegram_polling_enabled)
+
+    @property
+    def notification_telegram_polling_live_enabled_effective(self) -> bool:
+        """Разрешён ли РЕАЛЬНЫЙ getUpdates. По умолчанию false — требует всех флагов."""
+        return bool(
+            self.notification_external_delivery_enabled_effective
+            and self.notification_telegram_polling_live_enabled
+            and self.notification_telegram_configured
+        )
+
+    @property
+    def notification_telegram_polling_dry_run_effective(self) -> bool:
+        """Dry-run polling (по умолчанию true — реального getUpdates нет)."""
+        return bool(self.notification_telegram_polling_dry_run)
+
+    @property
+    def notification_telegram_polling_limit_safe(self) -> int:
+        """Лимит getUpdates (в границах 1..100)."""
+        return max(1, min(100, int(self.notification_telegram_polling_limit or 20)))
+
+    @property
+    def notification_telegram_webhook_management_enabled_effective(self) -> bool:
+        """Доступно ли управление webhook (dry-run; по умолчанию включено)."""
+        return bool(
+            self.notifications_enabled and self.notification_telegram_webhook_management_enabled
+        )
+
+    @property
+    def notification_telegram_webhook_management_live_enabled_effective(self) -> bool:
+        """Разрешён ли РЕАЛЬНЫЙ setWebhook/deleteWebhook (по умолчанию false — нужны все флаги)."""
+        return bool(
+            self.notification_external_delivery_enabled_effective
+            and self.notification_telegram_webhook_management_live_enabled
+            and self.notification_telegram_configured
+        )
+
+    @property
+    def notification_telegram_webhook_management_dry_run_effective(self) -> bool:
+        """Dry-run управления webhook (по умолчанию true — реальных вызовов нет)."""
+        return bool(self.notification_telegram_webhook_management_dry_run)
+
+    @property
+    def notification_telegram_incoming_max_text_preview_safe(self) -> int:
+        """Максимум символов text_preview входящего апдейта (в границах 1..512)."""
+        return max(1, min(512, int(self.notification_telegram_incoming_max_text_preview or 200)))
 
     # --- Auth / session: производные (effective) свойства ---
 

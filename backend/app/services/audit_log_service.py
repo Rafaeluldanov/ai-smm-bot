@@ -249,6 +249,17 @@ ACTION_TELEGRAM_TEST_SEND_BLOCKED = "telegram_test_send.blocked"
 ACTION_TELEGRAM_DELIVERY_BLOCKED = "telegram_delivery.blocked"
 ACTION_TELEGRAM_DELIVERY_SENT = "telegram_delivery.sent"
 ACTION_TELEGRAM_DELIVERY_FAILED = "telegram_delivery.failed"
+# Telegram webhook/polling sandbox (v0.5.5).
+ACTION_TELEGRAM_UPDATE_RECEIVED = "telegram_update.received"
+ACTION_TELEGRAM_UPDATE_VERIFIED_BINDING = "telegram_update.verified_binding"
+ACTION_TELEGRAM_UPDATE_IGNORED = "telegram_update.ignored"
+ACTION_TELEGRAM_UPDATE_FAILED = "telegram_update.failed"
+ACTION_TELEGRAM_UPDATE_INVALID_SECRET = "telegram_update.invalid_secret"
+ACTION_TELEGRAM_UPDATE_DUPLICATE = "telegram_update.duplicate"
+ACTION_TELEGRAM_WEBHOOK_PREVIEWED = "telegram_webhook.previewed"
+ACTION_TELEGRAM_WEBHOOK_SET_DRY = "telegram_webhook.set_dry"
+ACTION_TELEGRAM_WEBHOOK_INFO_DRY = "telegram_webhook.info_dry"
+ACTION_TELEGRAM_POLLING_DRY_RUN = "telegram_polling.dry_run"
 
 
 class AuditLogService:

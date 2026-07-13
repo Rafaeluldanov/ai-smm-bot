@@ -1,14 +1,14 @@
-"""REST API Telegram-канала уведомлений: bindings, preview, dry-run (v0.5.4).
+"""REST API Telegram-канала уведомлений: bindings, preview, webhook/polling sandbox (v0.5.4–v0.5.5).
 
-Всё — sandbox: реальной Telegram-доставки нет. Пользователь управляет СВОИМИ привязками; проектный
-дашборд — под project-гардом. В ответах нет сырого chat_id / verification token / bot token
-(verification token отдаётся ТОЛЬКО в момент создания привязки).
+Всё — sandbox: реальной Telegram-доставки и реальных Telegram API-вызовов нет. Пользователь
+управляет СВОИМИ привязками; проектный дашборд — под project-гардом. Webhook-эндпоинт — без auth,
+но с настраиваемой secret-проверкой. В ответах нет сырого chat_id / verification token / bot token.
 """
 
 from collections.abc import Callable
 from typing import Annotated, Any, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,8 @@ from app.api.deps import (
     get_db,
     get_notification_delivery_service,
     get_notification_telegram_binding_service,
+    get_telegram_bot_management_service,
+    get_telegram_incoming_service,
     get_telegram_notification_template_service,
 )
 from app.api.security_guards import require_project_access
@@ -24,12 +26,15 @@ from app.config import Settings, get_settings
 from app.models.user import User
 from app.repositories import notification_delivery_repository as delivery_repo
 from app.repositories import notification_telegram_repository as telegram_repo
+from app.repositories import notification_telegram_update_repository as update_repo
 from app.services import audit_log_service as audit_actions
 from app.services.notification_delivery_service import NotificationDeliveryService
 from app.services.notification_telegram_binding_service import (
     NotificationTelegramBindingService,
     TelegramBindingError,
 )
+from app.services.telegram_bot_management_service import TelegramBotManagementService
+from app.services.telegram_incoming_service import TelegramIncomingService
 from app.services.telegram_notification_template_service import (
     TelegramNotificationTemplateService,
     TelegramTemplateError,
@@ -45,6 +50,8 @@ TplSvc = Annotated[
     TelegramNotificationTemplateService, Depends(get_telegram_notification_template_service)
 ]
 DeliverySvc = Annotated[NotificationDeliveryService, Depends(get_notification_delivery_service)]
+IncomingSvc = Annotated[TelegramIncomingService, Depends(get_telegram_incoming_service)]
+BotMgmtSvc = Annotated[TelegramBotManagementService, Depends(get_telegram_bot_management_service)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
@@ -290,3 +297,154 @@ def project_dashboard(project_id: int, db: DbSession, settings: SettingsDep) -> 
             "require_verified_binding": settings.notification_telegram_require_verified_binding,
         },
     }
+
+
+# ======================================================================= #
+# Webhook / polling sandbox (v0.5.5)                                       #
+# ======================================================================= #
+
+
+class SimulateUpdateRequest(BaseModel):
+    """Симуляция входящего ``/start``-апдейта (sandbox)."""
+
+    token: str
+    chat_id: str
+    telegram_user_id: str | None = None
+    username: str | None = None
+    update_id: int | None = None
+
+
+class WebhookSetDryRequest(BaseModel):
+    """DRY-RUN setWebhook (без сети)."""
+
+    url: str | None = None
+
+
+class PollingDryRequest(BaseModel):
+    """DRY-RUN getUpdates (без сети)."""
+
+    offset: int | None = None
+    limit: int | None = None
+
+
+@router.post("/webhook", status_code=status.HTTP_200_OK)
+async def telegram_webhook(
+    request: Request,
+    incoming: IncomingSvc,
+    db: DbSession,
+    x_telegram_bot_api_secret_token: Annotated[
+        str | None, Header(alias="X-Telegram-Bot-Api-Secret-Token")
+    ] = None,
+) -> dict[str, Any]:
+    """Incoming Telegram webhook (БЕЗ auth). Проверяет secret-заголовок, парсит, логирует.
+
+    Ответных сообщений наружу НЕ отправляет. Всегда возвращает 200 (кроме invalid_secret → 403),
+    чтобы Telegram не ретраил бесконечно. Секреты/сырой chat_id наружу не отдаются.
+    """
+    try:
+        payload = await request.json()
+    except Exception:  # noqa: BLE001 — некорректный JSON не должен 500-ить вебхук
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    request_ip = request.client.host if request.client else None
+    result = incoming.handle_webhook_update(
+        db,
+        payload,
+        secret_header=x_telegram_bot_api_secret_token,
+        request_ip=request_ip,
+    )
+    if result.get("status") == "invalid_secret":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="invalid secret token")
+    return result
+
+
+@router.post("/simulate-update")
+def simulate_update(
+    payload: SimulateUpdateRequest, db: DbSession, incoming: IncomingSvc, user: CurrentUser
+) -> dict[str, Any]:
+    """Симулировать входящий ``/start``-апдейт (dry/sandbox; только для авторизованного юзера)."""
+    return incoming.simulate_update(
+        db,
+        payload.token,
+        payload.chat_id,
+        telegram_user_id=payload.telegram_user_id,
+        username=payload.username,
+        update_id=payload.update_id,
+    )
+
+
+@router.get("/updates")
+def list_updates(db: DbSession, user: CurrentUser) -> list[dict[str, Any]]:
+    """Недавние входящие апдейты пользователя (public view, без сырого chat_id/токена)."""
+    return [update_repo.public_update_view(x) for x in update_repo.list_for_user(db, user.id)]
+
+
+@router.get("/projects/{project_id}/updates", dependencies=[Depends(require_project_access)])
+def list_project_updates(project_id: int, db: DbSession) -> list[dict[str, Any]]:
+    """Входящие апдейты проекта (public view)."""
+    return [update_repo.public_update_view(x) for x in update_repo.list_for_project(db, project_id)]
+
+
+@router.get("/webhook-dashboard")
+def webhook_dashboard(db: DbSession, incoming: IncomingSvc, user: CurrentUser) -> dict[str, Any]:
+    """Сводка webhook-канала пользователя: недавние апдейты, счётчики, URL, live-флаги, secret."""
+    return incoming.build_webhook_dashboard(db, user_id=user.id)
+
+
+@router.get(
+    "/projects/{project_id}/webhook-dashboard",
+    dependencies=[Depends(require_project_access)],
+)
+def project_webhook_dashboard(
+    project_id: int, db: DbSession, incoming: IncomingSvc
+) -> dict[str, Any]:
+    """Сводка webhook-канала проекта."""
+    return incoming.build_webhook_dashboard(db, project_id=project_id)
+
+
+@router.post("/webhook/set-dry")
+def webhook_set_dry(
+    payload: WebhookSetDryRequest,
+    db: DbSession,
+    manager: BotMgmtSvc,
+    tpl: TplSvc,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """DRY-RUN setWebhook (без сети): показывает payload, который был бы отправлен."""
+    tpl._write_audit(  # noqa: SLF001 — аудит dry-run без сущности
+        db, audit_actions.ACTION_TELEGRAM_WEBHOOK_SET_DRY, user_id=user.id, metadata={}
+    )
+    return manager.set_webhook_dry(url=payload.url)
+
+
+@router.post("/webhook/delete-dry")
+def webhook_delete_dry(manager: BotMgmtSvc, user: CurrentUser) -> dict[str, Any]:
+    """DRY-RUN deleteWebhook (без сети)."""
+    return manager.delete_webhook_dry()
+
+
+@router.get("/webhook/info-dry")
+def webhook_info_dry(
+    db: DbSession, manager: BotMgmtSvc, tpl: TplSvc, user: CurrentUser
+) -> dict[str, Any]:
+    """DRY-RUN getWebhookInfo (без сети)."""
+    tpl._write_audit(  # noqa: SLF001
+        db, audit_actions.ACTION_TELEGRAM_WEBHOOK_INFO_DRY, user_id=user.id, metadata={}
+    )
+    return manager.get_webhook_info_dry()
+
+
+@router.post("/polling/dry")
+def polling_dry(
+    payload: PollingDryRequest,
+    db: DbSession,
+    manager: BotMgmtSvc,
+    tpl: TplSvc,
+    user: CurrentUser,
+) -> dict[str, Any]:
+    """DRY-RUN getUpdates (без сети): показывает параметры polling."""
+    tpl._write_audit(  # noqa: SLF001
+        db, audit_actions.ACTION_TELEGRAM_POLLING_DRY_RUN, user_id=user.id, metadata={}
+    )
+    return manager.poll_updates_dry(offset=payload.offset, limit=payload.limit)

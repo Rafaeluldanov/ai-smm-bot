@@ -39,6 +39,7 @@ BIN := $(VENV)/bin
         webhook-subscription-create webhook-subscription-preview \
         email-template-preview email-notification-preview email-test-send \
         telegram-binding-create telegram-binding-verify telegram-notification-preview telegram-test-send \
+        telegram-update-simulate telegram-webhook-info telegram-webhook-set telegram-polling-dry \
         smoke
 
 help: ## Показать список команд
@@ -326,6 +327,18 @@ telegram-notification-preview: ## Предпросмотр Telegram-текста
 
 telegram-test-send: ## Тестовая Telegram-отправка (DRY-RUN only): make telegram-test-send user_id=1 [template_type=system_notice] [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_test_send --user-id "$(user_id)" --template-type "$(or $(template_type),system_notice)" --dry-run "$(or $(dry_run),true)"
+
+telegram-update-simulate: ## Симуляция входящего /start апдейта (sandbox): make telegram-update-simulate token=TOKEN chat_id=123456 [username=user]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_update_simulate --token "$(token)" --chat-id "$(chat_id)" $(if $(username),--username "$(username)",) --show-unsafe "$(or $(show_unsafe),false)"
+
+telegram-webhook-info: ## getWebhookInfo (dry-run, sandbox): make telegram-webhook-info [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_webhook_info --dry-run "$(or $(dry_run),true)"
+
+telegram-webhook-set: ## setWebhook (dry-run, sandbox): make telegram-webhook-set url=https://app.example.com/notification-telegram/webhook [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_webhook_set $(if $(url),--url "$(url)",) --dry-run "$(or $(dry_run),true)"
+
+telegram-polling-dry: ## getUpdates (dry-run, sandbox): make telegram-polling-dry [limit=10] [offset=0]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_polling_dry $(if $(limit),--limit "$(limit)",) $(if $(offset),--offset "$(offset)",)
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

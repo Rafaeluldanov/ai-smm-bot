@@ -32,6 +32,8 @@ if TYPE_CHECKING:
     from app.services.review_workflow_service import ReviewWorkflowService
     from app.services.schedule_media_decision_service import ScheduleMediaDecisionService
     from app.services.schedule_topic_decision_service import ScheduleTopicDecisionService
+    from app.services.telegram_bot_management_service import TelegramBotManagementService
+    from app.services.telegram_incoming_service import TelegramIncomingService
     from app.services.telegram_notification_template_service import (
         TelegramNotificationTemplateService,
     )
@@ -386,6 +388,20 @@ def get_notification_telegram_binding_service() -> "NotificationTelegramBindingS
     )
 
     return NotificationTelegramBindingService(settings=get_settings())
+
+
+def get_telegram_incoming_service() -> "TelegramIncomingService":
+    """Построить сервис входящих Telegram-апдейтов (webhook/polling sandbox; без сети)."""
+    from app.services.telegram_incoming_service import TelegramIncomingService
+
+    return TelegramIncomingService(settings=get_settings())
+
+
+def get_telegram_bot_management_service() -> "TelegramBotManagementService":
+    """Построить сервис управления Telegram-ботом (setWebhook/getUpdates dry-run; без сети)."""
+    from app.services.telegram_bot_management_service import TelegramBotManagementService
+
+    return TelegramBotManagementService(settings=get_settings())
 
 
 def get_metrics_import_service() -> "MetricsImportService":

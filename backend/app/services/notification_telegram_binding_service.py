@@ -183,27 +183,70 @@ class NotificationTelegramBindingService:
     ) -> dict[str, Any]:
         """Разобрать Telegram-update (``/start <token>``) и верифицировать. БЕЗ сети (локально).
 
-        Формат payload — как у Telegram Bot API update; парсим message.text и message.chat.id.
-        В MVP реального polling/webhook нет — это скелет для будущего.
+        Использует ``TelegramUpdateParserService`` (чистый разбор). Возвращает СТРУКТУРИРОВАННЫЙ
+        результат-суперсет: поля ``ok/status/binding_id/user_id/chat_id_masked/username/message``
+        плюс всё из public_binding_view (в т.ч. ``verified``). Сырой токен/chat_id не логируются.
         """
-        message = (update_payload or {}).get("message") or {}
-        text = str(message.get("text") or "").strip()
-        chat = message.get("chat") or {}
-        sender = message.get("from") or {}
-        chat_id = str(chat.get("id") or "").strip()
-        token = ""
-        if text.startswith("/start"):
-            parts = text.split(maxsplit=1)
-            token = parts[1].strip() if len(parts) > 1 else ""
-        if not token or not chat_id:
-            raise TelegramBindingError("В update нет /start <token> или chat.id")
-        return self.verify_binding_token(
-            db,
-            token,
-            chat_id,
-            telegram_user_id=str(sender.get("id") or "") or None,
-            username=sender.get("username"),
+        from app.services.telegram_update_parser_service import (
+            TelegramUpdateParserService,
         )
+
+        parsed = TelegramUpdateParserService().parse_update(update_payload)
+        if not parsed.is_start_command or not parsed.start_token or not parsed.chat_id:
+            raise TelegramBindingError("В update нет /start <token> или chat.id")
+        view = self.verify_binding_token(
+            db,
+            parsed.start_token,
+            parsed.chat_id,
+            telegram_user_id=parsed.telegram_user_id,
+            username=parsed.username,
+        )
+        return {
+            "ok": True,
+            "status": view.get("status", "verified"),
+            "binding_id": view.get("id"),
+            "user_id": view.get("user_id"),
+            "chat_id_masked": view.get("chat_id_masked"),
+            "username": view.get("username"),
+            "message": "Привязка Telegram подтверждена",
+            **view,
+        }
+
+    def build_start_instruction(
+        self, db: Session, binding_id: int, verification_token: str | None = None
+    ) -> dict[str, Any]:
+        """Инструкция подключения бота: команда ``/start <token>`` (токен — только если передан).
+
+        Сырой токен доступен ТОЛЬКО в момент создания привязки; здесь по умолчанию команда с
+        маской prefix, полный токен подставляется, лишь если явно передан вызывающим.
+        """
+        binding = telegram_repo.get_binding_by_id(db, binding_id)
+        if binding is None:
+            raise TelegramBindingError("Привязка не найдена")
+        prefix = binding.verification_token_prefix or ""
+        if verification_token:
+            command = f"/start {verification_token}"
+        elif prefix:
+            command = f"/start {prefix}***"
+        else:
+            command = "/start <token>"
+        bot_username = self._bot_username()
+        return {
+            "binding_id": binding.id,
+            "status": binding.status,
+            "bot_username": bot_username,
+            "command": command,
+            "token_available": bool(verification_token),
+            "steps": [
+                f"Откройте вашего Telegram-бота {bot_username}.",
+                f"Отправьте боту команду: {command}",
+                "Бот передаст подтверждение в Botfleet (webhook/polling — sandbox в MVP).",
+            ],
+        }
+
+    def _bot_username(self) -> str:
+        """Плейсхолдер имени бота (реального bot username в конфиге нет; токен не раскрываем)."""
+        return "@your_botfleet_bot"
 
     # ------------------------------------------------------------------ #
     # Управление                                                         #
