@@ -122,6 +122,12 @@ USAGE_LIVE_READINESS_CHECK = "live_readiness_check"
 USAGE_LIVE_READINESS_PLATFORM_CHECK = "live_readiness_platform_check"
 USAGE_LIVE_READINESS_ENABLE = "live_readiness_enable"
 
+# Типы usage для AI Learning Loop (v0.6.5). Обучение — бесплатно (0 units).
+USAGE_AI_LEARNING_ANALYZE = "ai_learning_analyze"
+USAGE_AI_LEARNING_RECOMMEND = "ai_learning_recommend"
+USAGE_AI_LEARNING_FEEDBACK = "ai_learning_feedback"
+USAGE_AI_LEARNING_RESET = "ai_learning_reset"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -236,6 +242,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_LIVE_MONITORING_INCIDENT_ACTION: 0,
     USAGE_LIVE_AUTOPILOT_PAUSE: 0,
     USAGE_LIVE_AUTOPILOT_RESUME: 0,
+    USAGE_AI_LEARNING_ANALYZE: 0,
+    USAGE_AI_LEARNING_RECOMMEND: 0,
+    USAGE_AI_LEARNING_FEEDBACK: 0,
+    USAGE_AI_LEARNING_RESET: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

@@ -9,6 +9,8 @@ SEO-ключи и хэштеги, подбирает медиа-актив. Ре
 ``draft``. Публикация и согласование на этом этапе не выполняются.
 """
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from app.core.logging import get_logger
@@ -53,14 +55,20 @@ class PostGenerationService:
     # --- Публичные методы ---
 
     def generate_post_for_topic(
-        self, db: Session, topic_id: int, request: PostGenerationRequest | None = None
+        self,
+        db: Session,
+        topic_id: int,
+        request: PostGenerationRequest | None = None,
+        learning_context: dict[str, Any] | None = None,
     ) -> PostGenerationResult:
         """Сгенерировать пост по id темы. 404 (TopicNotFoundError), если темы нет."""
         topic = topic_repository.get_topic_by_id(db, topic_id)
         if topic is None:
             raise TopicNotFoundError(topic_id)
         recommended_format = request.recommended_format if request else None
-        return self.generate_post_from_topic_object(db, topic, recommended_format)
+        return self.generate_post_from_topic_object(
+            db, topic, recommended_format, learning_context=learning_context
+        )
 
     def generate_post_from_topic_object(
         self,
@@ -68,25 +76,31 @@ class PostGenerationService:
         topic: Topic,
         recommended_format: str | None = None,
         exclude_media_asset_ids: set[int] | None = None,
+        learning_context: dict[str, Any] | None = None,
     ) -> PostGenerationResult:
         """Сгенерировать пост по объекту темы и сохранить его в БД.
 
         ``exclude_media_asset_ids`` передаётся подбору медиа, чтобы в батче (неделя/
         автономный прогон) разные посты получали разные активы при наличии выбора.
+        ``learning_context`` (v0.6.5, опционально) — контекст обучения из
+        :class:`LearningContextBuilder`. Если передан и явный формат не задан, мягко
+        подсказывает предпочтительный формат/CTA. При ``None`` поведение прежнее.
         """
         project = project_repository.get_project_by_id(db, topic.project_id)
         if project is None:
             raise ProjectNotFoundError(topic.project_id)
 
         notes: list[str] = []
-        fmt = self._resolve_format(topic, recommended_format)
+        fmt = self._resolve_format(
+            topic, recommended_format or self._learning_format(learning_context)
+        )
         notes.append(f"Формат поста: {fmt}")
 
         media_asset, warnings = self._media.select_media_for_topic(
             db, topic, exclude_media_asset_ids
         )
 
-        cta = build_cta(project.slug, fmt)
+        cta = self._learning_cta(learning_context) or build_cta(project.slug, fmt)
         texts = self.generate_platform_texts(project.slug, topic, fmt, cta)
         seo_keywords = list(topic.seo_keywords or [])
         hashtags = build_hashtags(project.slug, topic.title, topic.cluster or "", seo_keywords)
@@ -97,6 +111,17 @@ class PostGenerationService:
             notes.append(f"Подобрано медиа id={media_asset.id}")
         else:
             notes.append("Медиа не найдено — пост помечен needs_media")
+
+        # generation_notes заполняем только когда передан контекст обучения — иначе
+        # поведение для существующих вызовов не меняется (остаётся {}).
+        gen_notes: dict[str, Any] = {}
+        if learning_context:
+            gen_notes = {
+                "selected_format": fmt,
+                "cta": cta,
+                "learning_context_applied": True,
+            }
+            notes.append("Учтён контекст обучения (форматы/CTA)")
 
         post = post_repository.create_post(
             db,
@@ -111,6 +136,7 @@ class PostGenerationService:
                 hashtags=hashtags,
                 seo_keywords=seo_keywords,
                 status=status,
+                generation_notes=gen_notes,
             ),
         )
         logger.info(
@@ -238,6 +264,22 @@ class PostGenerationService:
         if link is None:
             return ""
         return f"Подробнее и расчёт тиража: {link.url}"
+
+    @staticmethod
+    def _learning_format(learning_context: dict[str, Any] | None) -> str | None:
+        """Предпочтительный формат из контекста обучения (v0.6.5), если есть."""
+        if not learning_context:
+            return None
+        formats = learning_context.get("preferred_formats") or []
+        return str(formats[0]) if formats else None
+
+    @staticmethod
+    def _learning_cta(learning_context: dict[str, Any] | None) -> str | None:
+        """Предпочтительный CTA из контекста обучения (v0.6.5), если есть."""
+        if not learning_context:
+            return None
+        ctas = learning_context.get("preferred_cta") or []
+        return str(ctas[0]) if ctas else None
 
     def _resolve_format(self, topic: Topic, recommended_format: str | None) -> str:
         """Определить формат: из запроса → из профиля кластера → по ключевым словам."""

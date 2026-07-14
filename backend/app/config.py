@@ -510,6 +510,14 @@ class Settings(BaseSettings):
     live_readiness_worker_enabled: bool = False
     live_readiness_require_confirmation: bool = True
     live_readiness_require_project_confirmation: bool = True
+
+    # AI Learning Loop (v0.6.5). Слой памяти/обучения per-client. Обучение НЕ публикует,
+    # НЕ включает и НЕ обходит глобальные *_LIVE_PUBLISHING_ENABLED и НЕ меняет стратегию
+    # автоматически. `auto_apply_strategy` по умолчанию ВЫКЛЮЧЕН (только рекомендации).
+    ai_learning_enabled: bool = True
+    ai_learning_auto_apply_strategy_enabled: bool = False
+    ai_learning_default_window_days: int = 90
+    ai_learning_min_events_for_stable: int = 20
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -850,6 +858,21 @@ class Settings(BaseSettings):
         return max(0, int(self.experiment_suggestions_expire_days or 0)) * 86400
 
     # --- Автовыбор темы: производные свойства (v0.4.4) ---
+
+    @property
+    def ai_learning_enabled_effective(self) -> bool:
+        """Доступен ли AI Learning Loop (анализ/рекомендации/UI/API)."""
+        return bool(self.ai_learning_enabled)
+
+    @property
+    def ai_learning_auto_apply_strategy_enabled_effective(self) -> bool:
+        """Может ли обучение САМО применять стратегию (по умолчанию false — только рекомендации)."""
+        return bool(self.ai_learning_enabled and self.ai_learning_auto_apply_strategy_enabled)
+
+    @property
+    def ai_learning_default_window_days_safe(self) -> int:
+        """Окно анализа в безопасных границах [1..365]."""
+        return max(1, min(365, int(self.ai_learning_default_window_days or 90)))
 
     @property
     def auto_topic_selection_enabled_effective(self) -> bool:

@@ -3111,6 +3111,66 @@ def ui_learning_index() -> HTMLResponse:
     return _page("Обучение", body, script, active="learning")
 
 
+@router.get("/projects/{project_id}/ai-learning", response_class=HTMLResponse)
+def ui_project_ai_learning(project_id: int) -> HTMLResponse:
+    """Экран «AI обучение вашего бренда» (AI Learning Loop v0.6.5)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/learning'><button class='ghost mini'>Чему бот научился</button></a>"
+        f"<a href='/ui/projects/{project_id}/metrics'><button class='ghost mini'>Метрики</button></a></div>"
+        "<h2>AI обучение вашего бренда</h2>"
+        "<div class='card'><div class='kv'>"
+        "<div>Насколько бот вас понял</div><div id='al-score'>—</div>"
+        "<div>Статус обучения</div><div id='al-status'>—</div>"
+        "<div>Проанализировано постов</div><div id='al-posts'>—</div></div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='mini sec' onclick='alAnalyze()'>Запустить анализ</button></div></div>"
+        "<div class='grid'>"
+        "<div class='card'><h3>Что AI понял</h3><div id='al-understood' class='muted'>—</div></div>"
+        "<div class='card'><h3>Что улучшилось</h3><div id='al-improve' class='muted'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Рекомендации</h3><div id='al-recs' class='muted'>—</div></div>"
+        "<div class='card'><h3>Как вам последние посты?</h3>"
+        "<div class='inline'>"
+        "<button class='mini' onclick=\"alFb('excellent')\">🔥 Отлично</button>"
+        "<button class='mini sec' onclick=\"alFb('good')\">👍 Хорошо</button>"
+        "<button class='mini ghost' onclick=\"alFb('ok')\">😐 Нормально</button>"
+        "<button class='mini ghost' onclick=\"alFb('bad')\">👎 Не подходит</button></div>"
+        "<div id='al-fb-msg' class='muted' style='margin-top:6px'></div></div>"
+        "<div id='al-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('al-msg');"
+        "function lst(id,arr){const el=document.getElementById(id);el.classList.remove('muted');"
+        "el.innerHTML=(arr&&arr.length)?arr.map(v=>`<div>• ${esc(''+v)}</div>`).join(''):\"<span class='muted'>пока нет данных</span>\";}"
+        "async function load(){try{"
+        "const s=await api('GET','/projects/'+PID+'/learning');"
+        "document.getElementById('al-score').textContent=Math.round(s.learning_score||0)+' / 100';"
+        "document.getElementById('al-status').textContent=s.status||'—';"
+        "document.getElementById('al-posts').textContent=s.total_posts_analyzed||0;"
+        "const ex=await api('GET','/projects/'+PID+'/learning/explanation');"
+        "lst('al-understood',ex.understood);lst('al-improve',ex.improvements);"
+        "const rc=await api('GET','/projects/'+PID+'/learning/recommendations');"
+        "const nc=rc.next_content||{};const recs=[];"
+        "if(nc.recommended_topics&&nc.recommended_topics.length)recs.push('Темы: '+nc.recommended_topics.join(', '));"
+        "if(nc.recommended_formats&&nc.recommended_formats.length)recs.push('Форматы: '+nc.recommended_formats.join(', '));"
+        "if(nc.recommended_style)recs.push('Стиль: '+nc.recommended_style);"
+        "if(nc.best_time)recs.push('Лучшее время: '+nc.best_time);"
+        "if((rc.strategy||{}).posting_frequency)recs.push('Частота: '+rc.strategy.posting_frequency);"
+        "lst('al-recs',recs);"
+        "}catch(x){err(eEl,x)}}"
+        "async function alAnalyze(){try{msg.textContent='Анализирую…';"
+        "await api('POST','/projects/'+PID+'/learning/analyze',{window_days:90});"
+        "msg.textContent='Анализ завершён.';load();}catch(x){err(eEl,x)}}"
+        "async function alFb(s){try{await api('POST','/projects/'+PID+'/learning/feedback',{sentiment:s});"
+        "document.getElementById('al-fb-msg').textContent='Спасибо! Учтём в обучении.';}catch(x){err(eEl,x)}}"
+        "window.alAnalyze=alAnalyze;window.alFb=alFb;load();"
+    )
+    return _page("AI обучение вашего бренда", body, script, active="", active_pid=project_id)
+
+
 @router.get("/projects/{project_id}/learning", response_class=HTMLResponse)
 def ui_project_learning(project_id: int) -> HTMLResponse:
     """Блок «Чему бот научился»: темы, CTA, теги, время, уверенность, рекомендации."""

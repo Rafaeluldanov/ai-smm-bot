@@ -318,6 +318,13 @@ ACTION_ONBOARDING_STARTED = "onboarding.started"
 ACTION_ONBOARDING_STEP_COMPLETED = "onboarding.step_completed"
 ACTION_ONBOARDING_FINISHED = "onboarding.finished"
 
+# --- AI Learning Loop (v0.6.5) --- #
+ACTION_AI_LEARNING_EVENT_RECORDED = "ai_learning.event_recorded"
+ACTION_AI_LEARNING_PROFILE_UPDATED = "ai_learning.profile_updated"
+ACTION_AI_LEARNING_ANALYZED = "ai_learning.analyzed"
+ACTION_AI_LEARNING_RECOMMENDED = "ai_learning.recommended"
+ACTION_AI_LEARNING_RESET = "ai_learning.profile_reset"
+
 # --- Telegram live production runbook (v0.6.3) --- #
 ACTION_TELEGRAM_RUNBOOK_CHECKED = "telegram_runbook.checked"
 ACTION_TELEGRAM_RUNBOOK_PREVIEWED = "telegram_runbook.previewed"

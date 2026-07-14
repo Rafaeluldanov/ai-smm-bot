@@ -47,6 +47,7 @@ BIN := $(VENV)/bin
         live-autopilot-monitoring-dashboard live-autopilot-monitoring-health-check live-autopilot-monitoring-incidents live-autopilot-monitoring-pause \
         telegram-runbook-check telegram-runbook-preview telegram-runbook-publish-test \
         onboarding-start onboarding-status onboarding-demo \
+        ai-learning-profile ai-learning-analyze ai-learning-recommend \
         smoke
 
 help: ## Показать список команд
@@ -430,6 +431,15 @@ onboarding-status: ## Статус онбординга: make onboarding-status 
 
 onboarding-demo: ## Демо онбординга (5 шагов, live OFF): make onboarding-demo user_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.onboarding_demo --user-id "$(user_id)"
+
+ai-learning-profile: ## Профиль AI-обучения: make ai-learning-profile project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.ai_learning_profile --project-id "$(project_id)"
+
+ai-learning-analyze: ## Анализ AI-обучения: make ai-learning-analyze project_id=1 [window_days=90]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.ai_learning_analyze --project-id "$(project_id)" $(if $(window_days),--window-days "$(window_days)",)
+
+ai-learning-recommend: ## Рекомендации AI-обучения: make ai-learning-recommend project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.ai_learning_recommend --project-id "$(project_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

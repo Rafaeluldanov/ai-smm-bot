@@ -4,6 +4,7 @@ import logging
 
 from fastapi import FastAPI
 
+from app.api.ai_learning import router as ai_learning_router
 from app.api.analytics import router as analytics_router
 from app.api.audit import router as audit_router
 from app.api.auth import router as auth_router
@@ -108,6 +109,7 @@ def create_app() -> FastAPI:
     app.include_router(media_curation_review_router)
     app.include_router(notifications_router)
     app.include_router(onboarding_router)
+    app.include_router(ai_learning_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

@@ -524,6 +524,8 @@ class ScheduleAutomationService:
         self._audit_run(db, ACTION_SCHEDULE_RUN_DRAFT_CREATED, run, units=charged)
 
         outcome: dict[str, Any] = {"outcome": "draft_created", "post_id": post.id}
+        # v0.6.5: событие жизненного цикла в AI Learning Loop (fail-safe, не публикует).
+        self._record_ai_learning_lifecycle(db, project_id, post.id, "post_created")
         # Привязать решение о теме к прогону/посту (+ счётчики для worker/TickResult).
         if decision is not None:
             self._link_topic_decision(db, decision, run, post.id)
@@ -555,6 +557,10 @@ class ScheduleAutomationService:
             outcome["auto_published"] = reason is None
             # v0.6.0: журнал live-попытки (Telegram-first). Fail-safe — не ломает прогон.
             self._record_live_publish_attempt(db, account_id, project_id, entry, run, post, reason)
+            # v0.6.5: событие жизненного цикла в AI Learning Loop (fail-safe, не публикует).
+            self._record_ai_learning_lifecycle(
+                db, project_id, post.id, "post_published" if reason is None else "post_blocked"
+            )
         return {**self.mask_run(run), **outcome}
 
     # ------------------------------------------------------------------ #
@@ -964,6 +970,28 @@ class ScheduleAutomationService:
         except Exception:  # noqa: BLE001 — fail-safe: не публикуем при любой ошибке гейта
             logger.warning("live-readiness gate failed for project_id=%s — blocking", project_id)
             return []
+
+    def _record_ai_learning_lifecycle(
+        self, db: Session, project_id: int, post_id: int, event: str
+    ) -> None:
+        """Записать событие жизненного цикла поста в AI Learning Loop (v0.6.5). Fail-safe.
+
+        Информационный сигнал (source=system): НЕ публикует, НЕ включает live, НЕ меняет
+        стратегию. Сбой обучения не должен ронять прогон расписания.
+        """
+        try:
+            from app.services.ai_learning_service import AILearningService
+
+            AILearningService(settings=self._resolve_settings()).record_event(
+                db,
+                project_id,
+                entity="post",
+                event=event,
+                source="system",
+                entity_id=post_id,
+            )
+        except Exception:  # noqa: BLE001 — обучение не критично для прогона
+            logger.warning("ai learning lifecycle hook failed: %s", event)
 
     def _record_live_publish_attempt(
         self,

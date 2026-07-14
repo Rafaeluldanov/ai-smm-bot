@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Annotated
 
 if TYPE_CHECKING:
     from app.services.ab_testing_service import ABTestingService
+    from app.services.ai_learning_service import AILearningService
     from app.services.auth_session_service import AuthSessionService
     from app.services.auth_token_service import AuthTokenService
     from app.services.automation_settings_service import AutomationSettingsService
@@ -15,8 +16,10 @@ if TYPE_CHECKING:
     from app.services.client_learning_service import ClientLearningService
     from app.services.client_onboarding_service import ClientOnboardingService
     from app.services.content_scoring_service import ContentScoringService
+    from app.services.content_strategy_service import ContentStrategyService
     from app.services.email_template_service import EmailTemplateService
     from app.services.experiment_suggestion_service import ExperimentSuggestionService
+    from app.services.learning_context_builder import LearningContextBuilder
     from app.services.live_autopilot_monitoring_service import LiveAutopilotMonitoringService
     from app.services.live_readiness_service import LiveReadinessService
     from app.services.media_curation_review_service import MediaCurationReviewService
@@ -36,6 +39,7 @@ if TYPE_CHECKING:
     from app.services.notification_unsubscribe_service import NotificationUnsubscribeService
     from app.services.payments.payment_service import PaymentService
     from app.services.post_analytics_service import PostAnalyticsService
+    from app.services.post_performance_learning_service import PostPerformanceLearningService
     from app.services.review_workflow_service import ReviewWorkflowService
     from app.services.schedule_media_decision_service import ScheduleMediaDecisionService
     from app.services.schedule_topic_decision_service import ScheduleTopicDecisionService
@@ -463,6 +467,34 @@ def get_client_onboarding_service() -> "ClientOnboardingService":
     from app.services.client_onboarding_service import ClientOnboardingService
 
     return ClientOnboardingService(settings=get_settings())
+
+
+def get_ai_learning_service() -> "AILearningService":
+    """Построить движок AI Learning Loop (обучение; live НЕ включает, не публикует)."""
+    from app.services.ai_learning_service import AILearningService
+
+    return AILearningService(settings=get_settings())
+
+
+def get_content_strategy_service() -> "ContentStrategyService":
+    """Построить сервис рекомендации контент-стратегии (только рекомендации)."""
+    from app.services.content_strategy_service import ContentStrategyService
+
+    return ContentStrategyService()
+
+
+def get_post_performance_learning_service() -> "PostPerformanceLearningService":
+    """Построить помощник сравнения эффективности постов (только чтение аналитики)."""
+    from app.services.post_performance_learning_service import PostPerformanceLearningService
+
+    return PostPerformanceLearningService()
+
+
+def get_learning_context_builder() -> "LearningContextBuilder":
+    """Построить построитель контекста обучения для генерации."""
+    from app.services.learning_context_builder import LearningContextBuilder
+
+    return LearningContextBuilder()
 
 
 def get_yandex_auto_sync_service() -> "YandexAutoSyncService":
