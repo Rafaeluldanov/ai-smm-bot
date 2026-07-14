@@ -72,6 +72,8 @@ from app.models.schedule_media_decision import ScheduleMediaDecision
 from app.models.schedule_run import ScheduleRun
 from app.models.schedule_topic_decision import ScheduleTopicDecision
 from app.models.scheduler_worker_lease import SchedulerWorkerLease
+from app.models.telegram_live_run_attempt import TelegramLiveRunAttempt
+from app.models.telegram_live_runbook import TelegramLiveRunbook
 from app.models.topic import Topic
 from app.models.user import User
 from app.models.webhook_subscription import WebhookSubscription
@@ -143,6 +145,8 @@ __all__ = [
     "ScheduleRun",
     "SchedulerWorkerLease",
     "TariffPlan",
+    "TelegramLiveRunAttempt",
+    "TelegramLiveRunbook",
     "Topic",
     "UsageEvent",
     "User",

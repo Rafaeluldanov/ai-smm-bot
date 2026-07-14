@@ -5718,6 +5718,72 @@ def ui_project_live_autopilot_monitoring(project_id: int) -> HTMLResponse:
     return _page("Мониторинг автопилота", body, script, active="projects", active_pid=project_id)
 
 
+@router.get("/projects/{project_id}/telegram-runbook", response_class=HTMLResponse)
+def ui_project_telegram_runbook(project_id: int) -> HTMLResponse:
+    """Запуск Telegram автопилота: чек-лист готовности, preview, ручной production-тест."""
+    body = (
+        f"{_ap_subnav(project_id, 'telegram-runbook')}"
+        "<div class='hero'><div class='ap-hero'>Запуск Telegram автопилота</div>"
+        "<p class='muted'>Первый безопасный production-канал. Проверьте готовность, сделайте "
+        "предпросмотр и один ручной тестовый пост. Реальная отправка возможна только при всех "
+        "включённых условиях и подтверждении — runbook сам live не включает.</p></div>"
+        "<div class='card'><div class='inline'>"
+        "<span id='rb-status' class='ap-status setup'>Загрузка…</span>"
+        "<span id='rb-channel' class='pill'>—</span></div>"
+        "<div class='inline' style='margin-top:10px'>"
+        "<button class='ap-big-btn sec' onclick='rbCheck()'>Проверить готовность</button></div></div>"
+        "<div class='card'><h3>Готовность (checklist)</h3><div id='rb-checklist' class='muted'>—</div></div>"
+        "<div class='card'><h3>Что мешает</h3><div id='rb-blockers' class='muted'>—</div></div>"
+        "<div class='card'><h3>Предпросмотр тестового поста</h3>"
+        "<p class='muted'>Соберём текст, картинку и хэштеги для теста — без отправки.</p>"
+        "<div class='inline'><input id='rb-post' type='number' placeholder='ID поста (необязательно)' style='max-width:220px'>"
+        "<button class='ap-big-btn sec' onclick='rbPreview()'>Создать предпросмотр</button></div>"
+        "<div id='rb-preview' class='muted' style='margin-top:8px'></div></div>"
+        "<div class='card'><h3>Один тестовый production-пост</h3>"
+        "<p class='muted'>По умолчанию заблокировано. Реальная отправка сработает только если "
+        "включены глобальные условия, live для проекта/Telegram, full-auto, готовность и введено "
+        "подтверждение <b>ENABLE_TELEGRAM_LIVE</b>.</p>"
+        "<div class='inline'><input id='rb-confirm' placeholder='ENABLE_TELEGRAM_LIVE' style='max-width:260px'></div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='ap-big-btn' onclick='rbPublish()'>Опубликовать тестовый пост</button>"
+        "<button class='ap-big-btn ghost' onclick='rbPause()'>Пауза</button></div>"
+        "<div id='rb-publish' class='muted' style='margin-top:8px'></div></div>"
+        "<div class='card'><h3>История попыток</h3><div id='rb-attempts' class='muted'>—</div></div>"
+        f"<div class='card'><a href='/ui/projects/{project_id}/telegram-live-rollout'>"
+        "<button class='mini sec'>Telegram live rollout</button></a> "
+        f"<a href='/ui/projects/{project_id}/live-autopilot-monitoring'>"
+        "<button class='mini ghost'>Мониторинг</button></a></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const toneMap={enabled:'ready',ready:'ready',blocked:'problem',paused:'paused',draft:'setup'};"
+        "function rbPostId(){const v=parseInt(gv('rb-post')||'0',10);return v||null;}"
+        "async function rbLoad(){try{const d=await api('GET','/projects/'+PID+'/telegram-runbook');"
+        "const st=document.getElementById('rb-status');st.className='ap-status '+(toneMap[d.status]||'setup');"
+        "st.textContent=d.status;"
+        "document.getElementById('rb-channel').textContent=d.channel_name||d.channel_id||'канал не подключён';"
+        "const cl=d.checklist||{};const clEl=document.getElementById('rb-checklist');clEl.classList.remove('muted');"
+        "clEl.innerHTML=Object.keys(cl).map(k=>`<div class='sched-task'>${cl[k].done?'✓':'—'} ${esc(cl[k].label||k)}</div>`).join('');"
+        "const bl=document.getElementById('rb-blockers');bl.classList.remove('muted');"
+        "bl.innerHTML=(d.blockers&&d.blockers.length)?d.blockers.map(b=>`<div class='sched-task'>${esc(b.message||b.type)}</div>`).join(''):'<span class=muted>Всё готово ✓</span>';"
+        "const at=document.getElementById('rb-attempts');at.classList.remove('muted');"
+        "at.innerHTML=(d.recent_attempts&&d.recent_attempts.length)?d.recent_attempts.map(a=>`<div class='sched-task'><span class='pill'>${esc(a.status)}</span> пост #${a.post_id||'—'}${a.external_url?(' · '+esc(a.external_url)):''}</div>`).join(''):'<span class=muted>Пока нет попыток.</span>';"
+        "}catch(x){err(eEl,x)}}"
+        "async function rbCheck(){try{await api('POST','/projects/'+PID+'/telegram-runbook/check',{});rbLoad();}catch(x){err(eEl,x)}}"
+        "async function rbPreview(){try{const d=await api('POST','/projects/'+PID+'/telegram-runbook/preview',{post_id:rbPostId()});"
+        "const p=(d.attempt||{}).payload_preview||{};document.getElementById('rb-preview').innerHTML="
+        "`<div class='sched-task'>Текст: ${esc((p.text_snippet||'').slice(0,140))}… (${p.text_length||0} симв.)</div>`+"
+        "`<div class='sched-task'>Хэштеги: ${esc((p.hashtags||[]).join(' '))||'—'}</div>`+"
+        "`<div class='sched-task'>Медиа: ${p.media_count||0} · ${esc(p.media_url_masked||'—')}</div>`;rbLoad();}catch(x){err(eEl,x)}}"
+        "async function rbPublish(){try{const d=await api('POST','/projects/'+PID+'/telegram-runbook/publish-test',{confirmation:gv('rb-confirm'),post_id:rbPostId()});"
+        "const a=d.attempt||{};document.getElementById('rb-publish').textContent=(d.published?'Опубликовано ✓ ':'Статус: '+a.status+' ')+(d.note||'');rbLoad();}catch(x){err(eEl,x)}}"
+        "async function rbPause(){try{const r=await api('POST','/projects/'+PID+'/telegram-runbook/pause',{});document.getElementById('rb-publish').textContent=r.note||'Пауза.';rbLoad();}catch(x){err(eEl,x)}}"
+        "window.rbCheck=rbCheck;window.rbPreview=rbPreview;window.rbPublish=rbPublish;window.rbPause=rbPause;rbLoad();"
+    )
+    return _page("Запуск Telegram", body, script, active="projects", active_pid=project_id)
+
+
 def _ap_subnav(project_id: int, current: str) -> str:
     """Подменю страниц автопилота проекта."""
     items = [
@@ -5747,6 +5813,11 @@ def _ap_subnav(project_id: int, current: str) -> str:
     links += (
         f"<a href='/ui/projects/{project_id}/live-autopilot-monitoring'>"
         f"<button class='mini {mon_cls}'>Мониторинг</button></a>"
+    )
+    rb_cls = "sec" if current == "telegram-runbook" else "ghost"
+    links += (
+        f"<a href='/ui/projects/{project_id}/telegram-runbook'>"
+        f"<button class='mini {rb_cls}'>Запуск Telegram</button></a>"
     )
     return f"<div class='inline' style='margin-bottom:10px'>{links}</div>"
 

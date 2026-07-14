@@ -544,6 +544,12 @@ class Settings(BaseSettings):
     telegram_live_rollout_notify_on_published: bool = True
     telegram_live_rollout_record_payload_preview: bool = True
 
+    # --- Telegram live production runbook (v0.6.3) ---
+    # Клиентский «запуск Telegram автопилота»: чек-лист + production-тест. Реальная отправка
+    # делегируется TelegramLiveRolloutService (все гейты); runbook сам live не включает.
+    telegram_runbook_enabled: bool = True
+    telegram_runbook_dry_run: bool = True
+
     # --- Live autopilot monitoring & kill switch (v0.6.1) ---
     # Наблюдение за live/autopilot попытками, инциденты, kill switch. Kill switch управляет ТОЛЬКО
     # состоянием в БД (project/platform/autopilot) и НЕ трогает глобальные live-флаги. Worker и
@@ -1748,6 +1754,18 @@ class Settings(BaseSettings):
     def telegram_live_rollout_max_attempts_per_post_safe(self) -> int:
         """Максимум live-попыток на один пост (в границах 1..10)."""
         return max(1, min(10, int(self.telegram_live_rollout_max_attempts_per_post or 1)))
+
+    # --- Telegram live production runbook (v0.6.3): производные свойства ---
+
+    @property
+    def telegram_runbook_enabled_effective(self) -> bool:
+        """Доступен ли Telegram runbook (UI/API/CLI)."""
+        return bool(self.telegram_runbook_enabled)
+
+    @property
+    def telegram_runbook_dry_run_effective(self) -> bool:
+        """Dry-run runbook по умолчанию (проверка не пишет в БД)."""
+        return bool(self.telegram_runbook_dry_run)
 
     # --- Live autopilot monitoring & kill switch (v0.6.1): производные свойства ---
 

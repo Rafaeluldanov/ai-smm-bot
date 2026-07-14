@@ -313,6 +313,12 @@ ACTION_TELEGRAM_LIVE_ROLLOUT_LIVE_ATTEMPTED = "telegram_live_rollout.live_attemp
 ACTION_TELEGRAM_LIVE_ROLLOUT_PUBLISHED = "telegram_live_rollout.published"
 ACTION_TELEGRAM_LIVE_ROLLOUT_FAILED = "telegram_live_rollout.failed"
 
+# --- Telegram live production runbook (v0.6.3) --- #
+ACTION_TELEGRAM_RUNBOOK_CHECKED = "telegram_runbook.checked"
+ACTION_TELEGRAM_RUNBOOK_PREVIEWED = "telegram_runbook.previewed"
+ACTION_TELEGRAM_RUNBOOK_PUBLISH_TESTED = "telegram_runbook.publish_tested"
+ACTION_TELEGRAM_RUNBOOK_PAUSED = "telegram_runbook.paused"
+
 # --- Live autopilot monitoring & kill switch (v0.6.1) --- #
 ACTION_LIVE_MONITORING_DASHBOARD_VIEWED = "live_monitoring.dashboard_viewed"
 ACTION_LIVE_MONITORING_SNAPSHOT_CREATED = "live_monitoring.snapshot_created"

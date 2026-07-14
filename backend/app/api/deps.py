@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from app.services.telegram_bot_management_service import TelegramBotManagementService
     from app.services.telegram_incoming_service import TelegramIncomingService
     from app.services.telegram_live_rollout_service import TelegramLiveRolloutService
+    from app.services.telegram_live_runbook_service import TelegramLiveRunbookService
     from app.services.telegram_notification_template_service import (
         TelegramNotificationTemplateService,
     )
@@ -447,6 +448,13 @@ def get_live_autopilot_monitoring_service() -> "LiveAutopilotMonitoringService":
     from app.services.live_autopilot_monitoring_service import LiveAutopilotMonitoringService
 
     return LiveAutopilotMonitoringService(settings=get_settings())
+
+
+def get_telegram_live_runbook_service() -> "TelegramLiveRunbookService":
+    """Построить сервис Telegram runbook (готовность + production-тест; отправка — под гейтами)."""
+    from app.services.telegram_live_runbook_service import TelegramLiveRunbookService
+
+    return TelegramLiveRunbookService(settings=get_settings())
 
 
 def get_yandex_auto_sync_service() -> "YandexAutoSyncService":

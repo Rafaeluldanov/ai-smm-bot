@@ -45,6 +45,7 @@ BIN := $(VENV)/bin
         live-readiness-check live-readiness-platform-check live-readiness-enable live-readiness-effective-gate \
         telegram-live-rollout-dashboard telegram-live-rollout-preview telegram-live-rollout-run-dry telegram-live-rollout-publish-once \
         live-autopilot-monitoring-dashboard live-autopilot-monitoring-health-check live-autopilot-monitoring-incidents live-autopilot-monitoring-pause \
+        telegram-runbook-check telegram-runbook-preview telegram-runbook-publish-test \
         smoke
 
 help: ## Показать список команд
@@ -410,6 +411,15 @@ live-autopilot-monitoring-incidents: ## Инциденты автопилота:
 
 live-autopilot-monitoring-pause: ## Стоп-кран автопилота: make live-autopilot-monitoring-pause project_id=1 action=pause confirmation=PAUSE_AUTOPILOT
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.live_autopilot_monitoring_pause --project-id "$(project_id)" --action "$(or $(action),pause)" --confirmation "$(confirmation)"
+
+telegram-runbook-check: ## Готовность Telegram runbook: make telegram-runbook-check project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_live_runbook_check --project-id "$(project_id)"
+
+telegram-runbook-preview: ## Предпросмотр тестового поста: make telegram-runbook-preview project_id=1 [post_id=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_live_runbook_preview --project-id "$(project_id)" $(if $(post_id),--post-id "$(post_id)",)
+
+telegram-runbook-publish-test: ## Production-тест Telegram (DRY-RUN по умолчанию): make telegram-runbook-publish-test project_id=1 confirmation=ENABLE_TELEGRAM_LIVE [dry_run=true]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_live_runbook_publish_test --project-id "$(project_id)" $(if $(post_id),--post-id "$(post_id)",) --confirmation "$(or $(confirmation),ENABLE_TELEGRAM_LIVE)" --dry-run "$(or $(dry_run),true)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
