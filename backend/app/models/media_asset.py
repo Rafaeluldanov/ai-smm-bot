@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, JSONType, TimestampMixin
@@ -60,3 +60,8 @@ class MediaAsset(Base, TimestampMixin):
     curation_status: Mapped[str] = mapped_column(String(30), default="new", nullable=False)
     # Заметки курирования (без секретов/путей): причина скрытия, canonical id и т. п.
     curation_notes: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)
+    # v0.6.2 media-proxy: генерировалась ли публичная ссылка доставки и когда (последний раз).
+    proxy_ready: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_proxy_generated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=None
+    )

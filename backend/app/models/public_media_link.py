@@ -18,6 +18,28 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, JSONType, TimestampMixin
 
+# --- Термины media-proxy delivery layer (v0.6.2) --- #
+# Клиентский статус доставки (маппинг из link.status: active→ready, revoked→disabled).
+MEDIA_PROXY_STATUSES: tuple[str, ...] = ("ready", "disabled", "expired", "blocked", "failed")
+MEDIA_PROXY_TOKEN_TYPES: tuple[str, ...] = ("image", "thumbnail", "preview", "original")
+MEDIA_PROXY_TRANSFORMS: tuple[str, ...] = (
+    "original",
+    "width_640",
+    "width_1080",
+    "square",
+    "social_preview",
+)
+MEDIA_PROXY_BLOCKERS: tuple[str, ...] = (
+    "missing_asset",
+    "missing_storage",
+    "expired_token",
+    "invalid_signature",
+    "unsupported_format",
+    "file_not_found",
+    "request_limit_reached",
+    "original_not_allowed",
+)
+
 
 class PublicMediaLink(Base, TimestampMixin):
     """Временная публичная ссылка на медиа-актив проекта (media-proxy)."""
@@ -42,6 +64,11 @@ class PublicMediaLink(Base, TimestampMixin):
     token_prefix: Mapped[str | None] = mapped_column(String(16), default=None)
     # instagram | preview | external_platform | download | other
     purpose: Mapped[str] = mapped_column(String(30), default="instagram", nullable=False)
+    # v0.6.2: тип токена (image|thumbnail|preview|original) и трансформация при отдаче.
+    token_type: Mapped[str] = mapped_column(String(20), default="image", nullable=False)
+    transform: Mapped[str] = mapped_column(String(30), default="original", nullable=False)
+    # Лимит запросов на токен (0/None = из настроек/без лимита). request_count = hit_count.
+    max_requests: Mapped[int | None] = mapped_column(Integer, default=None)
     # active | revoked | expired
     status: Mapped[str] = mapped_column(String(20), default="active", index=True, nullable=False)
     content_type: Mapped[str | None] = mapped_column(String(100), default=None)

@@ -98,12 +98,16 @@ class SupportsPublicMediaDownload(Protocol):
 
 
 class SupportsImageConversion(Protocol):
-    """Контракт конвертера изображений (HEIC/HEIF → JPEG в памяти)."""
+    """Контракт конвертера изображений (HEIC/HEIF → JPEG в памяти + трансформации доставки)."""
 
     def enhance_image_bytes(
         self, image_bytes: bytes, profile: str, operations: dict[str, bool] | None = None
     ) -> Any:
         """Вернуть объект с полем ``output_bytes`` (сконвертированные байты)."""
+        ...
+
+    def transform_bytes(self, image_bytes: bytes, transform: str) -> tuple[bytes, int, int]:
+        """Применить трансформацию доставки (ресайз/кроп) → (bytes, width, height)."""
         ...
 
 

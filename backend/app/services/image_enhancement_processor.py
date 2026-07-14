@@ -268,6 +268,41 @@ class ImageEnhancementProcessor:
             warnings=warnings,
         )
 
+    def transform_bytes(self, image_bytes: bytes, transform: str) -> tuple[bytes, int, int]:
+        """Применить трансформацию доставки (ресайз/квадрат) → (bytes, width, height).
+
+        Поддерживает: ``original`` (только конверт формата), ``width_640``/``width_1080``
+        (ресайз по ширине, только вниз, с сохранением пропорций), ``square`` (кроп 1:1),
+        ``social_preview`` (1080×1080 кроп). Оригинал не меняется; вывод — JPEG/WEBP.
+        """
+        if len(image_bytes) > self._max_bytes:
+            raise ImageTooLargeError(
+                f"Изображение {len(image_bytes)} байт превышает лимит {self._max_bytes} байт"
+            )
+        try:
+            with Image.open(BytesIO(image_bytes)) as opened:
+                opened.load()
+                work = opened.convert("RGB")
+        except (UnidentifiedImageError, OSError, ValueError) as exc:
+            hint = "" if _HEIF_AVAILABLE else " (для HEIC нужен пакет pillow-heif)"
+            raise UnsupportedImageError(f"Не удалось открыть изображение{hint}: {exc}") from exc
+
+        key = (transform or "original").strip().lower()
+        if key in {"width_640", "width_1080"}:
+            target_w = 640 if key == "width_640" else 1080
+            if work.width > target_w:
+                target_h = max(1, round(work.height * target_w / work.width))
+                work = work.resize((target_w, target_h), Image.Resampling.LANCZOS)
+        elif key == "square":
+            side = min(work.width, work.height)
+            work = ImageOps.fit(work, (side, side), Image.Resampling.LANCZOS)
+        elif key == "social_preview":
+            side = min(work.width, work.height, 1080)
+            work = ImageOps.fit(work, (side, side), Image.Resampling.LANCZOS)
+        # "original" (и неизвестные) — без ресайза, только конверт формата в _encode.
+
+        return self._encode(work), work.width, work.height
+
     def build_output_file_name(
         self, media_asset_id: int, original_file_name: str, profile: str, output_format: str
     ) -> str:

@@ -7,7 +7,7 @@ BIN := $(VENV)/bin
         sync-public-media \
         retag-media media-summary select-topics content-plan \
         enhance-media enhance-project-media media-enhancement-summary \
-        media-proxy-link media-proxy-cleanup \
+        media-proxy-link media-proxy-cleanup media-proxy-generate media-proxy-check \
         schedule-due-preview schedule-due-run \
         scheduler-tick scheduler-loop scheduler-loop-dry \
         generate-post generate-weekly-posts \
@@ -104,6 +104,12 @@ media-proxy-link: ## Публичная media-ссылка: make media-proxy-lin
 
 media-proxy-cleanup: ## Пометить просроченные ссылки: make media-proxy-cleanup [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_proxy_cleanup --dry-run "$(or $(dry_run),true)"
+
+media-proxy-generate: ## URL доставки: make media-proxy-generate project_id=1 media_asset_id=1 [transform=width_1080] [platform=instagram]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_proxy_generate --project-id "$(project_id)" --media-asset-id "$(media_asset_id)" --transform "$(or $(transform),width_1080)" $(if $(platform),--platform "$(platform)",)
+
+media-proxy-check: ## Готовность media-proxy доставки: make media-proxy-check
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.media_proxy_check
 
 schedule-due-preview: ## Preview due-задач: make schedule-due-preview account_id=1 project_id=1 platform=telegram [date=today]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.schedule_due_preview --account-id "$(account_id)" --project-id "$(project_id)" --platform "$(platform)" --date "$(or $(date),today)"

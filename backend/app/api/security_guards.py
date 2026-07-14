@@ -205,6 +205,22 @@ def require_live_incident_access(
     _guard_project(db, settings, user, incident.project_id)
 
 
+def require_media_proxy_token_access(
+    token_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к токену media-proxy (через его проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import media_proxy_repository
+
+    token = media_proxy_repository.get_token_by_id(db, token_id)
+    if token is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, token.project_id)
+
+
 def require_experiment_access(
     experiment_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

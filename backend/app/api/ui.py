@@ -1889,18 +1889,29 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
 
 @router.get("/projects/{project_id}/media-proxy", response_class=HTMLResponse)
 def ui_media_proxy(project_id: int) -> HTMLResponse:
-    """Страница media-proxy проекта: статус, список публичных ссылок, отзыв."""
+    """Страница media-proxy проекта: доставка медиа, ссылки, генерация, обращения, отзыв."""
     body = (
         f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
         "<button class='sec mini'>← К проекту</button></a></div>"
-        "<h2>Публичные ссылки на медиа (Media Proxy)</h2>"
+        "<h2>Доставка медиа (Media Proxy)</h2>"
         "<p class='muted'>Instagram и другие платформы требуют публичный HTTPS "
         "<b>image_url</b>. Botfleet выдаёт временную ссылку "
-        "<code>/media/public/{token}</code>: токен случайный, хранится только хеш, ссылка "
-        "ограничена по времени и отзывается. Живая публикация Instagram выключена.</p>"
+        "<code>/media/{token}</code>: токен случайный, хранится только хеш, ссылка "
+        "ограничена по времени и отзывается. Отдаётся оптимальный размер (ресайз на лету). "
+        "Живая публикация выключена — это только слой доставки.</p>"
         # Статус
         "<div class='card'><h3>Статус</h3><div id='mp-status' class='kv'>"
         "<div class='muted'>Загрузка…</div></div></div>"
+        # Генерация ссылок доставки для актива
+        "<div class='card'><h3>Ссылки доставки для медиа</h3>"
+        "<p class='muted'>Введите ID медиа-актива и получите набор ссылок "
+        "(превью / Instagram / VK / Telegram). Реальная ссылка показывается один раз.</p>"
+        "<div class='inline'><input id='mp-asset' type='number' placeholder='ID медиа-актива' "
+        "style='max-width:200px'>"
+        "<button class='mini sec' onclick='mpGenerate()'>Создать ссылки</button>"
+        "<button class='mini ghost' onclick='mpAssetInfo()'>Показать токены актива</button></div>"
+        "<div id='mp-generated' class='muted' style='margin-top:8px'></div>"
+        "<div id='mp-access' class='muted' style='margin-top:8px'></div></div>"
         # Список ссылок
         "<h2>Ссылки</h2>"
         "<div id='mp-links' class='muted'>Загрузка…</div>"
@@ -1940,9 +1951,24 @@ def ui_media_proxy(project_id: int) -> HTMLResponse:
         "<td>${r.status==='active'?`<button class='mini ghost' onclick='mpRevoke(${r.id})'>Отозвать</button>`:''}</td></tr>`).join('')"
         "+`</tbody></table>`:\"<div class='card muted'>Ссылок пока нет. Создайте их на странице платформы или через API/CLI.</div>\";"
         "}catch(x){err(eEl,x)}}"
+        "function mpAssetId(){return parseInt(gv('mp-asset')||'0',10);}"
+        "async function mpGenerate(){const aid=mpAssetId();if(!aid){err(eEl,'Укажите ID медиа-актива');return;}"
+        "const host=document.getElementById('mp-generated');host.classList.remove('muted');host.textContent='Создаю…';"
+        "try{const d=await api('POST','/media-proxy/projects/'+PID+'/assets/'+aid+'/platform-urls',{});"
+        "const u=d.urls||{};host.innerHTML=Object.keys(u).map(k=>`<div class='sched-task'><b>${esc(k)}</b> `+"
+        "`<span class='pill'>${esc(u[k].transform)}</span> <code>${esc(u[k].url)}</code></div>`).join('')||'<span class=muted>—</span>';"
+        "mpLinks();}catch(x){err(eEl,x)}}"
+        "window.mpGenerate=mpGenerate;"
+        "async function mpAssetInfo(){const aid=mpAssetId();if(!aid){err(eEl,'Укажите ID медиа-актива');return;}"
+        "const host=document.getElementById('mp-access');host.classList.remove('muted');host.textContent='Загрузка…';"
+        "try{const d=await api('GET','/media-proxy/projects/'+PID+'/assets/'+aid);"
+        "const rows=d.recent_access||[];host.innerHTML=`<div class='muted'>proxy_ready: ${d.proxy_ready} · токенов: ${(d.tokens||[]).length}</div>`+"
+        "(rows.length?rows.map(a=>`<div class='sched-task'><span class='pill'>${a.status}</span> ${esc(a.transform||'')} · ${esc((a.created_at||'').replace('T',' ').slice(0,16))}</div>`).join(''):'<span class=muted>Обращений пока нет.</span>');"
+        "}catch(x){err(eEl,x)}}"
+        "window.mpAssetInfo=mpAssetInfo;"
         "mpStatus();mpLinks();"
     )
-    return _page("Media Proxy", body, script, active="projects", active_pid=project_id)
+    return _page("Доставка медиа", body, script, active="projects", active_pid=project_id)
 
 
 @router.get("/projects/{project_id}/schedule-runs", response_class=HTMLResponse)

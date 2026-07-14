@@ -679,6 +679,16 @@ class Settings(BaseSettings):
     media_proxy_token_bytes: int = 32
     media_proxy_cache_dir: str = "tmp/media_proxy_cache"
     media_proxy_cache_enabled: bool = True
+    # --- Media Proxy delivery layer (v0.6.2): домен, ресайз/трансформации, лимиты, кеш ---
+    # MEDIA_PROXY_DOMAIN — публичный домен доставки (алиас/приоритет над public_base_url).
+    # SECRET_KEY — необязательный «перец» для хеша токена (усиление, не замена случайного токена).
+    # ENABLE_RESIZE — трансформации на лету; ALLOW_ORIGINAL — отдавать оригинал по токену.
+    media_proxy_domain: str = ""
+    media_proxy_secret_key: str = ""
+    media_proxy_max_requests: int = 10000
+    media_proxy_enable_resize: bool = True
+    media_proxy_cache_seconds: int = 86400
+    media_proxy_allow_original: bool = False
 
     # --- Background scheduler worker (движок автоматизации расписаний) ---
     # По умолчанию worker ВЫКЛЮЧЕН и в dry-run. Даже включённый worker НИКОГДА не делает
@@ -715,6 +725,7 @@ class Settings(BaseSettings):
         Приоритет: MEDIA_PROXY_PUBLIC_BASE_URL → PUBLIC_APP_URL → APP_BASE_URL.
         """
         for candidate in (
+            self.media_proxy_domain,
             self.media_proxy_public_base_url,
             self.public_app_url,
             self.app_base_url,
@@ -744,6 +755,26 @@ class Settings(BaseSettings):
             for ct in self.media_proxy_allowed_content_types.split(",")
             if ct.strip()
         ]
+
+    @property
+    def media_proxy_resize_enabled_effective(self) -> bool:
+        """Разрешены ли трансформации/ресайз на лету (v0.6.2)."""
+        return bool(self.media_proxy_enabled and self.media_proxy_enable_resize)
+
+    @property
+    def media_proxy_allow_original_effective(self) -> bool:
+        """Разрешено ли отдавать оригинал по токену (по умолчанию НЕТ — только трансформации)."""
+        return bool(self.media_proxy_allow_original)
+
+    @property
+    def media_proxy_max_requests_safe(self) -> int:
+        """Максимум запросов на токен (0 = без лимита; отрицательное → 0)."""
+        return max(0, int(self.media_proxy_max_requests or 0))
+
+    @property
+    def media_proxy_cache_seconds_safe(self) -> int:
+        """TTL кеша трансформаций в секундах (в границах 0..604800)."""
+        return max(0, min(604800, int(self.media_proxy_cache_seconds or 0)))
 
     # --- Background scheduler worker: производные свойства ---
 

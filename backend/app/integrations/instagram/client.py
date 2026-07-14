@@ -51,6 +51,16 @@ class InstagramPublishingClient:
         self._default_target_id = default_target_id
         self.live_enabled = live_enabled
 
+    @staticmethod
+    def public_image_url(request: PublishRequest) -> str | None:
+        """Публичный HTTPS image_url для Graph API (media-proxy, v0.6.2), если подготовлен.
+
+        Instagram Graph API публикует по публичному ``image_url``. Ссылку заранее готовит
+        media-proxy (``PostPublicationService.prepare_media_delivery``) и кладёт в
+        ``request.media_url``. Здесь только ЧТЕНИЕ подготовленной ссылки — реальной отправки нет.
+        """
+        return request.media_url
+
     def publish_post(self, request: PublishRequest) -> PublishResponse:
         """Live не реализован. Без ``live_enabled`` — ошибка без сети; токен не в тексте."""
         if not self.live_enabled:
@@ -59,4 +69,6 @@ class InstagramPublishingClient:
             raise PublishError(
                 "instagram", "INSTAGRAM_ACCESS_TOKEN не задан — публикация недоступна"
             )
+        # Будущая live-реализация возьмёт публичный image_url отсюда (media-proxy):
+        _public_image_url = self.public_image_url(request)  # noqa: F841 — dormant hook
         raise PublishError("instagram", "Live publishing for instagram is not implemented yet")

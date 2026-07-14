@@ -5,6 +5,7 @@
 синхронизация не создавала дубликаты.
 """
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -107,6 +108,15 @@ def update_media_asset_tags(
 def update_media_asset_status(db: Session, media_asset: MediaAsset, status: str) -> MediaAsset:
     """Обновить статус медиа-актива."""
     media_asset.status = status
+    db.commit()
+    db.refresh(media_asset)
+    return media_asset
+
+
+def mark_proxy_generated(db: Session, media_asset: MediaAsset, now: datetime) -> MediaAsset:
+    """Отметить, что для актива сгенерирована публичная ссылка доставки (media-proxy)."""
+    media_asset.proxy_ready = True
+    media_asset.last_proxy_generated_at = now
     db.commit()
     db.refresh(media_asset)
     return media_asset

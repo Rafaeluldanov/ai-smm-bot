@@ -291,6 +291,15 @@ class VKPublishingClient:
         return ma.maybe_convert_heic(content, file_name, self._image_processor)
 
     @staticmethod
+    def public_media_url(request: PublishRequest) -> str | None:
+        """Публичный media-proxy URL как fallback-источник фото (v0.6.2), если подготовлен.
+
+        Используется только когда нет локальной улучшенной копии и оригинала на Яндекс Диске.
+        Здесь лишь ЧТЕНИЕ подготовленной ссылки (``request.media_url``); реальной отправки нет.
+        """
+        return request.media_url
+
+    @staticmethod
     def _media_descriptor(request: PublishRequest) -> _MediaDescriptor | None:
         """Определить медиа для вложения из запроса (без сети/чтения файлов)."""
         attachment = request.payload.get("attachment") if request.payload else None

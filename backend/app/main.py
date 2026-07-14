@@ -29,6 +29,7 @@ from app.api.media_enhancements import router as media_enhancements_router
 from app.api.media_fingerprints import router as media_fingerprints_router
 from app.api.media_proxy import public_router as media_public_router
 from app.api.media_proxy import router as media_proxy_router
+from app.api.media_proxy import tokens_router as media_proxy_tokens_router
 from app.api.media_quality import router as media_quality_router
 from app.api.metrics_import import router as metrics_import_router
 from app.api.notification_delivery import router as notification_delivery_router
@@ -112,6 +113,7 @@ def create_app() -> FastAPI:
     app.include_router(analytics_router)
     app.include_router(platform_connections_router)
     app.include_router(media_proxy_router)
+    app.include_router(media_proxy_tokens_router)
     app.include_router(media_public_router)
     app.include_router(schedule_automation_router)
     app.include_router(scheduler_worker_router)

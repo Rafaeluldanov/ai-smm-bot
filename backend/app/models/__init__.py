@@ -40,6 +40,7 @@ from app.models.media_curation_comment import MediaCurationComment
 from app.models.media_curation_task import MediaCurationTask
 from app.models.media_duplicate_cluster import MediaDuplicateCluster
 from app.models.media_fingerprint import MediaFingerprint
+from app.models.media_proxy_access_log import MediaProxyAccessLog
 from app.models.media_quality_snapshot import MediaQualitySnapshot
 from app.models.metric_import_run import MetricImportRun
 from app.models.notification_delivery_log import NotificationDeliveryLog
@@ -110,6 +111,7 @@ __all__ = [
     "BillingProfile",
     "MediaAsset",
     "MediaAssetVariant",
+    "MediaProxyAccessLog",
     "MediaCurationComment",
     "MediaCurationTask",
     "MediaDuplicateCluster",

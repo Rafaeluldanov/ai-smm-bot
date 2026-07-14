@@ -85,9 +85,55 @@ class PostPublicationService:
         self,
         registry: PublicationPlatformRegistry,
         default_targets: dict[str, str | None] | None = None,
+        media_proxy_service: Any | None = None,
     ) -> None:
         self._registry = registry
         self._default_targets = default_targets or {}
+        # v0.6.2: media-proxy для подготовки публичного image_url (Instagram/VK/Telegram).
+        # Только ПОДГОТОВКА ссылки — реальная публикация здесь не выполняется.
+        self._media_proxy = media_proxy_service
+
+    # Площадки, которым нужен публичный image_url доставки (media-proxy).
+    _PROXY_PLATFORMS = ("instagram", "vk", "telegram")
+
+    def _media_proxy_service(self) -> Any:
+        if self._media_proxy is None:
+            from app.services.media_proxy_service import get_media_proxy_service
+
+            self._media_proxy = get_media_proxy_service()
+        return self._media_proxy
+
+    def prepare_media_delivery(self, db: Session, post: Post, platform: str) -> str | None:
+        """Подготовить публичный media-proxy URL для площадки (НЕ публикует).
+
+        Для instagram/vk/telegram: если у поста есть медиа и media-proxy включён — создаёт
+        (или переиспользует) публичную ссылку и возвращает её URL. Best-effort: любые ошибки
+        подготовки не мешают основному потоку (возврат None). Глобальные live-флаги не трогает.
+        """
+        platform = (platform or "").strip().lower()
+        if platform not in self._PROXY_PLATFORMS:
+            return None
+        service = self._media_proxy_service()
+        if not service.settings.media_proxy_enabled_effective:
+            return None
+        asset_id = self._primary_media_asset_id(post)
+        if asset_id is None:
+            return None
+        try:
+            result = service.build_social_media_url(db, post.project_id, asset_id, platform)
+        except Exception:  # noqa: BLE001 — подготовка ссылки не должна мешать потоку
+            return None
+        return str(result.url) if result and result.url else None
+
+    @staticmethod
+    def _primary_media_asset_id(post: Post) -> int | None:
+        notes = post.generation_notes or {}
+        ids = notes.get("media_asset_ids")
+        if isinstance(ids, list):
+            for value in ids:
+                if isinstance(value, int):
+                    return value
+        return post.media_asset_id
 
     # --- Планирование ---
 
@@ -605,6 +651,12 @@ class PostPublicationService:
 
         target_id = publication.target_id or target_default
         publish_request = self.build_publish_request(db, post, platform, target_id)
+        # v0.6.2: подготовить публичный image_url (media-proxy) для площадок, которым он нужен.
+        # Это ПОДГОТОВКА ссылки, а не публикация — реальная отправка ниже всё равно под гейтами.
+        if publish_request.media_url is None and platform in self._PROXY_PLATFORMS:
+            prepared = self.prepare_media_delivery(db, post, platform)
+            if prepared:
+                publish_request.media_url = prepared
         publication = post_publication_repository.update_publication(
             db,
             publication,
