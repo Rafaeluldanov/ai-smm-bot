@@ -21,6 +21,8 @@ from app.models.billing import (
 from app.models.client_learning_profile import ClientLearningProfile
 from app.models.content_experiment import ContentExperiment
 from app.models.content_experiment_variant import ContentExperimentVariant
+from app.models.content_strategy_profile import ContentStrategyProfile
+from app.models.content_strategy_recommendation import ContentStrategyRecommendation
 from app.models.crm_bot_smm import (
     CrmBotProjectConfig,
     CrmContentSource,
@@ -100,6 +102,8 @@ __all__ = [
     "BillingLedgerEntry",
     "ClientLearningProfile",
     "ContentExperiment",
+    "ContentStrategyProfile",
+    "ContentStrategyRecommendation",
     "ContentExperimentVariant",
     "CrmBotProjectConfig",
     "CrmContentSource",

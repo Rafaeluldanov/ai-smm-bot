@@ -417,6 +417,7 @@ class AILearningService:
             status="learning",
             learning_score=0.0,
             total_posts_analyzed=0,
+            total_feedback_events=0,
             preferred_topics=[],
             avoided_topics=[],
             preferred_formats=[],
@@ -483,13 +484,14 @@ class AILearningService:
                     "saves": 0,
                     "shares": 0,
                     "base": 0,
+                    "platforms": set(),
                 },
             )
             entry["scores"].append(score)
             entry["saves"] += snap.saves or 0
             entry["shares"] += snap.shares or 0
             entry["base"] += max(snap.reach or 0, snap.impressions or 0)
-            platform_scores[snap.platform].append(score)
+            entry["platforms"].add(snap.platform)
 
         # Клиентские сигналы (rating/feedback) → бонус/штраф баллов посту.
         feedback_bonus: dict[int, float] = defaultdict(float)
@@ -504,18 +506,24 @@ class AILearningService:
         media_scores: dict[str, list[float]] = defaultdict(list)
         hour_scores: dict[str, list[float]] = defaultdict(list)
         style_lengths: list[int] = []
+        adjusted_scores: list[float] = []
         useful_signals = 0
 
         for post_id, entry in per_post.items():
             post = entry["post"]
             base_score = sum(entry["scores"]) / len(entry["scores"])
+            # Единый feedback-скорректированный балл поста — используем ВЕЗДЕ (форматы/темы/
+            # медиа/время/площадки/среднее), чтобы клиентский вывод был согласован.
             score = max(0.0, min(100.0, base_score + feedback_bonus.get(post_id, 0.0)))
+            adjusted_scores.append(score)
             fmt = self._post_format(post)
             media = self._media_type(post)
             topic = self._topic_label(db, post)
             hour = self._publish_hour(post)
             format_scores[fmt].append(score)
             media_scores[media].append(score)
+            for platform in entry["platforms"]:
+                platform_scores[platform].append(score)
             if topic:
                 topic_scores[topic].append(score)
             if hour is not None:
@@ -559,13 +567,7 @@ class AILearningService:
             "recommendations": recommendations,
             "useful_content_signals": useful_signals,
             "avg_performance": (
-                round(
-                    sum(sum(e["scores"]) / len(e["scores"]) for e in per_post.values())
-                    / total_posts,
-                    1,
-                )
-                if total_posts
-                else 0.0
+                round(sum(adjusted_scores) / len(adjusted_scores), 1) if adjusted_scores else 0.0
             ),
         }
 

@@ -518,6 +518,12 @@ class Settings(BaseSettings):
     ai_learning_auto_apply_strategy_enabled: bool = False
     ai_learning_default_window_days: int = 90
     ai_learning_min_events_for_stable: int = 20
+
+    # Autonomous Content Strategist (v0.6.6). Слой РЕКОМЕНДАЦИЙ. НЕ включает live, НЕ
+    # публикует, НЕ меняет активный календарь сам. `auto_apply` по умолчанию ВЫКЛЮЧЕН:
+    # изменения только через Recommendation → Review → Apply с подтверждением.
+    content_strategy_enabled: bool = True
+    content_strategy_auto_apply_enabled: bool = False
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -858,6 +864,16 @@ class Settings(BaseSettings):
         return max(0, int(self.experiment_suggestions_expire_days or 0)) * 86400
 
     # --- Автовыбор темы: производные свойства (v0.4.4) ---
+
+    @property
+    def content_strategy_enabled_effective(self) -> bool:
+        """Доступен ли автономный контент-стратег (анализ/рекомендации/UI/API)."""
+        return bool(self.content_strategy_enabled)
+
+    @property
+    def content_strategy_auto_apply_enabled_effective(self) -> bool:
+        """Может ли стратег САМ применять рекомендации (по умолчанию false — только review)."""
+        return bool(self.content_strategy_enabled and self.content_strategy_auto_apply_enabled)
 
     @property
     def ai_learning_enabled_effective(self) -> bool:

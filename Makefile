@@ -48,6 +48,7 @@ BIN := $(VENV)/bin
         telegram-runbook-check telegram-runbook-preview telegram-runbook-publish-test \
         onboarding-start onboarding-status onboarding-demo \
         ai-learning-profile ai-learning-analyze ai-learning-recommend \
+        strategy-analyze strategy-recommend strategy-apply \
         smoke
 
 help: ## Показать список команд
@@ -440,6 +441,15 @@ ai-learning-analyze: ## Анализ AI-обучения: make ai-learning-analy
 
 ai-learning-recommend: ## Рекомендации AI-обучения: make ai-learning-recommend project_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.ai_learning_recommend --project-id "$(project_id)"
+
+strategy-analyze: ## Анализ контент-стратегии: make strategy-analyze project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.content_strategy_analyze --project-id "$(project_id)"
+
+strategy-recommend: ## Рекомендации стратегии: make strategy-recommend project_id=1 [status=generated]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.content_strategy_recommend --project-id "$(project_id)" $(if $(status),--status "$(status)",)
+
+strategy-apply: ## Применить рекомендацию: make strategy-apply project_id=1 rec_id=5 [accept=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.content_strategy_apply --project-id "$(project_id)" --recommendation-id "$(rec_id)" $(if $(accept),--accept,)
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

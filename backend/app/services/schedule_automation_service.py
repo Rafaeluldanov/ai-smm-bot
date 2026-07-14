@@ -991,6 +991,10 @@ class ScheduleAutomationService:
                 entity_id=post_id,
             )
         except Exception:  # noqa: BLE001 — обучение не критично для прогона
+            # Откатываем возможную «отравленную» транзакцию, чтобы сбой обучения не ронял
+            # прогон расписания (как в _record_live_publish_attempt).
+            with contextlib.suppress(Exception):
+                db.rollback()
             logger.warning("ai learning lifecycle hook failed: %s", event)
 
     def _record_live_publish_attempt(

@@ -3111,6 +3111,56 @@ def ui_learning_index() -> HTMLResponse:
     return _page("Обучение", body, script, active="learning")
 
 
+@router.get("/projects/{project_id}/strategy", response_class=HTMLResponse)
+def ui_project_strategy(project_id: int) -> HTMLResponse:
+    """Экран «AI стратегия контента» (Autonomous Content Strategist v0.6.6)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/ai-learning'><button class='ghost mini'>AI обучение</button></a>"
+        f"<a href='/ui/projects/{project_id}/metrics'><button class='ghost mini'>Метрики</button></a></div>"
+        "<h2>AI стратегия контента</h2>"
+        "<div class='card'><div class='inline'>"
+        "<button class='mini sec' onclick='stAnalyze()'>Проанализировать стратегию</button>"
+        "<span id='st-status' class='muted'></span></div></div>"
+        "<div class='grid'>"
+        "<div class='card'><h3>Что AI понял</h3><div id='st-understood' class='muted'>—</div></div>"
+        "<div class='card'><h3>Контентные столпы</h3><div id='st-pillars' class='muted'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>План месяца</h3><div id='st-month' class='muted'>—</div></div>"
+        "<div class='card'><h3>Рекомендации</h3><div id='st-recs' class='muted'>—</div></div>"
+        "<div id='st-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('st-msg');"
+        "function lst(id,arr){const el=document.getElementById(id);el.classList.remove('muted');"
+        "el.innerHTML=(arr&&arr.length)?arr.map(v=>`<div>• ${esc(''+v)}</div>`).join(''):\"<span class='muted'>пока нет данных</span>\";}"
+        "function recCard(r){const s=r.status;let btns='';"
+        "if(s==='generated'){btns=`<button class='mini sec' onclick=\"stAccept(${r.id})\">Принять</button> <button class='mini ghost' onclick=\"stReject(${r.id})\">Отклонить</button>`;}"
+        "else if(s==='accepted'){btns=`<button class='mini' onclick=\"stApply(${r.id})\">Применить</button>`;}"
+        "return `<div class='card'><b>${esc(r.title)}</b> <span class='badge'>${esc(r.recommendation_type)}</span> <span class='badge'>${esc(s)}</span><div class='muted'>Уверенность: ${r.confidence_score}/100</div>`+"
+        "`<div class='muted'>${(r.reasoning||[]).map(x=>esc(x)).join('; ')}</div><div class='inline' style='margin-top:6px'>${btns}</div></div>`;}"
+        "async function loadRecs(){const d=await api('GET','/projects/'+PID+'/strategy/recommendations');"
+        "const recs=d.recommendations||[];document.getElementById('st-recs').innerHTML=recs.length?recs.map(recCard).join(''):\"<span class='muted'>Рекомендаций пока нет — запустите анализ.</span>\";}"
+        "async function load(){try{"
+        "const ex=await api('GET','/projects/'+PID+'/strategy/explanation');lst('st-understood',ex.reasons);"
+        "lst('st-pillars',(ex.content_pillars||[]).map(p=>p.name||p));"
+        "await loadRecs();}catch(x){err(eEl,x)}}"
+        "async function stAnalyze(){try{document.getElementById('st-status').textContent='Анализирую…';"
+        "const d=await api('POST','/projects/'+PID+'/strategy/analyze',{});"
+        "const wk=(d.next_month&&d.next_month.weeks)||[];"
+        "document.getElementById('st-month').innerHTML=wk.length?wk.map(w=>`<div>Неделя ${w.week}: <b>${esc(w.theme||'')}</b> — темы: ${(w.topics||[]).map(esc).join(', ')}; форматы: ${(w.formats||[]).map(esc).join(', ')}</div>`).join(''):\"<span class='muted'>нет данных</span>\";"
+        "document.getElementById('st-status').textContent='Готово.';load();}catch(x){err(eEl,x)}}"
+        "async function stAccept(id){try{await api('POST','/projects/'+PID+'/strategy/recommendations/'+id+'/accept',{});loadRecs();}catch(x){err(eEl,x)}}"
+        "async function stReject(id){try{await api('POST','/projects/'+PID+'/strategy/recommendations/'+id+'/reject',{});loadRecs();}catch(x){err(eEl,x)}}"
+        "async function stApply(id){try{await api('POST','/projects/'+PID+'/strategy/apply',{recommendation_id:id,confirmation:'APPLY_STRATEGY'});"
+        "msg.textContent='Применено (правила/черновик календаря; публикация не запускалась).';loadRecs();}catch(x){err(eEl,x)}}"
+        "window.stAnalyze=stAnalyze;window.stAccept=stAccept;window.stReject=stReject;window.stApply=stApply;load();"
+    )
+    return _page("AI стратегия контента", body, script, active="", active_pid=project_id)
+
+
 @router.get("/projects/{project_id}/ai-learning", response_class=HTMLResponse)
 def ui_project_ai_learning(project_id: int) -> HTMLResponse:
     """Экран «AI обучение вашего бренда» (AI Learning Loop v0.6.5)."""

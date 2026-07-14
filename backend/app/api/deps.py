@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from app.services.client_learning_service import ClientLearningService
     from app.services.client_onboarding_service import ClientOnboardingService
     from app.services.content_scoring_service import ContentScoringService
+    from app.services.content_strategist_service import ContentStrategistService
     from app.services.content_strategy_service import ContentStrategyService
     from app.services.email_template_service import EmailTemplateService
     from app.services.experiment_suggestion_service import ExperimentSuggestionService
@@ -481,6 +482,13 @@ def get_content_strategy_service() -> "ContentStrategyService":
     from app.services.content_strategy_service import ContentStrategyService
 
     return ContentStrategyService()
+
+
+def get_content_strategist_service() -> "ContentStrategistService":
+    """Построить автономного контент-стратега (рекомендации; live НЕ включает)."""
+    from app.services.content_strategist_service import ContentStrategistService
+
+    return ContentStrategistService(settings=get_settings())
 
 
 def get_post_performance_learning_service() -> "PostPerformanceLearningService":

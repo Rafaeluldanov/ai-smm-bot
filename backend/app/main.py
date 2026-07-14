@@ -13,6 +13,7 @@ from app.api.autonomous_runs import router as autonomous_runs_router
 from app.api.autopilot import router as autopilot_router
 from app.api.autopilot_calendar import router as autopilot_calendar_router
 from app.api.billing import router as billing_router
+from app.api.content_strategy import router as content_strategy_router
 from app.api.crm_bot_smm import router as crm_bot_smm_router
 from app.api.email_templates import router as email_templates_router
 from app.api.experiment_suggestions import router as experiment_suggestions_router
@@ -110,6 +111,7 @@ def create_app() -> FastAPI:
     app.include_router(notifications_router)
     app.include_router(onboarding_router)
     app.include_router(ai_learning_router)
+    app.include_router(content_strategy_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

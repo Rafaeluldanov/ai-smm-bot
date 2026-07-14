@@ -325,6 +325,12 @@ ACTION_AI_LEARNING_ANALYZED = "ai_learning.analyzed"
 ACTION_AI_LEARNING_RECOMMENDED = "ai_learning.recommended"
 ACTION_AI_LEARNING_RESET = "ai_learning.profile_reset"
 
+# --- Autonomous Content Strategist (v0.6.6) --- #
+ACTION_STRATEGY_GENERATED = "strategy.generated"
+ACTION_STRATEGY_ACCEPTED = "strategy.accepted"
+ACTION_STRATEGY_REJECTED = "strategy.rejected"
+ACTION_STRATEGY_APPLIED = "strategy.applied"
+
 # --- Telegram live production runbook (v0.6.3) --- #
 ACTION_TELEGRAM_RUNBOOK_CHECKED = "telegram_runbook.checked"
 ACTION_TELEGRAM_RUNBOOK_PREVIEWED = "telegram_runbook.previewed"

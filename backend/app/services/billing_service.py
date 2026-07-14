@@ -128,6 +128,11 @@ USAGE_AI_LEARNING_RECOMMEND = "ai_learning_recommend"
 USAGE_AI_LEARNING_FEEDBACK = "ai_learning_feedback"
 USAGE_AI_LEARNING_RESET = "ai_learning_reset"
 
+# Типы usage для Autonomous Content Strategist (v0.6.6). Стратегия — бесплатно (0 units).
+USAGE_CONTENT_STRATEGY_ANALYSIS = "content_strategy_analysis"
+USAGE_CONTENT_STRATEGY_RECOMMENDATION = "content_strategy_recommendation"
+USAGE_CONTENT_STRATEGY_APPLY = "content_strategy_apply"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -246,6 +251,9 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_AI_LEARNING_RECOMMEND: 0,
     USAGE_AI_LEARNING_FEEDBACK: 0,
     USAGE_AI_LEARNING_RESET: 0,
+    USAGE_CONTENT_STRATEGY_ANALYSIS: 0,
+    USAGE_CONTENT_STRATEGY_RECOMMENDATION: 0,
+    USAGE_CONTENT_STRATEGY_APPLY: 0,
 }
 _DEFAULT_ACTION_COST = 1
 
