@@ -165,7 +165,10 @@ def list_asset_links(
     project_id: int, asset_id: int, db: DbSession, service: ProxySvc
 ) -> dict[str, Any]:
     """Существующие токены доставки актива (маскированные) + последние обращения."""
-    return service.list_asset_delivery(db, project_id, asset_id)
+    try:
+        return service.list_asset_delivery(db, project_id, asset_id)
+    except MediaProxyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.get("/{project_id}/links", dependencies=[Depends(require_project_access)])
@@ -203,9 +206,11 @@ def _serve(token: str, db: Session, service: MediaProxyService, request: Request
         raise HTTPException(status_code=getattr(exc, "status", 404), detail=str(exc)) from exc
     except MediaProxyError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    # private (не public): токен-URL отзывается/истекает — shared-кеши (CDN) НЕ должны продолжать
+    # отдавать медиа после отзыва. must-revalidate для перепроверки на origin.
     cache_seconds = service.settings.media_proxy_cache_seconds_safe
     cache_control = (
-        f"public, max-age={cache_seconds}"
+        f"private, max-age={cache_seconds}, must-revalidate"
         if service.settings.media_proxy_cache_enabled and cache_seconds
         else "no-store"
     )

@@ -41,10 +41,35 @@ def test_config_defaults_safe() -> None:
     assert s.media_proxy_allow_original is False
     assert s.media_proxy_allow_original_effective is False
     assert s.media_proxy_enable_resize is True
+    assert s.media_proxy_resize_enabled_effective is True
     # media-proxy не включает глобальные live-флаги.
     assert s.instagram_live_publishing_enabled is False
     assert s.vk_live_publishing_enabled is False
     assert s.telegram_live_publishing_enabled is False
+
+
+def test_config_new_defaults_and_clamps() -> None:
+    s = Settings()
+    assert s.media_proxy_max_requests == 10000
+    assert s.media_proxy_max_requests_safe == 10000
+    assert s.media_proxy_cache_seconds == 86400
+    assert s.media_proxy_cache_seconds_safe == 86400
+    # Клампы границ.
+    assert Settings(media_proxy_max_requests=-5).media_proxy_max_requests_safe == 0
+    assert Settings(media_proxy_cache_seconds=10_000_000).media_proxy_cache_seconds_safe == 604800
+    assert Settings(media_proxy_cache_seconds=-1).media_proxy_cache_seconds_safe == 0
+
+
+def test_ip_hash_uses_pepper_when_set() -> None:
+    """С MEDIA_PROXY_SECRET_KEY хеш IP/UA — HMAC (перец), не «голый» sha256 (не перебираем)."""
+    import hashlib
+
+    plain = MediaProxyService(settings=Settings())._hash_optional("1.2.3.4")
+    peppered = MediaProxyService(
+        settings=Settings(media_proxy_secret_key="pepper-xyz")
+    )._hash_optional("1.2.3.4")
+    assert plain == hashlib.sha256(b"1.2.3.4").hexdigest()
+    assert peppered != plain  # перец меняет хеш → перебор по IPv4 не вскрывает значение
 
 
 def test_access_log_model_has_only_hashes() -> None:
@@ -115,6 +140,40 @@ def test_no_raw_token_or_path_in_serialized_views(db_session: Session, tmp_path)
     assert token not in str(delivery)
     assert "SECRET_INTERNAL_PATH" not in str(delivery)
     assert str(img) not in str(delivery)
+
+
+def test_no_path_leak_in_error_response(db_session: Session) -> None:
+    """При сбое отдачи (файла нет) ошибка НЕ раскрывает внутренний путь диска/файла."""
+    from app.services.media_proxy_service import MediaProxyNotAvailableError
+
+    owner = user_repository.create_user(db_session, email="mpe@e.com", password_hash="x")
+    account = account_repository.create_account(
+        db_session, name="mpe", slug="mpe", owner_user_id=owner.id
+    )
+    project = project_repository.create_project(db_session, ProjectCreate(name="P", slug="mpe"))
+    project.account_id = account.id
+    db_session.commit()
+    # Внешний источник → скачать нельзя; путь секретный.
+    asset = MediaAsset(
+        project_id=project.id,
+        file_name="pic.jpg",
+        yandex_disk_path="external://SECRET_INTERNAL_PATH/pic.jpg",
+    )
+    db_session.add(asset)
+    db_session.commit()
+    svc = MediaProxyService(
+        settings=Settings(
+            media_proxy_public_base_url="https://media.example.com", media_proxy_cache_enabled=False
+        )
+    )
+    token = svc.create_media_url(
+        db_session, project.id, asset.id, transform="width_640"
+    ).url.rsplit("/", 1)[-1]
+    try:
+        svc.get_media_response(db_session, token)
+        raise AssertionError("ожидалась ошибка недоступности медиа")
+    except MediaProxyNotAvailableError as exc:
+        assert "SECRET_INTERNAL_PATH" not in str(exc)
 
 
 def test_token_hash_not_reversible_in_db(db_session: Session) -> None:

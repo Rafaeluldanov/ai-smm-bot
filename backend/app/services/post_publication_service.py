@@ -107,8 +107,8 @@ class PostPublicationService:
         """Подготовить публичный media-proxy URL для площадки (НЕ публикует).
 
         Для instagram/vk/telegram: если у поста есть медиа и media-proxy включён — создаёт
-        (или переиспользует) публичную ссылку и возвращает её URL. Best-effort: любые ошибки
-        подготовки не мешают основному потоку (возврат None). Глобальные live-флаги не трогает.
+        публичную ссылку доставки и возвращает её URL. Best-effort: любые ошибки подготовки не
+        мешают основному потоку (возврат None + rollback). Глобальные live-флаги не трогает.
         """
         platform = (platform or "").strip().lower()
         if platform not in self._PROXY_PLATFORMS:
@@ -121,7 +121,11 @@ class PostPublicationService:
             return None
         try:
             result = service.build_social_media_url(db, post.project_id, asset_id, platform)
-        except Exception:  # noqa: BLE001 — подготовка ссылки не должна мешать потоку
+        except Exception:  # noqa: BLE001 — подготовка ссылки не должна мешать основному потоку
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                db.rollback()  # не оставляем сессию в PendingRollback перед публикацией
             return None
         return str(result.url) if result and result.url else None
 

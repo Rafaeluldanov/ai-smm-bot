@@ -71,13 +71,14 @@ def test_invalid_token_404(proxy_setup) -> None:  # noqa: ANN001
     assert client.get("/media/public/definitely-not-a-real-token").status_code == 404
 
 
-def test_expired_token_404(proxy_setup, db_session: Session) -> None:  # noqa: ANN001
+def test_expired_token_410(proxy_setup, db_session: Session) -> None:  # noqa: ANN001
     client, project, asset = proxy_setup
     token = _create(client, project.id, asset.id)["url"].split("/media/public/")[1]
     link = db_session.query(PublicMediaLink).one()
     link.expires_at = datetime.now(UTC) - timedelta(hours=1)
     db_session.commit()
-    assert client.get(f"/media/public/{token}").status_code == 404
+    # Истёкший токен → 410 Gone (семантически корректно; отозванный → 404, скрываем существование).
+    assert client.get(f"/media/public/{token}").status_code == 410
 
 
 def test_revoked_token_404(proxy_setup) -> None:  # noqa: ANN001

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import hmac
 import os
 import secrets
 import time
@@ -207,15 +208,16 @@ class MediaProxyService:
         processor = self._processor_impl()
         if processor is None:
             return content, file_name, ctype
-        cached = self._cache_get(content, transform)
+        source = content  # исходные байты — ключ кеша (по ним же и читаем).
+        cached = self._cache_get(source, transform)
         if cached is not None:
             content = cached
         else:
             try:
-                content, _w, _h = processor.transform_bytes(content, transform)
+                content, _w, _h = processor.transform_bytes(source, transform)
             except Exception:  # noqa: BLE001 — при сбое ресайза отдаём как есть (best-effort)
                 return content, file_name, ctype
-            self._cache_put(content, transform, cached_from=content)
+            self._cache_put(content, transform, cached_from=source)
         out_format = (self._settings.media_enhancement_output_format or "jpg").lower()
         out_ctype = "image/webp" if out_format == "webp" else "image/jpeg"
         stem = file_name.rsplit(".", 1)[0] if "." in file_name else file_name
@@ -285,10 +287,17 @@ class MediaProxyService:
             with contextlib.suppress(Exception):
                 db.rollback()
 
-    @staticmethod
-    def _hash_optional(value: str | None) -> str | None:
+    def _hash_optional(self, value: str | None) -> str | None:
+        """Хеш низкоэнтропийного значения (IP/UA) с «перцем», чтобы его нельзя было перебрать.
+
+        Пространство IPv4 мало (2^32), поэтому «голый» sha256 обратим перебором. При заданном
+        MEDIA_PROXY_SECRET_KEY используем HMAC-SHA256 (перец), иначе — sha256 (best-effort).
+        """
         if not value:
             return None
+        secret = (self._settings.media_proxy_secret_key or "").encode("utf-8")
+        if secret:
+            return hmac.new(secret, value.encode("utf-8"), hashlib.sha256).hexdigest()
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
     # --- Создание ссылок ---------------------------------------------- #
@@ -437,9 +446,13 @@ class MediaProxyService:
         if link.expires_at is not None and _aware(link.expires_at) < now:
             if link.status == "active":
                 public_media_link_repository.mark_expired(db, link)
-            raise MediaProxyNotAvailableError("Срок действия ссылки истёк")
+            raise MediaProxyNotAvailableError(
+                "Срок действия ссылки истёк", status=410, blocker="expired_token"
+            )
         if link.status != "active":
-            raise MediaProxyNotAvailableError("Ссылка недоступна")
+            raise MediaProxyNotAvailableError(
+                "Срок действия ссылки истёк", status=410, blocker="expired_token"
+            )
 
         # Лимит запросов на токен (0 = без лимита).
         limit = (
@@ -661,7 +674,8 @@ class MediaProxyService:
         if link is None:
             return {"valid": False, "blocker": "invalid_signature", "status": 404}
         if link.status == "revoked":
-            return {"valid": False, "blocker": "invalid_signature", "status": 403}
+            # 404 (как resolve_token) — не раскрываем существование отозванной ссылки.
+            return {"valid": False, "blocker": "invalid_signature", "status": 404}
         now = datetime.now(UTC)
         if link.expires_at is not None and _aware(link.expires_at) < now:
             return {"valid": False, "blocker": "expired_token", "status": 410}

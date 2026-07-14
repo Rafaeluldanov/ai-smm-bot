@@ -32,7 +32,14 @@ Proxy выдаёт ссылку `https://<домен>/media/{token}`, огран
 - **Журнал обращений** `MediaProxyAccessLog` пишет только хеши IP/UA (не сами IP/UA), HTTP-код,
   размер/тип ответа и трансформацию. Ни токена, ни внутренних путей.
 - Content-type ограничен allowlist, размер — лимитом; ошибки не раскрывают путь файла.
-- `MEDIA_PROXY_ALLOW_ORIGINAL=false`: токены типа `original` при отдаче блокируются (403).
+- `MEDIA_PROXY_ALLOW_ORIGINAL=false`: токены `token_type=="original"` (создаются слоем доставки
+  `create_media_url`/`build_social_media_url` при явном original) при отдаче блокируются (403).
+  Флаг регулирует именно **слой доставки v0.6.2**; старые `create_public_link`/`public-link`-ссылки
+  (`token_type=="image"`) отдают конвертированный+ограниченный по размеру оригинал как раньше.
+- Хеш IP/UA в журнале использует **HMAC с `MEDIA_PROXY_SECRET_KEY`** (перец), если задан — иначе
+  sha256; при заданном перце низкоэнтропийный IPv4 нельзя вскрыть перебором.
+- Отдача помечается `Cache-Control: private, must-revalidate` (не `public`), чтобы отзыв/истечение
+  токена не обходились shared-кешами (CDN).
 
 ## Трансформации (ресайз на лету)
 

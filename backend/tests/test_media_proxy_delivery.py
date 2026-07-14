@@ -148,7 +148,41 @@ def test_resize_and_access_log_hashes_only(db_session: Session, tmp_path) -> Non
     log = db_session.query(MediaProxyAccessLog).one()
     assert log.status == 200
     assert log.request_ip_hash and log.request_ip_hash != "1.2.3.4"
+    assert log.user_agent_hash and log.user_agent_hash != "Mozilla"  # UA-хеш реально записан
     assert "1.2.3.4" not in str(log.__dict__) and "Mozilla" not in str(log.__dict__)
+
+
+def test_all_transforms_geometry(db_session: Session, tmp_path) -> None:  # noqa: ANN001
+    """Каждая трансформация даёт корректную геометрию (источник 2000x1500)."""
+    _a, project, asset, _o = _seed(db_session, "mpd-geom", tmp_path)
+    svc = MediaProxyService(settings=_settings())
+    cases = {
+        "width_1080": lambda w, h: w == 1080,
+        "width_640": lambda w, h: w == 640,
+        "square": lambda w, h: w == h,
+        "social_preview": lambda w, h: w == h and w <= 1080,
+    }
+    for transform, check in cases.items():
+        result = svc.create_media_url(db_session, project.id, asset.id, transform=transform)
+        served = svc.get_media_response(db_session, _token(result.url))
+        w, h = Image.open(BytesIO(served.content)).size
+        assert check(w, h), f"{transform}: {w}x{h}"
+
+
+def test_transform_cache_hit_serves_identical_bytes(db_session: Session, tmp_path) -> None:  # noqa: ANN001
+    """С включённым кешем повторная отдача той же трансформы даёт идентичные байты + файл кеша."""
+    _a, project, asset, _o = _seed(db_session, "mpd-cache", tmp_path)
+    cache_dir = tmp_path / "cache"
+    svc = MediaProxyService(
+        settings=_settings(media_proxy_cache_enabled=True, media_proxy_cache_dir=str(cache_dir))
+    )
+    result = svc.create_media_url(db_session, project.id, asset.id, transform="width_640")
+    token = _token(result.url)
+    first = svc.get_media_response(db_session, token).content
+    second = svc.get_media_response(db_session, token).content
+    assert first == second and Image.open(BytesIO(first)).size[0] == 640
+    # Кеш реально создал файл (ключ по исходным байтам) — значит кеш живой.
+    assert cache_dir.is_dir() and any(cache_dir.iterdir())
 
 
 def test_original_blocked_and_logged(db_session: Session, tmp_path) -> None:  # noqa: ANN001
@@ -195,9 +229,18 @@ def test_prepare_media_delivery_no_publish(db_session: Session) -> None:
     )
     url = svc.prepare_media_delivery(db_session, post, "instagram")
     assert url and url.startswith("https://media.example.com/media/")
-    # Никаких публикаций — только подготовка ссылки (создан токен).
+    # Никаких публикаций — только подготовка ссылки (создан токен), но НЕ строка публикации.
     assert db_session.query(PublicMediaLink).count() == 1
     assert isinstance(post, Post)
+    assert post_repository.get_post_by_id(db_session, post.id).status != "published"
+    from app.repositories import post_publication_repository
+
+    assert (
+        post_publication_repository.get_publication_by_post_and_platform(
+            db_session, post.id, "instagram"
+        )
+        is None
+    )
 
 
 # --- API ------------------------------------------------------------------- #
@@ -222,6 +265,10 @@ def test_api_generate_and_serve(client: TestClient, db_session: Session, tmp_pat
         served = client.get(f"/media/{token}")
         assert served.status_code == 200
         assert served.headers["content-type"].startswith("image/")
+        # Трансформа реально применена: источник 2000x1500 → отдано 640 по ширине.
+        assert Image.open(BytesIO(served.content)).size[0] == 640
+        # Cache-Control приватный (не public) — отзыв не обходится shared-кешами.
+        assert "public" not in served.headers.get("cache-control", "").lower()
         assert (
             "X-Content-Type-Options" in served.headers or "x-content-type-options" in served.headers
         )
