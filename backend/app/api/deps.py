@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from app.services.content_scoring_service import ContentScoringService
     from app.services.email_template_service import EmailTemplateService
     from app.services.experiment_suggestion_service import ExperimentSuggestionService
+    from app.services.live_autopilot_monitoring_service import LiveAutopilotMonitoringService
     from app.services.live_readiness_service import LiveReadinessService
     from app.services.media_curation_review_service import MediaCurationReviewService
     from app.services.media_curation_service import MediaCurationService
@@ -439,6 +440,13 @@ def get_telegram_live_rollout_service() -> "TelegramLiveRolloutService":
     from app.services.telegram_live_rollout_service import TelegramLiveRolloutService
 
     return TelegramLiveRolloutService(settings=get_settings())
+
+
+def get_live_autopilot_monitoring_service() -> "LiveAutopilotMonitoringService":
+    """Построить сервис мониторинга автопилота (наблюдение + kill switch; live-флаги НЕ трогает)."""
+    from app.services.live_autopilot_monitoring_service import LiveAutopilotMonitoringService
+
+    return LiveAutopilotMonitoringService(settings=get_settings())
 
 
 def get_yandex_auto_sync_service() -> "YandexAutoSyncService":

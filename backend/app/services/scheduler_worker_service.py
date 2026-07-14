@@ -33,6 +33,10 @@ from app.services.audit_log_service import (
     ACTION_WORKER_DUPLICATE_CLUSTER_PREVIEWED,
     ACTION_WORKER_LEASE_ACQUIRED,
     ACTION_WORKER_LEASE_SKIPPED,
+    ACTION_WORKER_LIVE_MONITORING_FAILED,
+    ACTION_WORKER_LIVE_MONITORING_INCIDENT_CREATED,
+    ACTION_WORKER_LIVE_MONITORING_PREVIEWED,
+    ACTION_WORKER_LIVE_MONITORING_SNAPSHOT_CREATED,
     ACTION_WORKER_MEDIA_CURATION_CREATED,
     ACTION_WORKER_MEDIA_CURATION_FAILED,
     ACTION_WORKER_MEDIA_CURATION_PREVIEWED,
@@ -148,6 +152,14 @@ class SchedulerWorkerTickResult:
     yandex_sync_media_imported: int = 0
     yandex_sync_errors: list[str] = field(default_factory=list)
     yandex_sync_blockers: list[str] = field(default_factory=list)
+    # Мониторинг live-автопилота v0.6.1 (наблюдение + инциденты; live-флаги не трогает).
+    live_monitoring_enabled: bool = False
+    live_monitoring_dry_run: bool = False
+    live_monitoring_projects_scanned: int = 0
+    live_monitoring_snapshots_created: int = 0
+    live_monitoring_incidents_created: int = 0
+    live_monitoring_auto_paused: int = 0
+    live_monitoring_errors: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     started_at: str | None = None
     finished_at: str | None = None
@@ -180,6 +192,8 @@ class SchedulerWorkerService:
         self._similarity: Any | None = None
         # v0.4.8: сервис курирования медиатеки (ленивый; без внешнего AI; без авто-apply/delete).
         self._curation: Any | None = None
+        # v0.6.1: сервис мониторинга автопилота (ленивый; наблюдение + инциденты; без live-флагов).
+        self._live_monitoring: Any | None = None
 
     # ------------------------------------------------------------------ #
     # Идентификация                                                      #
@@ -442,6 +456,8 @@ class SchedulerWorkerService:
             self._process_media_curation(db, targets, owner_id, effective_dry, result)
             # v0.5.7: авто-синхронизация Яндекс Диска (worker выключен по умолчанию; без сети).
             self._process_yandex_sync(db, targets, owner_id, effective_dry, result)
+            # v0.6.1: мониторинг live-автопилота (worker выключен по умолчанию; без live-флагов).
+            self._process_live_monitoring(db, targets, owner_id, effective_dry, result)
         except Exception as exc:  # noqa: BLE001 — тик не роняет процесс
             result.errors.append(f"tick error: {type(exc).__name__}")
             self._audit.record(
@@ -880,6 +896,85 @@ class SchedulerWorkerService:
 
             self._yandex_sync_service = YandexAutoSyncService(settings=self._settings)
         return self._yandex_sync_service
+
+    def _process_live_monitoring(
+        self,
+        db: Session,
+        targets: list[ScheduleWorkerTarget],
+        owner_id: str,
+        schedule_dry_run: bool,
+        result: SchedulerWorkerTickResult,
+    ) -> None:
+        """Мониторинг live-автопилота: снимки здоровья + инциденты. Live-флаги НЕ трогает.
+
+        Управляется LIVE_AUTOPILOT_MONITORING_WORKER_ENABLED (выключено по умолчанию). При dry-run
+        ничего не пишет. Авто-пауза срабатывает только если она явно включена в настройках.
+        """
+        s = self._settings
+        enabled = s.live_autopilot_monitoring_worker_enabled_effective
+        result.live_monitoring_enabled = enabled
+        dry_run = bool(schedule_dry_run or s.live_autopilot_monitoring_dry_run_effective)
+        result.live_monitoring_dry_run = dry_run
+        if not enabled:
+            return
+        seen: set[int] = set()
+        for target in targets:
+            if target.project_id in seen:
+                continue
+            seen.add(target.project_id)
+            result.live_monitoring_projects_scanned += 1
+            try:
+                health = self._live_monitoring_svc().run_health_check(
+                    db, target.project_id, dry_run=dry_run, is_worker=True
+                )
+                if health.get("snapshot_created"):
+                    result.live_monitoring_snapshots_created += 1
+                result.live_monitoring_incidents_created += len(
+                    health.get("incidents_created", []) or []
+                )
+                auto_pause = health.get("auto_pause") or {}
+                if auto_pause.get("paused"):
+                    result.live_monitoring_auto_paused += 1
+            except Exception as exc:  # noqa: BLE001 — мониторинг не роняет тик
+                result.live_monitoring_errors.append(f"p{target.project_id}: {type(exc).__name__}")
+        action = (
+            ACTION_WORKER_LIVE_MONITORING_PREVIEWED
+            if dry_run
+            else ACTION_WORKER_LIVE_MONITORING_SNAPSHOT_CREATED
+        )
+        base_meta = {
+            "owner_id": owner_id,
+            "dry_run": dry_run,
+            "projects_scanned": result.live_monitoring_projects_scanned,
+            "snapshots_created": result.live_monitoring_snapshots_created,
+            "incidents_created": result.live_monitoring_incidents_created,
+            "auto_paused": result.live_monitoring_auto_paused,
+            "live_publish": False,
+        }
+        self._audit.record(db, action, entity_type="scheduler_worker", metadata=base_meta)
+        if result.live_monitoring_incidents_created and not dry_run:
+            self._audit.record(
+                db,
+                ACTION_WORKER_LIVE_MONITORING_INCIDENT_CREATED,
+                entity_type="scheduler_worker",
+                metadata={**base_meta, "incidents": result.live_monitoring_incidents_created},
+            )
+        if result.live_monitoring_errors:
+            self._audit.record(
+                db,
+                ACTION_WORKER_LIVE_MONITORING_FAILED,
+                entity_type="scheduler_worker",
+                metadata={**base_meta, "errors": len(result.live_monitoring_errors)},
+            )
+
+    def _live_monitoring_svc(self) -> Any:
+        if self._live_monitoring is None:
+            from app.services.live_autopilot_monitoring_service import (
+                LiveAutopilotMonitoringService,
+            )
+
+            self._live_monitoring = LiveAutopilotMonitoringService(settings=self._settings)
+        return self._live_monitoring
 
     # ------------------------------------------------------------------ #
     # Предложения экспериментов (v0.4.3, без live-публикации)             #

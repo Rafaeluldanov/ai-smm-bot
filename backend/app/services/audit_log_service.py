@@ -313,6 +313,26 @@ ACTION_TELEGRAM_LIVE_ROLLOUT_LIVE_ATTEMPTED = "telegram_live_rollout.live_attemp
 ACTION_TELEGRAM_LIVE_ROLLOUT_PUBLISHED = "telegram_live_rollout.published"
 ACTION_TELEGRAM_LIVE_ROLLOUT_FAILED = "telegram_live_rollout.failed"
 
+# --- Live autopilot monitoring & kill switch (v0.6.1) --- #
+ACTION_LIVE_MONITORING_DASHBOARD_VIEWED = "live_monitoring.dashboard_viewed"
+ACTION_LIVE_MONITORING_SNAPSHOT_CREATED = "live_monitoring.snapshot_created"
+ACTION_LIVE_MONITORING_INCIDENT_CREATED = "live_monitoring.incident_created"
+ACTION_LIVE_MONITORING_INCIDENT_ACKNOWLEDGED = "live_monitoring.incident_acknowledged"
+ACTION_LIVE_MONITORING_INCIDENT_RESOLVED = "live_monitoring.incident_resolved"
+ACTION_LIVE_MONITORING_INCIDENT_IGNORED = "live_monitoring.incident_ignored"
+ACTION_LIVE_MONITORING_PROJECT_PAUSED = "live_monitoring.project_paused"
+ACTION_LIVE_MONITORING_PROJECT_RESUMED = "live_monitoring.project_resumed"
+ACTION_LIVE_MONITORING_PLATFORM_PAUSED = "live_monitoring.platform_paused"
+ACTION_LIVE_MONITORING_PLATFORM_RESUMED = "live_monitoring.platform_resumed"
+ACTION_LIVE_MONITORING_AUTO_PAUSE_PREVIEWED = "live_monitoring.auto_pause_previewed"
+ACTION_LIVE_MONITORING_AUTO_PAUSED = "live_monitoring.auto_paused"
+
+# Worker-мониторинг (v0.6.1).
+ACTION_WORKER_LIVE_MONITORING_PREVIEWED = "scheduler.worker.live_monitoring.previewed"
+ACTION_WORKER_LIVE_MONITORING_SNAPSHOT_CREATED = "scheduler.worker.live_monitoring.snapshot_created"
+ACTION_WORKER_LIVE_MONITORING_INCIDENT_CREATED = "scheduler.worker.live_monitoring.incident_created"
+ACTION_WORKER_LIVE_MONITORING_FAILED = "scheduler.worker.live_monitoring.failed"
+
 
 class AuditLogService:
     """Запись/чтение аудита действий (безопасно, без секретов)."""

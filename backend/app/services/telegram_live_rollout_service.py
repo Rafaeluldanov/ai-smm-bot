@@ -461,9 +461,7 @@ class TelegramLiveRolloutService:
         if settings.telegram_live_rollout_require_confirmation_effective and (
             str(confirmation or "").strip() != expected
         ):
-            blockers.append(
-                self._blk("safety_gate_failed", f"Введите подтверждение «{expected}».")
-            )
+            blockers.append(self._blk("safety_gate_failed", f"Введите подтверждение «{expected}»."))
         # 4) Пост.
         if post is None:
             blockers.append(self._blk("post_missing", "Нет поста для публикации."))

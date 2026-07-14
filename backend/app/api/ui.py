@@ -5619,6 +5619,79 @@ def ui_project_telegram_live_rollout(project_id: int) -> HTMLResponse:
     return _page("Telegram live", body, script, active="projects", active_pid=project_id)
 
 
+@router.get("/projects/{project_id}/live-autopilot-monitoring", response_class=HTMLResponse)
+def ui_project_live_autopilot_monitoring(project_id: int) -> HTMLResponse:
+    """Мониторинг автопилота: здоровье, инциденты, стоп-кран (пауза/возобновление)."""
+    body = (
+        f"{_ap_subnav(project_id, 'live-autopilot-monitoring')}"
+        "<div class='hero'><div class='ap-hero'>Мониторинг автопилота</div>"
+        "<p class='muted'>Здесь видно, как себя чувствует автопилот, и можно мгновенно поставить "
+        "его на паузу. Это наблюдение и стоп-кран — глобальные условия публикации не меняются.</p></div>"
+        "<div class='card'><div class='inline'>"
+        "<span id='mon-status' class='ap-status setup'>Загрузка…</span>"
+        "<span id='mon-summary' class='pill'>—</span></div>"
+        "<div id='mon-note' class='muted' style='margin-top:6px'></div>"
+        "<div class='inline' style='margin-top:10px'>"
+        "<button class='ap-big-btn sec' onclick='monCheck()'>Проверить сейчас</button></div></div>"
+        "<div class='grid'>"
+        "<div class='pcard'><h3>Публикации за период</h3><div id='mon-attempts' class='meta'>—</div></div>"
+        "<div class='pcard'><h3>Сбои</h3><div id='mon-failures' class='meta'>—</div></div>"
+        "<div class='pcard'><h3>Баланс</h3><div id='mon-balance' class='meta'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Что мешает</h3><div id='mon-blockers' class='muted'>—</div></div>"
+        "<div class='card'><h3>Инциденты</h3><div id='mon-incidents' class='muted'>—</div></div>"
+        "<div class='card'><h3>Стоп-кран автопилота</h3>"
+        "<p class='muted'>Пауза мгновенно останавливает черновики и реальную публикацию. "
+        "Возобновление НЕ включает реальную публикацию — её нужно включить отдельно через готовность.</p>"
+        "<div class='inline'><input id='mon-confirm' placeholder='PAUSE_AUTOPILOT' style='max-width:260px'></div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='ap-big-btn ghost' onclick='monPause()'>Поставить на паузу</button>"
+        "<button class='ap-big-btn sec' onclick='monResume()'>Возобновить</button></div>"
+        "<div id='mon-action-status' class='muted' style='margin-top:8px'></div></div>"
+        "<div class='card'><h3>Авто-пауза</h3><div id='mon-autopause' class='muted'>—</div></div>"
+        f"<div class='card'><a href='/ui/projects/{project_id}/telegram-live-rollout'>"
+        "<button class='mini sec'>Telegram live</button></a> "
+        f"<a href='/ui/projects/{project_id}/autopilot'>"
+        "<button class='mini ghost'>К автопилоту</button></a></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const toneMap={healthy:'ready',warning:'setup',degraded:'problem',paused:'paused',"
+        "blocked:'problem',failed:'problem',unknown:'setup'};"
+        "function monConfirm(){return gv('mon-confirm');}"
+        "async function monLoad(){try{const d=await api('GET','/live-autopilot-monitoring/projects/'+PID);"
+        "const st=document.getElementById('mon-status');st.className='ap-status '+(toneMap[d.health_status]||'setup');"
+        "st.textContent=d.health_label||d.health_status;"
+        "const cs=d.client_summary||{};document.getElementById('mon-summary').textContent=cs.headline||'';"
+        "document.getElementById('mon-note').textContent=d.note||'';"
+        "const s=d.snapshot||{};"
+        "document.getElementById('mon-attempts').textContent='Всего '+(s.total_attempts||0)+' · опубликовано '+(s.published_count||0)+' · заблокировано '+(s.blocked_count||0);"
+        "document.getElementById('mon-failures').textContent='Сбоев: '+(s.failed_count||0)+' ('+Math.round((s.failure_rate||0)*100)+'%)';"
+        "document.getElementById('mon-balance').textContent='Хватит примерно на '+(s.approx_posts_left==null?'—':s.approx_posts_left)+' постов';"
+        "const bl=document.getElementById('mon-blockers');bl.classList.remove('muted');"
+        "bl.innerHTML=(d.blockers&&d.blockers.length)?d.blockers.map(b=>`<div class='sched-task'><span class='pill'>${esc(b.severity||'')}</span> ${esc(b.message)}</div>`).join(''):'<span class=muted>Всё в порядке ✓</span>';"
+        "const inc=document.getElementById('mon-incidents');inc.classList.remove('muted');"
+        "inc.innerHTML=(d.open_incidents&&d.open_incidents.length)?d.open_incidents.map(i=>monIncidentCard(i)).join(''):'<span class=muted>Открытых инцидентов нет ✓</span>';"
+        "const ks=d.kill_switch||{};const ap=d.auto_pause||{};"
+        "document.getElementById('mon-autopause').textContent=(ap.enabled?'Включена: автопилот остановится сам при повторных сбоях.':'Выключена: система только предупреждает, решение за вами.')+' Порог сбоев: '+(ap.failures_threshold==null?'—':ap.failures_threshold)+'.';"
+        "}catch(x){err(eEl,x)}}"
+        "function monIncidentCard(i){return `<div class='sched-task'><b>${esc(i.title)}</b> <span class='pill'>${esc(i.severity)}</span> <span class='pill'>${esc(i.status)}</span> ${esc(i.message)}`+"
+        "` <button class='mini ghost' onclick='monAck(${i.id})'>Подтвердить</button>`+"
+        "` <button class='mini sec' onclick='monResolve(${i.id})'>Решено</button>`+"
+        "` <button class='mini ghost' onclick='monIgnore(${i.id})'>Игнор</button></div>`;}"
+        "async function monCheck(){try{await api('POST','/live-autopilot-monitoring/projects/'+PID+'/health-check',{dry_run:false});monLoad();}catch(x){err(eEl,x)}}"
+        "async function monPause(){try{const r=await api('POST','/live-autopilot-monitoring/projects/'+PID+'/pause',{confirmation:monConfirm()});document.getElementById('mon-action-status').textContent=r.note||'Автопилот на паузе.';monLoad();}catch(x){err(eEl,x)}}"
+        "async function monResume(){try{const r=await api('POST','/live-autopilot-monitoring/projects/'+PID+'/resume',{confirmation:monConfirm()});document.getElementById('mon-action-status').textContent=r.note||'Автопилот возобновлён.';monLoad();}catch(x){err(eEl,x)}}"
+        "async function monAck(id){try{await api('POST','/live-autopilot-monitoring/incidents/'+id+'/acknowledge',{});monLoad();}catch(x){err(eEl,x)}}"
+        "async function monResolve(id){try{await api('POST','/live-autopilot-monitoring/incidents/'+id+'/resolve',{});monLoad();}catch(x){err(eEl,x)}}"
+        "async function monIgnore(id){try{await api('POST','/live-autopilot-monitoring/incidents/'+id+'/ignore',{});monLoad();}catch(x){err(eEl,x)}}"
+        "window.monCheck=monCheck;window.monPause=monPause;window.monResume=monResume;"
+        "window.monAck=monAck;window.monResolve=monResolve;window.monIgnore=monIgnore;monLoad();"
+    )
+    return _page("Мониторинг автопилота", body, script, active="projects", active_pid=project_id)
+
+
 def _ap_subnav(project_id: int, current: str) -> str:
     """Подменю страниц автопилота проекта."""
     items = [
@@ -5643,6 +5716,11 @@ def _ap_subnav(project_id: int, current: str) -> str:
     links += (
         f"<a href='/ui/projects/{project_id}/telegram-live-rollout'>"
         f"<button class='mini {tg_cls}'>Telegram live</button></a>"
+    )
+    mon_cls = "sec" if current == "live-autopilot-monitoring" else "ghost"
+    links += (
+        f"<a href='/ui/projects/{project_id}/live-autopilot-monitoring'>"
+        f"<button class='mini {mon_cls}'>Мониторинг</button></a>"
     )
     return f"<div class='inline' style='margin-bottom:10px'>{links}</div>"
 

@@ -544,6 +544,27 @@ class Settings(BaseSettings):
     telegram_live_rollout_notify_on_published: bool = True
     telegram_live_rollout_record_payload_preview: bool = True
 
+    # --- Live autopilot monitoring & kill switch (v0.6.1) ---
+    # Наблюдение за live/autopilot попытками, инциденты, kill switch. Kill switch управляет ТОЛЬКО
+    # состоянием в БД (project/platform/autopilot) и НЕ трогает глобальные live-флаги. Worker и
+    # авто-пауза выключены по умолчанию; dry-run true.
+    live_autopilot_monitoring_enabled: bool = True
+    live_autopilot_monitoring_dry_run: bool = True
+    live_autopilot_monitoring_worker_enabled: bool = False
+    live_autopilot_monitoring_window_hours: int = 24
+    live_autopilot_monitoring_max_attempts_for_health: int = 100
+    live_autopilot_monitoring_failure_warning_rate: float = 0.25
+    live_autopilot_monitoring_failure_critical_rate: float = 0.50
+    live_autopilot_incidents_enabled: bool = True
+    live_autopilot_incident_dedup_hours: int = 24
+    live_autopilot_auto_pause_enabled: bool = False
+    live_autopilot_auto_pause_failures_threshold: int = 3
+    live_autopilot_auto_pause_critical_only: bool = True
+    live_autopilot_kill_switch_enabled: bool = True
+    live_autopilot_kill_switch_require_confirmation: bool = True
+    live_autopilot_pause_confirmation_text: str = "PAUSE_AUTOPILOT"
+    live_autopilot_resume_confirmation_text: str = "RESUME_AUTOPILOT"
+
     notification_webhook_enabled: bool = False
     notification_webhook_provider: str = "mock"
     notification_webhook_live_enabled: bool = False
@@ -1696,6 +1717,64 @@ class Settings(BaseSettings):
     def telegram_live_rollout_max_attempts_per_post_safe(self) -> int:
         """Максимум live-попыток на один пост (в границах 1..10)."""
         return max(1, min(10, int(self.telegram_live_rollout_max_attempts_per_post or 1)))
+
+    # --- Live autopilot monitoring & kill switch (v0.6.1): производные свойства ---
+
+    @property
+    def live_autopilot_monitoring_enabled_effective(self) -> bool:
+        """Доступен ли мониторинг live-автопилота (UI/API/CLI)."""
+        return bool(self.live_autopilot_monitoring_enabled)
+
+    @property
+    def live_autopilot_monitoring_dry_run_effective(self) -> bool:
+        """Dry-run мониторинга по умолчанию (без записи снимков)."""
+        return bool(self.live_autopilot_monitoring_dry_run)
+
+    @property
+    def live_autopilot_monitoring_worker_enabled_effective(self) -> bool:
+        """Включён ли фоновый worker мониторинга (по умолчанию выключен)."""
+        return bool(
+            self.live_autopilot_monitoring_enabled and self.live_autopilot_monitoring_worker_enabled
+        )
+
+    @property
+    def live_autopilot_incidents_enabled_effective(self) -> bool:
+        """Включено ли создание инцидентов (по умолчанию да)."""
+        return bool(
+            self.live_autopilot_monitoring_enabled and self.live_autopilot_incidents_enabled
+        )
+
+    @property
+    def live_autopilot_auto_pause_enabled_effective(self) -> bool:
+        """Разрешена ли АВТО-пауза автопилота (по умолчанию НЕТ)."""
+        return bool(self.live_autopilot_auto_pause_enabled)
+
+    @property
+    def live_autopilot_kill_switch_enabled_effective(self) -> bool:
+        """Доступен ли kill switch (пауза/возобновление, по умолчанию да)."""
+        return bool(self.live_autopilot_kill_switch_enabled)
+
+    @property
+    def live_autopilot_monitoring_window_seconds(self) -> int:
+        """Окно наблюдения в секундах (из часов; в границах 1..168 ч)."""
+        hours = max(1, min(168, int(self.live_autopilot_monitoring_window_hours or 24)))
+        return hours * 3600
+
+    @property
+    def live_autopilot_incident_dedup_seconds(self) -> int:
+        """Окно дедупликации инцидентов в секундах (из часов; в границах 0..168 ч)."""
+        hours = max(0, min(168, int(self.live_autopilot_incident_dedup_hours or 24)))
+        return hours * 3600
+
+    @property
+    def live_autopilot_pause_confirmation_text_safe(self) -> str:
+        """Текст подтверждения паузы автопилота (непустой)."""
+        return str(self.live_autopilot_pause_confirmation_text or "").strip() or "PAUSE_AUTOPILOT"
+
+    @property
+    def live_autopilot_resume_confirmation_text_safe(self) -> str:
+        """Текст подтверждения возобновления автопилота (непустой)."""
+        return str(self.live_autopilot_resume_confirmation_text or "").strip() or "RESUME_AUTOPILOT"
 
     # --- Auth / session: производные (effective) свойства ---
 

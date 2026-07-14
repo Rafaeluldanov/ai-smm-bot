@@ -189,6 +189,22 @@ def require_live_attempt_access(
     _guard_project(db, settings, user, attempt.project_id)
 
 
+def require_live_incident_access(
+    incident_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к инциденту автопилота (через его проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import live_autopilot_monitoring_repository
+
+    incident = live_autopilot_monitoring_repository.get_incident_by_id(db, incident_id)
+    if incident is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, incident.project_id)
+
+
 def require_experiment_access(
     experiment_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

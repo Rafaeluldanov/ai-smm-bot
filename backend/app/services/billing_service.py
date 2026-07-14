@@ -128,6 +128,12 @@ USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
 USAGE_TELEGRAM_LIVE_ROLLOUT_RUN_DRY = "telegram_live_rollout_run_dry"
 USAGE_TELEGRAM_LIVE_ROLLOUT_PUBLISH_ATTEMPT = "telegram_live_rollout_publish_attempt"
 
+# Типы usage для мониторинга live-автопилота (v0.6.1). Бесплатны в MVP; без списаний.
+USAGE_LIVE_MONITORING_SNAPSHOT = "live_monitoring_snapshot"
+USAGE_LIVE_MONITORING_INCIDENT_ACTION = "live_monitoring_incident_action"
+USAGE_LIVE_AUTOPILOT_PAUSE = "live_autopilot_pause"
+USAGE_LIVE_AUTOPILOT_RESUME = "live_autopilot_resume"
+
 # Стоимость действий в units (оценка; провайдерских затрат ещё нет).
 ACTION_COSTS: dict[str, int] = {
     "ai_generation": 10,
@@ -226,6 +232,10 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW: 0,
     USAGE_TELEGRAM_LIVE_ROLLOUT_RUN_DRY: 0,
     USAGE_TELEGRAM_LIVE_ROLLOUT_PUBLISH_ATTEMPT: 0,
+    USAGE_LIVE_MONITORING_SNAPSHOT: 0,
+    USAGE_LIVE_MONITORING_INCIDENT_ACTION: 0,
+    USAGE_LIVE_AUTOPILOT_PAUSE: 0,
+    USAGE_LIVE_AUTOPILOT_RESUME: 0,
 }
 _DEFAULT_ACTION_COST = 1
 
