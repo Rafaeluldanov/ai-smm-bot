@@ -104,13 +104,20 @@ def test_preview_does_not_send(client: TestClient, db_session: Session) -> None:
 def test_publish_test_blocked_without_confirmation(client: TestClient, db_session: Session) -> None:
     _a, project, owner = _seed(db_session, "rba-noconfirm")
     _enable_readiness(db_session, _a.id, project.id)
-    r = client.post(
-        f"/projects/{project.id}/telegram-runbook/publish-test",
-        headers=_h(owner.id),
-        json={"confirmation": ""},
-    )
-    assert r.status_code == 200
-    assert r.json()["published"] is False
+    # Все гейты включены (fake-клиент + флаги + readiness) — единственный недостающий гейт —
+    # пустое подтверждение. Так тест реально проверяет блокировку по confirmation, а не по флагу.
+    client.app.dependency_overrides[get_telegram_live_runbook_service] = _ready_runbook_service
+    try:
+        r = client.post(
+            f"/projects/{project.id}/telegram-runbook/publish-test",
+            headers=_h(owner.id),
+            json={"confirmation": ""},
+        )
+        assert r.status_code == 200
+        assert r.json()["published"] is False
+        assert r.json()["attempt"]["status"] == "blocked"
+    finally:
+        client.app.dependency_overrides.pop(get_telegram_live_runbook_service, None)
 
 
 def test_publish_test_happy_path(client: TestClient, db_session: Session) -> None:

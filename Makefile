@@ -46,6 +46,7 @@ BIN := $(VENV)/bin
         telegram-live-rollout-dashboard telegram-live-rollout-preview telegram-live-rollout-run-dry telegram-live-rollout-publish-once \
         live-autopilot-monitoring-dashboard live-autopilot-monitoring-health-check live-autopilot-monitoring-incidents live-autopilot-monitoring-pause \
         telegram-runbook-check telegram-runbook-preview telegram-runbook-publish-test \
+        onboarding-start onboarding-status onboarding-demo \
         smoke
 
 help: ## Показать список команд
@@ -420,6 +421,15 @@ telegram-runbook-preview: ## Предпросмотр тестового пос�
 
 telegram-runbook-publish-test: ## Production-тест Telegram (DRY-RUN по умолчанию): make telegram-runbook-publish-test project_id=1 confirmation=ENABLE_TELEGRAM_LIVE [dry_run=true]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.telegram_live_runbook_publish_test --project-id "$(project_id)" $(if $(post_id),--post-id "$(post_id)",) --confirmation "$(or $(confirmation),ENABLE_TELEGRAM_LIVE)" --dry-run "$(or $(dry_run),true)"
+
+onboarding-start: ## Старт онбординга клиента: make onboarding-start user_id=1 [company="TEEON"]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.onboarding_start --user-id "$(user_id)" $(if $(company),--company "$(company)",)
+
+onboarding-status: ## Статус онбординга: make onboarding-status session_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.onboarding_status --session-id "$(session_id)"
+
+onboarding-demo: ## Демо онбординга (5 шагов, live OFF): make onboarding-demo user_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.onboarding_demo --user-id "$(user_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

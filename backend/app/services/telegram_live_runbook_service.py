@@ -122,19 +122,21 @@ class TelegramLiveRunbookService:
         status = self._runbook_status(ready, can_send_real, blockers)
 
         if not dry_run and settings.telegram_runbook_enabled_effective:
+            # Явная проверка готовности переоценивает статус и СНИМАЕТ паузу (это осознанное
+            # действие клиента). Обычный dry-run дашборд статус не трогает. Снятие паузы НЕ
+            # включает реальную публикацию — она по-прежнему под всеми гейтами + подтверждением.
             runbook = runbook_repo.get_or_create(db, project_id, project.account_id)
-            if runbook.status != "paused":  # пауза (kill switch) не перетирается проверкой
-                runbook_repo.update_checklist(
-                    db,
-                    runbook,
-                    checklist=checklist,
-                    blockers=blockers,
-                    warnings=warnings,
-                    flags=flags,
-                    channel_id=channel_id,
-                    channel_name=channel_name,
-                )
-                runbook_repo.update_status(db, runbook, status)
+            runbook_repo.update_checklist(
+                db,
+                runbook,
+                checklist=checklist,
+                blockers=blockers,
+                warnings=warnings,
+                flags=flags,
+                channel_id=channel_id,
+                channel_name=channel_name,
+            )
+            runbook_repo.update_status(db, runbook, status)
             self._write_audit(
                 db,
                 audit_actions.ACTION_TELEGRAM_RUNBOOK_CHECKED,
@@ -203,12 +205,13 @@ class TelegramLiveRunbookService:
         if post is None:
             raise TelegramLiveRunbookError("Нет поста для тестовой публикации")
 
-        text, hashtags, media_asset_id, media_count = self._preview_content(db, post.id)
+        text, hashtags, media_asset_id, media_count = self._preview_content(db, post)
         media_url_masked = None
         if media_asset_id is not None and self._resolve_settings().media_proxy_enabled_effective:
             with _soft():
+                # Короткий TTL для preview-ссылки (минимизируем публичную поверхность).
                 result = self._media_proxy_svc().build_social_media_url(
-                    db, project_id, media_asset_id, _PLATFORM
+                    db, project_id, media_asset_id, _PLATFORM, ttl_seconds=3600
                 )
                 # В payload сохраняем ТОЛЬКО маскированный URL (без raw-токена).
                 media_url_masked = result.url_masked
@@ -309,13 +312,17 @@ class TelegramLiveRunbookService:
             confirmation_text=(str(confirmation_text or "").strip() or None),
         )
         # ДЕЛЕГИРУЕМ реальную публикацию под всеми гейтами существующему сервису.
-        result = self._rollout_svc().publish_once_if_allowed(
-            db,
-            project_id,
-            post_id=post.id if post is not None else None,
-            confirmation=confirmation_text,
-            current_user_id=current_user_id,
-        )
+        try:
+            result = self._rollout_svc().publish_once_if_allowed(
+                db,
+                project_id,
+                post_id=post.id if post is not None else None,
+                confirmation=confirmation_text,
+                current_user_id=current_user_id,
+            )
+        except Exception as exc:  # noqa: BLE001 — не оставляем «sending»-попытку висящей
+            runbook_repo.mark_failed(db, attempt, error_message=type(exc).__name__)
+            raise
         live_attempt_id = result.get("id")
         live_status = result.get("status")
         if live_status == "published":
@@ -398,22 +405,30 @@ class TelegramLiveRunbookService:
     # Внутреннее                                                          #
     # ------------------------------------------------------------------ #
 
-    def _preview_content(self, db: Session, post_id: int) -> tuple[str, list[str], int | None, int]:
-        """Достать text/hashtags/media_asset_id/media_count из dry-run preview публикации."""
-        from app.schemas.post_publication import PostPublishRequest
+    def _preview_content(self, db: Session, post: Any) -> tuple[str, list[str], int | None, int]:
+        """Достать text/hashtags/media_asset_id/media_count поста (тот же текст, что при отправке).
 
-        preview = self._publication_svc().preview_publication(
-            db, post_id, PostPublishRequest(platforms=[_PLATFORM])
-        )
-        for item in getattr(preview, "items", []) or []:
-            if getattr(item, "platform", None) == _PLATFORM:
-                return (
-                    str(getattr(item, "text", "") or ""),
-                    list(getattr(item, "hashtags", []) or []),
-                    getattr(item, "media_asset_id", None),
-                    int(getattr(item, "media_count", 0) or 0),
-                )
-        return "", [], None, 0
+        Использует ``build_publish_request`` (dry-run, без сети и без реестра площадок) — это тот же
+        текст/хэштеги, что уйдут в реальную публикацию.
+        """
+        req = self._publication_svc().build_publish_request(db, post, _PLATFORM, None)
+        text = str(getattr(req, "text", "") or "")
+        hashtags = list(getattr(req, "hashtags", []) or [])
+        asset_ids = self._media_asset_ids(post)
+        media_asset_id = asset_ids[0] if asset_ids else None
+        return text, hashtags, media_asset_id, len(asset_ids)
+
+    @staticmethod
+    def _media_asset_ids(post: Any) -> list[int]:
+        """id медиа-активов поста (из generation_notes.media_asset_ids или media_asset_id)."""
+        notes = getattr(post, "generation_notes", None) or {}
+        ids = notes.get("media_asset_ids") if isinstance(notes, dict) else None
+        result: list[int] = []
+        if isinstance(ids, list):
+            result = [v for v in ids if isinstance(v, int)]
+        if not result and getattr(post, "media_asset_id", None) is not None:
+            result = [int(post.media_asset_id)]
+        return result
 
     def _resolve_post(self, db: Session, project_id: int, post_id: int | None) -> Any:
         from app.repositories import post_repository

@@ -51,6 +51,8 @@ from app.models.notification_rate_limit_bucket import NotificationRateLimitBucke
 from app.models.notification_suppression import NotificationSuppression
 from app.models.notification_telegram_binding import NotificationTelegramBinding
 from app.models.notification_telegram_update_log import NotificationTelegramUpdateLog
+from app.models.onboarding_session import OnboardingSession
+from app.models.onboarding_step_result import OnboardingStepResult
 from app.models.payment import (
     BillingProfile,
     PaymentInvoice,
@@ -128,6 +130,8 @@ __all__ = [
     "NotificationSuppression",
     "NotificationTelegramBinding",
     "NotificationTelegramUpdateLog",
+    "OnboardingSession",
+    "OnboardingStepResult",
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",

@@ -313,6 +313,11 @@ ACTION_TELEGRAM_LIVE_ROLLOUT_LIVE_ATTEMPTED = "telegram_live_rollout.live_attemp
 ACTION_TELEGRAM_LIVE_ROLLOUT_PUBLISHED = "telegram_live_rollout.published"
 ACTION_TELEGRAM_LIVE_ROLLOUT_FAILED = "telegram_live_rollout.failed"
 
+# --- Client onboarding wizard (v0.6.4) --- #
+ACTION_ONBOARDING_STARTED = "onboarding.started"
+ACTION_ONBOARDING_STEP_COMPLETED = "onboarding.step_completed"
+ACTION_ONBOARDING_FINISHED = "onboarding.finished"
+
 # --- Telegram live production runbook (v0.6.3) --- #
 ACTION_TELEGRAM_RUNBOOK_CHECKED = "telegram_runbook.checked"
 ACTION_TELEGRAM_RUNBOOK_PREVIEWED = "telegram_runbook.previewed"

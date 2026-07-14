@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     )
     from app.services.autopilot_service import AutopilotService
     from app.services.client_learning_service import ClientLearningService
+    from app.services.client_onboarding_service import ClientOnboardingService
     from app.services.content_scoring_service import ContentScoringService
     from app.services.email_template_service import EmailTemplateService
     from app.services.experiment_suggestion_service import ExperimentSuggestionService
@@ -455,6 +456,13 @@ def get_telegram_live_runbook_service() -> "TelegramLiveRunbookService":
     from app.services.telegram_live_runbook_service import TelegramLiveRunbookService
 
     return TelegramLiveRunbookService(settings=get_settings())
+
+
+def get_client_onboarding_service() -> "ClientOnboardingService":
+    """Построить сервис клиентского онбординга (5-шаговый мастер; live НЕ включает)."""
+    from app.services.client_onboarding_service import ClientOnboardingService
+
+    return ClientOnboardingService(settings=get_settings())
 
 
 def get_yandex_auto_sync_service() -> "YandexAutoSyncService":

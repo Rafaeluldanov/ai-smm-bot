@@ -85,19 +85,31 @@ def test_no_secrets_in_dashboard(db_session: Session) -> None:
         db_session, project.id, "telegram", {"api_key": "123456:SECRETxyz", "external_id": "@chan"}
     )
     BillingService().manual_topup(db_session, account.id, 500, idempotency_key="rbs")
-    post_repository.create_post(
+    from app.models.media_asset import MediaAsset
+
+    asset = MediaAsset(
+        project_id=project.id, file_name="pic.jpg", yandex_disk_path="public://yandex/rbs/pic.jpg"
+    )
+    db_session.add(asset)
+    db_session.commit()
+    post = post_repository.create_post(
         db_session,
         PostCreate(project_id=project.id, title="T", status="approved", telegram_text="hi"),
     )
+    post.media_asset_id = asset.id
     db_session.commit()
     svc = TelegramLiveRunbookService(
         settings=Settings(media_proxy_public_base_url="https://media.example.com")
     )
     dash = svc.build_dashboard(db_session, project.id)
     prev = svc.prepare_test_post(db_session, project.id)
-    # Сырой бот-токен не утекает в дашборд/preview; media_url — только маскированный.
+    # Сырой бот-токен не утекает в дашборд/preview.
     assert "123456:SECRETxyz" not in str(dash)
+    assert "123456:SECRETxyz" not in str(prev)
     payload = prev["attempt"]["payload_preview"]
     media = payload.get("media_url_masked") or ""
     assert "media_url" not in payload  # сырого поля с полным токеном нет
-    assert "…••••" in media or media == ""  # если ссылка есть — она маскирована
+    # media_url реально сформирован и замаскирован (raw-токен не хранится).
+    assert media and "…••••" in media
+    # полный токен доставки в payload не попадает
+    assert "/media/public/" in media and media.count("/media/public/") == 1

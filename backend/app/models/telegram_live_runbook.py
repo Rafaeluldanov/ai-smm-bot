@@ -37,7 +37,11 @@ class TelegramLiveRunbook(Base, TimestampMixin):
         Integer, ForeignKey("accounts.id", ondelete="CASCADE"), nullable=True, index=True
     )
     project_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
     )
     status: Mapped[str] = mapped_column(String(16), index=True, default="draft", nullable=False)
 

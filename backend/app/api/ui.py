@@ -5784,6 +5784,75 @@ def ui_project_telegram_runbook(project_id: int) -> HTMLResponse:
     return _page("Запуск Telegram", body, script, active="projects", active_pid=project_id)
 
 
+@router.get("/onboarding", response_class=HTMLResponse)
+def ui_onboarding() -> HTMLResponse:
+    """Клиентский онбординг: запуск AI-автопилота за 5 минут (5 шагов + прогресс)."""
+    body = (
+        "<div class='hero'><div class='ap-hero'>Запустите AI-автопилот за 5 минут</div>"
+        "<p class='muted'>5 простых шагов — и Botfleet сам ведёт ваши соцсети. Реальная публикация "
+        "включается отдельно, когда вы будете готовы.</p></div>"
+        "<div class='card'><div class='inline'>"
+        "<span id='ob-step-label' class='ap-status ready'>Шаг 1 из 5</span>"
+        "<span id='ob-pct' class='pill'>0%</span></div>"
+        "<div style='background:var(--border);border-radius:6px;height:10px;margin-top:10px'>"
+        "<div id='ob-bar' style='width:0%;height:10px;border-radius:6px;background:var(--success);transition:width .3s'></div></div></div>"
+        # Step 1 — business
+        "<div id='ob-s1' class='card'><h3>Шаг 1. Ваш бизнес</h3>"
+        "<div class='inline'><input id='ob-name' placeholder='Название компании' style='max-width:320px'></div>"
+        "<div class='inline' style='margin-top:8px'><input id='ob-industry' placeholder='Категория (напр. одежда)' style='max-width:320px'></div>"
+        "<div class='inline' style='margin-top:8px'><input id='ob-desc' placeholder='О компании' style='max-width:420px'></div>"
+        "<div class='inline' style='margin-top:8px'><input id='ob-audience' placeholder='Целевая аудитория' style='max-width:420px'></div>"
+        "<div class='inline' style='margin-top:10px'><button class='ap-big-btn' onclick='obBusiness()'>Далее</button></div></div>"
+        # Step 2 — media
+        "<div id='ob-s2' class='card' style='display:none'><h3>Шаг 2. Ваши материалы</h3>"
+        "<p class='muted'>Подключите Яндекс Диск с фото/видео. Мы ничего не публикуем.</p>"
+        "<div class='inline'><input id='ob-yurl' placeholder='Ссылка на Яндекс Диск' style='max-width:420px'></div>"
+        "<div class='inline' style='margin-top:8px'><input id='ob-folder' placeholder='Папка (SMM)' style='max-width:220px'></div>"
+        "<div class='inline' style='margin-top:10px'><button class='ap-big-btn' onclick='obMedia()'>Далее</button></div></div>"
+        # Step 3 — platforms
+        "<div id='ob-s3' class='card' style='display:none'><h3>Шаг 3. Где публиковать</h3>"
+        "<div class='grid'>"
+        "<div class='pcard'><label><input type='checkbox' id='ob-telegram' checked> Telegram</label></div>"
+        "<div class='pcard'><label><input type='checkbox' id='ob-vk'> VK</label></div>"
+        "<div class='pcard'><label><input type='checkbox' id='ob-instagram'> Instagram</label></div></div>"
+        "<div class='inline' style='margin-top:10px'><button class='ap-big-btn' onclick='obPlatforms()'>Далее</button></div></div>"
+        # Step 4 — goal
+        "<div id='ob-s4' class='card' style='display:none'><h3>Шаг 4. Что должен делать автопилот</h3>"
+        "<div class='grid'>"
+        "<div class='pcard'><label><input type='radio' name='ob-goal' value='sales' checked> Больше продаж</label></div>"
+        "<div class='pcard'><label><input type='radio' name='ob-goal' value='reach'> Больше охвата</label></div>"
+        "<div class='pcard'><label><input type='radio' name='ob-goal' value='expertise'> Экспертность</label></div>"
+        "<div class='pcard'><label><input type='radio' name='ob-goal' value='brand'> Узнаваемость</label></div></div>"
+        "<div class='inline' style='margin-top:10px'>Частота: "
+        "<select id='ob-freq'><option value='3_week'>3 раза в неделю</option>"
+        "<option value='daily'>Каждый день</option><option value='weekly'>Раз в неделю</option></select></div>"
+        "<div class='inline' style='margin-top:10px'><button class='ap-big-btn' onclick='obGoal()'>Далее</button></div></div>"
+        # Step 5 — finish
+        "<div id='ob-s5' class='card' style='display:none'><h3>Шаг 5. Ваш автопилот готов</h3>"
+        "<div id='ob-final' class='muted'>—</div>"
+        "<div class='inline' style='margin-top:10px'><button class='ap-big-btn' onclick='obFinish()'>Запустить автопилот</button></div>"
+        "<div id='ob-result' class='muted' style='margin-top:10px'></div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "let SID=null;const eEl=document.getElementById('error');"
+        "function obShow(n){for(let i=1;i<=5;i++){document.getElementById('ob-s'+i).style.display=(i===n?'block':'none');}"
+        "const pct=(n-1)*20;document.getElementById('ob-pct').textContent=pct+'%';document.getElementById('ob-bar').style.width=pct+'%';"
+        "document.getElementById('ob-step-label').textContent='Шаг '+n+' из 5';}"
+        "async function obStart(){try{const d=await api('POST','/onboarding/start',{company_name:gv('ob-name')});SID=d.session_id;}catch(x){err(eEl,x)}}"
+        "async function obBusiness(){if(!SID)await obStart();try{await api('POST','/onboarding/'+SID+'/business',{company_name:gv('ob-name'),industry:gv('ob-industry'),description:gv('ob-desc'),target_audience:gv('ob-audience')});obShow(2);}catch(x){err(eEl,x)}}"
+        "async function obMedia(){try{await api('POST','/onboarding/'+SID+'/media',{yandex_disk_url:gv('ob-yurl'),folder:gv('ob-folder')||'SMM'});obShow(3);}catch(x){err(eEl,x)}}"
+        "async function obPlatforms(){try{await api('POST','/onboarding/'+SID+'/platforms',{telegram:gv('ob-telegram'),vk:gv('ob-vk'),instagram:gv('ob-instagram')});obShow(4);}catch(x){err(eEl,x)}}"
+        "async function obGoal(){const g=document.querySelector('input[name=ob-goal]:checked').value;try{await api('POST','/onboarding/'+SID+'/goal',{goal:g,frequency:gv('ob-freq')});obShow(5);"
+        "document.getElementById('ob-final').innerHTML=`<div class='sched-task'>✓ Материалы</div><div class='sched-task'>✓ Календарь</div><div class='sched-task'>✓ Площадки</div><div class='sched-task'>✓ AI подготовка</div>`;}catch(x){err(eEl,x)}}"
+        "async function obFinish(){try{const d=await api('POST','/onboarding/'+SID+'/finish',{});"
+        "document.getElementById('ob-pct').textContent='100%';document.getElementById('ob-bar').style.width='100%';document.getElementById('ob-step-label').textContent='Готово';"
+        "document.getElementById('ob-result').innerHTML=`<b>Автопилот готов ✓</b> (реальная публикация выключена). ${esc(d.note||'')} <br><button class='ap-big-btn sec' onclick=\"location.href='/ui/projects/'+${d.project_id}+'/autopilot'\">Создать первый пост</button>`;}catch(x){err(eEl,x)}}"
+        "window.obBusiness=obBusiness;window.obMedia=obMedia;window.obPlatforms=obPlatforms;window.obGoal=obGoal;window.obFinish=obFinish;obShow(1);"
+    )
+    return _page("Онбординг", body, script, active="projects", sidebar=False)
+
+
 def _ap_subnav(project_id: int, current: str) -> str:
     """Подменю страниц автопилота проекта."""
     items = [

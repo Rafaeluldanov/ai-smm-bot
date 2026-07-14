@@ -72,7 +72,8 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("ix_tlr_account_id", "telegram_live_runbooks", ["account_id"])
-    op.create_index("ix_tlr_project_id", "telegram_live_runbooks", ["project_id"])
+    # Один runbook на проект — уникальный индекс (защита от гонки get_or_create).
+    op.create_index("ix_tlr_project_id", "telegram_live_runbooks", ["project_id"], unique=True)
     op.create_index("ix_tlr_status", "telegram_live_runbooks", ["status"])
 
     op.create_table(

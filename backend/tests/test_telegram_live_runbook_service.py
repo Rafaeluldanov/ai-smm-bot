@@ -128,6 +128,29 @@ def test_preview_does_not_send(db_session: Session) -> None:
     assert result["attempt"]["status"] == "preview"
 
 
+def test_preview_has_real_content(db_session: Session) -> None:
+    """Preview показывает реальный текст/хэштеги поста (не пустой)."""
+    _a, project, _o, _p = _seed(db_session, "rb-content")  # пост с telegram_text="Привет #мерч"
+    svc = TelegramLiveRunbookService(settings=_base_settings())
+    result = svc.prepare_test_post(db_session, project.id)
+    payload = result["attempt"]["payload_preview"]
+    assert payload["text_length"] > 0
+    assert "Привет" in payload["text_snippet"]
+
+
+def test_check_reevaluates_and_lifts_pause(db_session: Session) -> None:
+    """Явная проверка готовности переоценивает статус и снимает паузу (осознанное действие)."""
+    from app.repositories import telegram_live_runbook_repository as rbr
+
+    _a, project, _o, _p = _seed(db_session, "rb-liftpause")
+    svc = TelegramLiveRunbookService(settings=_base_settings())
+    svc.pause_runbook(db_session, project.id)
+    assert rbr.get_by_project(db_session, project.id).status == "paused"
+    svc.build_checklist(db_session, project.id, dry_run=False)
+    # Снятие паузы НЕ включает реальную публикацию (гейты по-прежнему нужны).
+    assert rbr.get_by_project(db_session, project.id).status != "paused"
+
+
 def test_confirm_blocked_without_global_flag(db_session: Session) -> None:
     _a, project, _o, _p = _seed(db_session, "rb-confirm")
     _enable_readiness(db_session, _a.id, project.id)  # клиентские гейты, но global off

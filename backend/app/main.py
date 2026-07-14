@@ -36,6 +36,7 @@ from app.api.notification_delivery import router as notification_delivery_router
 from app.api.notification_safety import router as notification_safety_router
 from app.api.notification_telegram import router as notification_telegram_router
 from app.api.notifications import router as notifications_router
+from app.api.onboarding import router as onboarding_router
 from app.api.platform_connections import router as platform_connections_router
 from app.api.post_publications import router as post_publications_router
 from app.api.post_reviews import router as post_reviews_router
@@ -106,6 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(media_curation_router)
     app.include_router(media_curation_review_router)
     app.include_router(notifications_router)
+    app.include_router(onboarding_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

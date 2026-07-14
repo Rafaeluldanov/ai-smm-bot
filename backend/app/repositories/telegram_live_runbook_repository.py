@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.telegram_live_run_attempt import TelegramLiveRunAttempt
@@ -34,13 +35,20 @@ def get_by_project(db: Session, project_id: int) -> TelegramLiveRunbook | None:
 def get_or_create(
     db: Session, project_id: int, account_id: int | None = None
 ) -> TelegramLiveRunbook:
-    """Вернуть runbook проекта или создать (status=draft)."""
+    """Вернуть runbook проекта или создать (status=draft). Один runbook на проект (unique)."""
     runbook = get_by_project(db, project_id)
     if runbook is not None:
         return runbook
     runbook = TelegramLiveRunbook(project_id=project_id, account_id=account_id, status="draft")
     db.add(runbook)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:  # гонка: другой поток уже создал runbook для проекта
+        db.rollback()
+        existing = get_by_project(db, project_id)
+        if existing is not None:
+            return existing
+        raise
     db.refresh(runbook)
     return runbook
 
