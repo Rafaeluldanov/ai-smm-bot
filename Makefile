@@ -60,6 +60,7 @@ BIN := $(VENV)/bin
         simulation-create simulation-run simulation-report \
         forecast-create forecast-generate forecast-report \
         goal-create plan-generate plan-report \
+        execution-create execution-generate execution-report \
         smoke
 
 help: ## Показать список команд
@@ -557,6 +558,15 @@ plan-generate: ## Сгенерировать стратегический пла
 
 plan-report: ## Отчёт по плану: make plan-report plan_id=7
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.plan_report --plan-id "$(plan_id)"
+
+execution-create: ## Создать план исполнения: make execution-create project_id=1 strategic_plan_id=5
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.execution_create --project-id "$(project_id)" --strategic-plan-id "$(strategic_plan_id)"
+
+execution-generate: ## Сгенерировать исполнение: make execution-generate execution_plan_id=7
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.execution_generate --execution-plan-id "$(execution_plan_id)"
+
+execution-report: ## Отчёт по исполнению: make execution-report execution_plan_id=7
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.execution_report --execution-plan-id "$(execution_plan_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

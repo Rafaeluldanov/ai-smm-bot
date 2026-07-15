@@ -52,6 +52,10 @@ from app.models.crm_bot_smm import (
 from app.models.decision_scenario import DecisionScenario
 from app.models.decision_signal import DecisionSignal
 from app.models.email_template_override import EmailTemplateOverride
+from app.models.execution_dependency import ExecutionDependency
+from app.models.execution_objective import ExecutionObjective
+from app.models.execution_plan import ExecutionPlan
+from app.models.execution_task import ExecutionTask
 from app.models.executive_briefing import ExecutiveBriefing
 from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
@@ -166,6 +170,10 @@ __all__ = [
     "DecisionScenario",
     "DecisionSignal",
     "EmailTemplateOverride",
+    "ExecutionDependency",
+    "ExecutionObjective",
+    "ExecutionPlan",
+    "ExecutionTask",
     "ExecutiveBriefing",
     "ExperimentSuggestion",
     "ExternalImageCandidate",

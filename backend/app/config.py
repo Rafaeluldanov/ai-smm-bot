@@ -588,6 +588,12 @@ class Settings(BaseSettings):
     # меняют лишь статус / создают ЧЕРНОВИК процесса (только при status=approved).
     business_planner_enabled: bool = True
 
+    # AI Execution Coordinator (v0.7.8). Approved Strategic Plan → Execution Plan → Objectives →
+    # Tasks → Owners → Progress → AI Coordination. Coordination-слой — управляет исполнением. НЕ
+    # выполняет задачи автоматически, НЕ меняет бизнес/CRM/бюджет, НЕ запускает рекламу/публикации;
+    # assign/complete меняют лишь статус, workflow-link создаёт лишь ЧЕРНОВИК процесса.
+    execution_coordinator_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -978,6 +984,11 @@ class Settings(BaseSettings):
     def business_planner_enabled_effective(self) -> bool:
         """Доступен ли AI Business Planner (цели/gap/план/кварталы/KPI/roadmap/draft/UI/API)."""
         return bool(self.business_planner_enabled)
+
+    @property
+    def execution_coordinator_enabled_effective(self) -> bool:
+        """Доступен ли AI Execution Coordinator (планы/цели/задачи/прогресс/блокеры/UI/API)."""
+        return bool(self.execution_coordinator_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

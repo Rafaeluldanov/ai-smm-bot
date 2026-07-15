@@ -23,6 +23,7 @@ from app.api.content_strategy import router as content_strategy_router
 from app.api.crm_bot_smm import router as crm_bot_smm_router
 from app.api.decisions import router as decisions_router
 from app.api.email_templates import router as email_templates_router
+from app.api.execution import router as execution_router
 from app.api.experiment_suggestions import router as experiment_suggestions_router
 from app.api.experiments import router as experiments_router
 from app.api.external_images import router as external_images_router
@@ -134,6 +135,7 @@ def create_app() -> FastAPI:
     app.include_router(strategy_simulator_router)
     app.include_router(business_forecasting_router)
     app.include_router(business_planner_router)
+    app.include_router(execution_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

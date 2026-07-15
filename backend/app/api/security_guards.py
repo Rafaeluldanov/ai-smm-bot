@@ -307,6 +307,44 @@ def require_plan_access(
     _guard_project(db, settings, user, goal.project_id)
 
 
+def require_execution_plan_access(
+    execution_plan_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к плану исполнения (через план → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import execution_repository
+
+    plan = execution_repository.get_execution_plan(db, execution_plan_id)
+    if plan is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, plan.project_id)
+
+
+def require_execution_task_access(
+    task_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к задаче исполнения (через задачу → цель → план → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import execution_repository
+
+    task = execution_repository.get_task(db, task_id)
+    if task is None:
+        raise _NOT_FOUND
+    objective = execution_repository.get_objective(db, task.objective_id)
+    if objective is None:
+        raise _NOT_FOUND
+    plan = execution_repository.get_execution_plan(db, objective.execution_plan_id)
+    if plan is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, plan.project_id)
+
+
 def require_operations_risk_access(
     risk_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

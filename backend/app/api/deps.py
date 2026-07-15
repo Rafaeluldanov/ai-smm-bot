@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.services.ai_campaign_manager_service import AICampaignManagerService
     from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
     from app.services.ai_decision_engine_service import AIDecisionEngineService
+    from app.services.ai_execution_coordinator_service import AIExecutionCoordinatorService
     from app.services.ai_executive_service import AIExecutiveService
     from app.services.ai_learning_service import AILearningService
     from app.services.ai_operations_control_service import AIOperationsControlService
@@ -563,6 +564,13 @@ def get_ai_business_planner_service() -> "AIBusinessPlannerService":
     from app.services.ai_business_planner_service import AIBusinessPlannerService
 
     return AIBusinessPlannerService(settings=get_settings())
+
+
+def get_ai_execution_coordinator_service() -> "AIExecutionCoordinatorService":
+    """Построить AI Execution Coordinator (план→цели→задачи→координация; ничего не выполняет)."""
+    from app.services.ai_execution_coordinator_service import AIExecutionCoordinatorService
+
+    return AIExecutionCoordinatorService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

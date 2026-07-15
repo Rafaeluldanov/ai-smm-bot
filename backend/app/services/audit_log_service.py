@@ -361,6 +361,14 @@ ACTION_PLAN_OBJECTIVE_CREATED = "objective.created"
 ACTION_PLAN_MILESTONE_CREATED = "milestone.created"
 ACTION_PLAN_WORKFLOW_DRAFT_CREATED = "workflow.draft_created"
 
+# --- AI Execution Coordinator (v0.7.8) --- #
+ACTION_EXECUTION_CREATED = "execution.created"
+ACTION_EXECUTION_OBJECTIVE_CREATED = "execution.objective_created"
+ACTION_EXECUTION_TASK_CREATED = "execution.task_created"
+ACTION_EXECUTION_TASK_ASSIGNED = "execution.task_assigned"
+ACTION_EXECUTION_TASK_COMPLETED = "execution.task_completed"
+ACTION_EXECUTION_BLOCKER_DETECTED = "execution.blocker_detected"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"
