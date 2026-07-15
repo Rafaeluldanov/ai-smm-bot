@@ -173,6 +173,22 @@ def require_publication_access(
     _guard_project(db, settings, user, publication.project_id)
 
 
+def require_campaign_access(
+    campaign_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к AI-кампании (через кампанию → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import ai_campaign_repository
+
+    campaign = ai_campaign_repository.get_campaign(db, campaign_id)
+    if campaign is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, campaign.project_id)
+
+
 def require_live_attempt_access(
     attempt_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

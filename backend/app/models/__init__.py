@@ -3,6 +3,9 @@
 from app.db.base import Base
 from app.models.account import Account
 from app.models.account_membership import AccountMembership
+from app.models.ai_campaign import AICampaign
+from app.models.ai_campaign_recommendation import AICampaignRecommendation
+from app.models.ai_campaign_stage import AICampaignStage
 from app.models.ai_learning_event import AILearningEvent
 from app.models.ai_learning_profile import AILearningProfile
 from app.models.app_mention import AppMention
@@ -86,6 +89,9 @@ from app.models.webhook_subscription import WebhookSubscription
 from app.models.yandex_auto_sync_run import YandexAutoSyncRun
 
 __all__ = [
+    "AICampaign",
+    "AICampaignRecommendation",
+    "AICampaignStage",
     "AILearningEvent",
     "AILearningProfile",
     "Account",

@@ -133,6 +133,11 @@ USAGE_CONTENT_STRATEGY_ANALYSIS = "content_strategy_analysis"
 USAGE_CONTENT_STRATEGY_RECOMMENDATION = "content_strategy_recommendation"
 USAGE_CONTENT_STRATEGY_APPLY = "content_strategy_apply"
 
+# Типы usage для AI Campaign Manager (v0.6.7). Кампании — бесплатно (0 units).
+USAGE_AI_CAMPAIGN_CREATE = "ai_campaign_create"
+USAGE_AI_CAMPAIGN_PLAN = "ai_campaign_plan"
+USAGE_AI_CAMPAIGN_APPLY = "ai_campaign_apply"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -254,6 +259,9 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_CONTENT_STRATEGY_ANALYSIS: 0,
     USAGE_CONTENT_STRATEGY_RECOMMENDATION: 0,
     USAGE_CONTENT_STRATEGY_APPLY: 0,
+    USAGE_AI_CAMPAIGN_CREATE: 0,
+    USAGE_AI_CAMPAIGN_PLAN: 0,
+    USAGE_AI_CAMPAIGN_APPLY: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

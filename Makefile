@@ -49,6 +49,7 @@ BIN := $(VENV)/bin
         onboarding-start onboarding-status onboarding-demo \
         ai-learning-profile ai-learning-analyze ai-learning-recommend \
         strategy-analyze strategy-recommend strategy-apply \
+        campaign-create campaign-plan campaign-apply \
         smoke
 
 help: ## Показать список команд
@@ -450,6 +451,15 @@ strategy-recommend: ## Рекомендации стратегии: make strateg
 
 strategy-apply: ## Применить рекомендацию: make strategy-apply project_id=1 rec_id=5 [accept=1]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.content_strategy_apply --project-id "$(project_id)" --recommendation-id "$(rec_id)" $(if $(accept),--accept,)
+
+campaign-create: ## Создать кампанию: make campaign-create project_id=1 name="..." goal=sales [product="..."]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.ai_campaign_create --project-id "$(project_id)" --name "$(name)" --goal "$(goal)" $(if $(product),--product "$(product)",)
+
+campaign-plan: ## Спланировать кампанию: make campaign-plan campaign_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.ai_campaign_plan --campaign-id "$(campaign_id)"
+
+campaign-apply: ## Применить кампанию (черновик): make campaign-apply campaign_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.ai_campaign_apply --campaign-id "$(campaign_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

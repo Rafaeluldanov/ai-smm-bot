@@ -524,6 +524,12 @@ class Settings(BaseSettings):
     # изменения только через Recommendation → Review → Apply с подтверждением.
     content_strategy_enabled: bool = True
     content_strategy_auto_apply_enabled: bool = False
+
+    # AI Campaign Manager (v0.6.7). Слой планирования/рекомендаций кампаний. НЕ публикует,
+    # НЕ включает live, НЕ меняет активный календарь сам. `auto_apply` по умолчанию ВЫКЛЮЧЕН:
+    # изменения только через Approve → Apply (с подтверждением APPLY_CAMPAIGN).
+    ai_campaign_enabled: bool = True
+    ai_campaign_auto_apply_enabled: bool = False
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -864,6 +870,16 @@ class Settings(BaseSettings):
         return max(0, int(self.experiment_suggestions_expire_days or 0)) * 86400
 
     # --- Автовыбор темы: производные свойства (v0.4.4) ---
+
+    @property
+    def ai_campaign_enabled_effective(self) -> bool:
+        """Доступен ли AI Campaign Manager (создание/план/рекомендации/UI/API)."""
+        return bool(self.ai_campaign_enabled)
+
+    @property
+    def ai_campaign_auto_apply_enabled_effective(self) -> bool:
+        """Может ли кампания САМА применяться (по умолчанию false — только Approve→Apply)."""
+        return bool(self.ai_campaign_enabled and self.ai_campaign_auto_apply_enabled)
 
     @property
     def content_strategy_enabled_effective(self) -> bool:

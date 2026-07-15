@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Annotated
 
 if TYPE_CHECKING:
     from app.services.ab_testing_service import ABTestingService
+    from app.services.ai_campaign_manager_service import AICampaignManagerService
     from app.services.ai_learning_service import AILearningService
     from app.services.auth_session_service import AuthSessionService
     from app.services.auth_token_service import AuthTokenService
@@ -475,6 +476,13 @@ def get_ai_learning_service() -> "AILearningService":
     from app.services.ai_learning_service import AILearningService
 
     return AILearningService(settings=get_settings())
+
+
+def get_ai_campaign_manager_service() -> "AICampaignManagerService":
+    """Построить AI Campaign Manager (планирование кампаний; live НЕ включает)."""
+    from app.services.ai_campaign_manager_service import AICampaignManagerService
+
+    return AICampaignManagerService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

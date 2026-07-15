@@ -331,6 +331,13 @@ ACTION_STRATEGY_ACCEPTED = "strategy.accepted"
 ACTION_STRATEGY_REJECTED = "strategy.rejected"
 ACTION_STRATEGY_APPLIED = "strategy.applied"
 
+# --- AI Campaign Manager (v0.6.7) --- #
+ACTION_CAMPAIGN_CREATED = "campaign.created"
+ACTION_CAMPAIGN_PLANNED = "campaign.planned"
+ACTION_CAMPAIGN_RECOMMENDATION_GENERATED = "campaign.recommendation_generated"
+ACTION_CAMPAIGN_APPROVED = "campaign.approved"
+ACTION_CAMPAIGN_APPLIED = "campaign.applied"
+
 # --- Telegram live production runbook (v0.6.3) --- #
 ACTION_TELEGRAM_RUNBOOK_CHECKED = "telegram_runbook.checked"
 ACTION_TELEGRAM_RUNBOOK_PREVIEWED = "telegram_runbook.previewed"

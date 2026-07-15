@@ -3111,6 +3111,71 @@ def ui_learning_index() -> HTMLResponse:
     return _page("Обучение", body, script, active="learning")
 
 
+@router.get("/projects/{project_id}/campaigns", response_class=HTMLResponse)
+def ui_project_campaigns(project_id: int) -> HTMLResponse:
+    """Экран «AI кампании» (AI Campaign Manager v0.6.7)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/strategy'><button class='ghost mini'>AI стратегия</button></a></div>"
+        "<h2>AI кампании</h2>"
+        "<div class='card'><h3>Создать кампанию</h3>"
+        "<div class='grid'>"
+        "<input id='c-name' placeholder='Название кампании'>"
+        "<select id='c-goal'>"
+        "<option value='sales'>Продажи</option><option value='awareness'>Узнаваемость</option>"
+        "<option value='launch'>Запуск продукта</option><option value='engagement'>Вовлечение</option>"
+        "<option value='education'>Обучение</option><option value='recruitment'>Найм</option></select>"
+        "<input id='c-product' placeholder='Продукт (что продвигаем)'>"
+        "<input id='c-audience' placeholder='Аудитория (кому)'></div>"
+        "<div class='inline' style='margin-top:8px'>"
+        "<button class='mini sec' onclick='campCreate()'>Создать</button>"
+        "<span id='c-status' class='muted'></span></div></div>"
+        "<div class='card'><h3>Кампании</h3><div id='c-list' class='muted'>—</div></div>"
+        "<div id='c-detail'></div>"
+        "<div id='c-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('c-msg');let CUR=null;"
+        "function esc2(s){return esc(''+s);}"
+        "async function loadList(){const d=await api('GET','/projects/'+PID+'/campaigns');"
+        "const cs=d.campaigns||[];document.getElementById('c-list').innerHTML=cs.length?cs.map(c=>"
+        "`<div><a href='#' onclick=\"campOpen(${c.id});return false\">${esc2(c.name)}</a> "
+        "<span class='badge'>${esc2(c.goal)}</span> <span class='badge'>${esc2(c.status)}</span></div>`).join(''):"
+        "\"<span class='muted'>Кампаний пока нет.</span>\";}"
+        "async function campCreate(){try{const name=document.getElementById('c-name').value;"
+        "const goal=document.getElementById('c-goal').value;const product=document.getElementById('c-product').value;"
+        "const audience=document.getElementById('c-audience').value;"
+        "const c=await api('POST','/projects/'+PID+'/campaigns',{name:name,goal:goal,product_context:{name:product},audience_context:{segment:audience}});"
+        "document.getElementById('c-status').textContent='Кампания создана.';loadList();campOpen(c.id);}catch(x){err(eEl,x)}}"
+        "async function campOpen(id){try{CUR=id;await api('POST','/campaigns/'+id+'/generate',{});"
+        "const c=await api('GET','/campaigns/'+id);const st=c.strategy_snapshot||{};"
+        "const stages=(c.stages||[]).map(s=>`<div>Этап ${s.order_number}: <b>${esc2(s.title)}</b> (${esc2(s.stage_type)}) — темы: ${(s.recommended_topics||[]).map(esc2).join(', ')}; форматы: ${(s.recommended_formats||[]).map(esc2).join(', ')}</div>`).join('');"
+        "const ex=await api('GET','/campaigns/'+id+'/explanation').catch(()=>({reasons:[]}));"
+        "const prev=await api('GET','/campaigns/'+id+'/calendar-preview');"
+        "const weeks=(prev.weeks||[]).map(w=>`<div>Неделя ${w.week}: ${esc2(w.theme||'—')} (${esc2(w.stage||'')})</div>`).join('');"
+        "const recs=(await api('GET','/campaigns/'+id+'/recommendations')).recommendations||[];"
+        "const recCards=recs.map(r=>{let b='';if(r.status==='generated')b=`<button class='mini sec' onclick=\"campAccept(${r.id})\">Принять</button> <button class='mini ghost' onclick=\"campReject(${r.id})\">Отклонить</button>`;"
+        "return `<div class='card'><b>${esc2(r.title)}</b> <span class='badge'>${esc2(r.recommendation_type)}</span> <span class='badge'>${esc2(r.status)}</span> <span class='muted'>${r.confidence_score}/100</span><div class='muted'>${(r.reasoning||[]).map(esc2).join('; ')}</div>${b}</div>`;}).join('');"
+        "document.getElementById('c-detail').innerHTML="
+        "`<div class='card'><h3>${esc2(c.name)} — ${esc2(c.status)}</h3><div class='muted'>Тема: ${esc2(st.campaign_theme||'')} · частота: ${esc2(st.posting_frequency||'')}</div>`+"
+        "`<div class='inline' style='margin-top:8px'><button class='mini sec' onclick=\"campApprove(${id})\">Одобрить кампанию</button> <button class='mini' onclick=\"campApply(${id})\">Применить (черновик)</button></div></div>`+"
+        "`<div class='card'><h3>План кампании</h3>${stages||'<span class=muted>—</span>'}</div>`+"
+        "`<div class='card'><h3>Календарь по неделям</h3>${weeks||'<span class=muted>—</span>'}</div>`+"
+        "`<div class='card'><h3>Почему AI выбрал это</h3>${(ex.reasons||[]).map(r=>`<div>• ${esc2(r)}</div>`).join('')}</div>`+"
+        "`<div class='card'><h3>Рекомендации</h3>${recCards||'<span class=muted>—</span>'}</div>`;"
+        "}catch(x){err(eEl,x)}}"
+        "async function campApprove(id){try{await api('POST','/campaigns/'+id+'/approve',{});msg.textContent='Кампания одобрена.';campOpen(id);}catch(x){err(eEl,x)}}"
+        "async function campApply(id){try{const r=await api('POST','/campaigns/'+id+'/apply',{confirmation:'APPLY_CAMPAIGN'});"
+        "msg.textContent='Создан черновик календаря (публикация не запускалась).';campOpen(id);}catch(x){err(eEl,x)}}"
+        "async function campAccept(rid){try{await api('POST','/campaigns/'+CUR+'/recommendations/'+rid+'/accept',{});campOpen(CUR);}catch(x){err(eEl,x)}}"
+        "async function campReject(rid){try{await api('POST','/campaigns/'+CUR+'/recommendations/'+rid+'/reject',{});campOpen(CUR);}catch(x){err(eEl,x)}}"
+        "window.campCreate=campCreate;window.campOpen=campOpen;window.campApprove=campApprove;window.campApply=campApply;window.campAccept=campAccept;window.campReject=campReject;loadList();"
+    )
+    return _page("AI кампании", body, script, active="", active_pid=project_id)
+
+
 @router.get("/projects/{project_id}/strategy", response_class=HTMLResponse)
 def ui_project_strategy(project_id: int) -> HTMLResponse:
     """Экран «AI стратегия контента» (Autonomous Content Strategist v0.6.6)."""
