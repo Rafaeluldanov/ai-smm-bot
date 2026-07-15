@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         AutopilotCalendarAssistantService,
     )
     from app.services.autopilot_service import AutopilotService
+    from app.services.business_growth_agent_service import BusinessGrowthAgentService
     from app.services.client_learning_service import ClientLearningService
     from app.services.client_onboarding_service import ClientOnboardingService
     from app.services.content_scoring_service import ContentScoringService
@@ -491,6 +492,13 @@ def get_ai_sales_intelligence_service() -> "AISalesIntelligenceService":
     from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
 
     return AISalesIntelligenceService(settings=get_settings())
+
+
+def get_business_growth_agent_service() -> "BusinessGrowthAgentService":
+    """Построить AI Business Growth Agent (advisory; бизнес/CRM/live НЕ меняет)."""
+    from app.services.business_growth_agent_service import BusinessGrowthAgentService
+
+    return BusinessGrowthAgentService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

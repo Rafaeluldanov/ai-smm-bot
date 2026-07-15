@@ -3111,6 +3111,58 @@ def ui_learning_index() -> HTMLResponse:
     return _page("Обучение", body, script, active="learning")
 
 
+@router.get("/projects/{project_id}/growth", response_class=HTMLResponse)
+def ui_project_growth(project_id: int) -> HTMLResponse:
+    """Экран «AI рост бизнеса» (AI Business Growth Agent v0.6.9)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/sales-intelligence'><button class='ghost mini'>AI продажи</button></a>"
+        f"<a href='/ui/projects/{project_id}/campaigns'><button class='ghost mini'>AI кампании</button></a></div>"
+        "<h2>AI рост бизнеса</h2>"
+        "<div class='card'><div class='inline'>"
+        "<button class='mini sec' onclick='grAnalyze()'>Проанализировать</button>"
+        "<span id='gr-status' class='muted'></span></div>"
+        "<div class='kv' style='margin-top:8px'><div>Growth Score</div><div id='gr-score'>—</div></div></div>"
+        "<div class='grid'>"
+        "<div class='card'><h3>Что работает</h3><div id='gr-strengths' class='muted'>—</div></div>"
+        "<div class='card'><h3>Где рост</h3><div id='gr-opps' class='muted'>—</div></div>"
+        "<div class='card'><h3>Слабые места</h3><div id='gr-weak' class='muted'>—</div></div>"
+        "<div class='card'><h3>Риски</h3><div id='gr-risks' class='muted'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Рекомендации AI</h3><div id='gr-recs' class='muted'>—</div></div>"
+        "<div id='gr-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('gr-msg');"
+        "function lst(id,arr){const el=document.getElementById(id);el.classList.remove('muted');"
+        "el.innerHTML=(arr&&arr.length)?arr.map(v=>`<div>• ${esc(''+v)}</div>`).join(''):\"<span class='muted'>пока нет данных</span>\";}"
+        "function recCard(r){let b='';const s=r.status;"
+        "if(s==='generated')b=`<button class='mini sec' onclick=\"grAccept(${r.id})\">Принять</button> <button class='mini ghost' onclick=\"grReject(${r.id})\">Отклонить</button>`;"
+        "else if(s==='accepted')b=`<button class='mini' onclick=\"grApply(${r.id})\">Применить</button>`;"
+        "const imp=(r.expected_impact&&r.expected_impact.growth)?('эффект: '+r.expected_impact.growth):'';"
+        "return `<div class='card'><b>${esc(r.title)}</b> <span class='badge'>${esc(r.recommendation_type)}</span> <span class='badge'>${esc(s)}</span>`+"
+        "`<div class='muted'>${(r.reasoning||[]).map(esc).join('; ')}</div><div class='muted'>Уверенность: ${r.confidence_score}/100 · ${esc(imp)}</div>`+"
+        "`<div class='inline' style='margin-top:6px'>${b}</div></div>`;}"
+        "async function loadRecs(){const d=await api('GET','/projects/'+PID+'/growth/recommendations');"
+        "const recs=d.recommendations||[];document.getElementById('gr-recs').innerHTML=recs.length?recs.map(recCard).join(''):\"<span class='muted'>Рекомендаций нет — запустите анализ.</span>\";}"
+        "async function load(){try{const g=await api('GET','/projects/'+PID+'/growth');"
+        "document.getElementById('gr-score').textContent=(g.growth_score||0)+' / 100';"
+        "lst('gr-strengths',g.strengths);lst('gr-opps',g.opportunities);lst('gr-weak',g.weaknesses);lst('gr-risks',g.risks);"
+        "await loadRecs();}catch(x){err(eEl,x)}}"
+        "async function grAnalyze(){try{document.getElementById('gr-status').textContent='Анализирую…';"
+        "await api('POST','/projects/'+PID+'/growth/analyze',{});"
+        "document.getElementById('gr-status').textContent='Готово.';load();}catch(x){err(eEl,x)}}"
+        "async function grAccept(id){try{await api('POST','/projects/'+PID+'/growth/recommendations/'+id+'/accept',{});loadRecs();}catch(x){err(eEl,x)}}"
+        "async function grReject(id){try{await api('POST','/projects/'+PID+'/growth/recommendations/'+id+'/reject',{});loadRecs();}catch(x){err(eEl,x)}}"
+        "async function grApply(id){try{await api('POST','/projects/'+PID+'/growth/apply',{recommendation_id:id,confirmation:'APPLY_GROWTH_ACTION'});"
+        "msg.textContent='Применено (business-профиль/черновик стратегии; live/CRM не менялись).';loadRecs();}catch(x){err(eEl,x)}}"
+        "window.grAnalyze=grAnalyze;window.grAccept=grAccept;window.grReject=grReject;window.grApply=grApply;load();"
+    )
+    return _page("AI рост бизнеса", body, script, active="", active_pid=project_id)
+
+
 @router.get("/projects/{project_id}/sales-intelligence", response_class=HTMLResponse)
 def ui_project_sales_intelligence(project_id: int) -> HTMLResponse:
     """Экран «AI продажи из контента» (AI Sales & Lead Intelligence v0.6.8)."""

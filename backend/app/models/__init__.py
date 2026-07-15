@@ -22,6 +22,8 @@ from app.models.billing import (
     TariffPlan,
     UsageEvent,
 )
+from app.models.business_growth_profile import BusinessGrowthProfile
+from app.models.business_growth_recommendation import BusinessGrowthRecommendation
 from app.models.client_learning_profile import ClientLearningProfile
 from app.models.content_experiment import ContentExperiment
 from app.models.content_experiment_variant import ContentExperimentVariant
@@ -110,6 +112,8 @@ __all__ = [
     "Base",
     "BillingAccount",
     "BillingLedgerEntry",
+    "BusinessGrowthProfile",
+    "BusinessGrowthRecommendation",
     "ClientLearningProfile",
     "ContentExperiment",
     "ContentRevenueAttribution",

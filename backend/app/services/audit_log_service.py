@@ -331,6 +331,13 @@ ACTION_STRATEGY_ACCEPTED = "strategy.accepted"
 ACTION_STRATEGY_REJECTED = "strategy.rejected"
 ACTION_STRATEGY_APPLIED = "strategy.applied"
 
+# --- AI Business Growth Agent (v0.6.9) --- #
+ACTION_GROWTH_ANALYZED = "growth.analyzed"
+ACTION_GROWTH_RECOMMENDATION_CREATED = "growth.recommendation_created"
+ACTION_GROWTH_ACCEPTED = "growth.accepted"
+ACTION_GROWTH_REJECTED = "growth.rejected"
+ACTION_GROWTH_APPLIED = "growth.applied"
+
 # --- AI Sales & Lead Intelligence (v0.6.8) --- #
 ACTION_SALES_INTELLIGENCE_ANALYZED = "sales_intelligence.analyzed"
 ACTION_SALES_INTELLIGENCE_LEAD_CREATED = "sales_intelligence.lead_created"

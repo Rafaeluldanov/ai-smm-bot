@@ -107,9 +107,7 @@ def upgrade() -> None:
         "content_revenue_attributions",
         ["project_id", "attribution_model"],
     )
-    op.create_index(
-        "ix_content_revenue_attr_post", "content_revenue_attributions", ["post_id"]
-    )
+    op.create_index("ix_content_revenue_attr_post", "content_revenue_attributions", ["post_id"])
     op.create_index(
         "ix_content_revenue_attr_campaign", "content_revenue_attributions", ["campaign_id"]
     )
@@ -157,12 +155,8 @@ def downgrade() -> None:
     op.drop_index(
         "ix_content_revenue_attr_project_model", table_name="content_revenue_attributions"
     )
-    op.drop_index(
-        "ix_content_revenue_attr_project_id", table_name="content_revenue_attributions"
-    )
-    op.drop_index(
-        "ix_content_revenue_attr_account_id", table_name="content_revenue_attributions"
-    )
+    op.drop_index("ix_content_revenue_attr_project_id", table_name="content_revenue_attributions")
+    op.drop_index("ix_content_revenue_attr_account_id", table_name="content_revenue_attributions")
     op.drop_table("content_revenue_attributions")
 
     op.drop_index("ix_ai_lead_events_campaign", table_name="ai_lead_events")

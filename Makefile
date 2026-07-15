@@ -51,6 +51,7 @@ BIN := $(VENV)/bin
         strategy-analyze strategy-recommend strategy-apply \
         campaign-create campaign-plan campaign-apply \
         sales-analyze sales-report sales-lead \
+        growth-analyze growth-report growth-apply \
         smoke
 
 help: ## Показать список команд
@@ -470,6 +471,15 @@ sales-report: ## Отчёт продаж из контента: make sales-repor
 
 sales-lead: ## Записать лид/выручку: make sales-lead project_id=1 event=deal_won value=50000 [post_id=12]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.sales_intelligence_lead --project-id "$(project_id)" --event "$(event)" $(if $(value),--value "$(value)",) $(if $(post_id),--post-id "$(post_id)",) $(if $(campaign_id),--campaign-id "$(campaign_id)",)
+
+growth-analyze: ## Анализ роста бизнеса: make growth-analyze project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.growth_analyze --project-id "$(project_id)"
+
+growth-report: ## Отчёт роста бизнеса: make growth-report project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.growth_report --project-id "$(project_id)"
+
+growth-apply: ## Применить рекомендацию роста: make growth-apply project_id=1 rec_id=5
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.growth_apply --project-id "$(project_id)" --recommendation-id "$(rec_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

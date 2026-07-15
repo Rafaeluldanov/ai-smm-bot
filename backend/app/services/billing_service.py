@@ -143,6 +143,11 @@ USAGE_SALES_INTELLIGENCE_ANALYSIS = "sales_intelligence_analysis"
 USAGE_SALES_INTELLIGENCE_REPORT = "sales_intelligence_report"
 USAGE_SALES_INTELLIGENCE_LEAD = "sales_intelligence_lead"
 
+# Типы usage для AI Business Growth Agent (v0.6.9). Advisory — бесплатно (0 units).
+USAGE_BUSINESS_GROWTH_ANALYSIS = "business_growth_analysis"
+USAGE_BUSINESS_GROWTH_REPORT = "business_growth_report"
+USAGE_BUSINESS_GROWTH_APPLY = "business_growth_apply"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -270,6 +275,9 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_SALES_INTELLIGENCE_ANALYSIS: 0,
     USAGE_SALES_INTELLIGENCE_REPORT: 0,
     USAGE_SALES_INTELLIGENCE_LEAD: 0,
+    USAGE_BUSINESS_GROWTH_ANALYSIS: 0,
+    USAGE_BUSINESS_GROWTH_REPORT: 0,
+    USAGE_BUSINESS_GROWTH_APPLY: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

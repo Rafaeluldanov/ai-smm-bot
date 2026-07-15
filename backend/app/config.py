@@ -535,6 +535,12 @@ class Settings(BaseSettings):
     # НЕ отправляет сообщения клиентам, НЕ меняет CRM, НЕ продаёт, НЕ включает live.
     sales_intelligence_enabled: bool = True
     sales_intelligence_default_attribution_model: str = "last_touch"
+
+    # AI Business Growth Agent (v0.6.9). Advisory-слой роста бизнеса. НЕ меняет бизнес/CRM/
+    # бюджет/live/публикации сам. `auto_apply` по умолчанию ВЫКЛЮЧЕН: изменения только через
+    # Analyze → Recommend → Review → Apply (с подтверждением APPLY_GROWTH_ACTION).
+    business_growth_enabled: bool = True
+    business_growth_auto_apply_enabled: bool = False
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -875,6 +881,16 @@ class Settings(BaseSettings):
         return max(0, int(self.experiment_suggestions_expire_days or 0)) * 86400
 
     # --- Автовыбор темы: производные свойства (v0.4.4) ---
+
+    @property
+    def business_growth_enabled_effective(self) -> bool:
+        """Доступен ли AI Business Growth Agent (анализ/рекомендации/UI/API)."""
+        return bool(self.business_growth_enabled)
+
+    @property
+    def business_growth_auto_apply_enabled_effective(self) -> bool:
+        """Может ли growth-агент САМ применять рекомендации (по умолчанию false — только review)."""
+        return bool(self.business_growth_enabled and self.business_growth_auto_apply_enabled)
 
     @property
     def sales_intelligence_enabled_effective(self) -> bool:
