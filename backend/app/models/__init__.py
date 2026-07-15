@@ -92,6 +92,10 @@ from app.models.payment import (
     PaymentTransaction,
     PaymentWebhookLog,
 )
+from app.models.performance_deviation import PerformanceDeviation
+from app.models.performance_metric import PerformanceMetric
+from app.models.performance_recommendation import PerformanceRecommendation
+from app.models.performance_snapshot import PerformanceSnapshot
 from app.models.plan_milestone import PlanMilestone
 from app.models.platform_live_readiness import PlatformLiveReadiness
 from app.models.post import Post
@@ -211,6 +215,10 @@ __all__ = [
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",
+    "PerformanceDeviation",
+    "PerformanceMetric",
+    "PerformanceRecommendation",
+    "PerformanceSnapshot",
     "PlanMilestone",
     "PlatformLiveReadiness",
     "Post",

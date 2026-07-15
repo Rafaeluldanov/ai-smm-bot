@@ -185,6 +185,10 @@ USAGE_PLAN_REPORT = "plan_report"
 USAGE_EXECUTION_PLAN = "execution_plan"
 USAGE_EXECUTION_REPORT = "execution_report"
 
+# Типы usage для AI Performance Intelligence (v0.7.9). Анализ/отчёт — бесплатно (0 units).
+USAGE_PERFORMANCE_ANALYSIS = "performance_analysis"
+USAGE_PERFORMANCE_REPORT = "performance_report"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -333,6 +337,8 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_PLAN_REPORT: 0,
     USAGE_EXECUTION_PLAN: 0,
     USAGE_EXECUTION_REPORT: 0,
+    USAGE_PERFORMANCE_ANALYSIS: 0,
+    USAGE_PERFORMANCE_REPORT: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

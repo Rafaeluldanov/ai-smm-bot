@@ -594,6 +594,12 @@ class Settings(BaseSettings):
     # assign/complete меняют лишь статус, workflow-link создаёт лишь ЧЕРНОВИК процесса.
     execution_coordinator_enabled: bool = True
 
+    # AI Performance Intelligence Engine (v0.7.9). Execution Plan → Performance Snapshot → Actual
+    # vs Target → Deviation Analysis → Recommendations. Аналитический слой — измеряет эффективность
+    # исполнения. НЕ меняет планы/KPI/CRM/бюджет, НЕ выполняет задачи/рекомендации, НЕ запускает
+    # рекламу/публикации; только measure + advise.
+    performance_intelligence_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -989,6 +995,11 @@ class Settings(BaseSettings):
     def execution_coordinator_enabled_effective(self) -> bool:
         """Доступен ли AI Execution Coordinator (планы/цели/задачи/прогресс/блокеры/UI/API)."""
         return bool(self.execution_coordinator_enabled)
+
+    @property
+    def performance_intelligence_enabled_effective(self) -> bool:
+        """Доступен ли AI Performance Intelligence (снимки/метрики/отклонения/рекомендации)."""
+        return bool(self.performance_intelligence_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

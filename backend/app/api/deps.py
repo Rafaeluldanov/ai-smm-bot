@@ -14,6 +14,9 @@ if TYPE_CHECKING:
     from app.services.ai_executive_service import AIExecutiveService
     from app.services.ai_learning_service import AILearningService
     from app.services.ai_operations_control_service import AIOperationsControlService
+    from app.services.ai_performance_intelligence_service import (
+        AIPerformanceIntelligenceService,
+    )
     from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
     from app.services.ai_strategy_simulator_service import AIStrategySimulatorService
     from app.services.ai_workflow_manager_service import AIWorkflowManagerService
@@ -571,6 +574,15 @@ def get_ai_execution_coordinator_service() -> "AIExecutionCoordinatorService":
     from app.services.ai_execution_coordinator_service import AIExecutionCoordinatorService
 
     return AIExecutionCoordinatorService(settings=get_settings())
+
+
+def get_ai_performance_intelligence_service() -> "AIPerformanceIntelligenceService":
+    """Построить AI Performance Intelligence (факт vs план/score/отклонения; ничего не меняет)."""
+    from app.services.ai_performance_intelligence_service import (
+        AIPerformanceIntelligenceService,
+    )
+
+    return AIPerformanceIntelligenceService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

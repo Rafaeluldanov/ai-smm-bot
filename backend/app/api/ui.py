@@ -3907,6 +3907,8 @@ def ui_project_execution(project_id: int) -> HTMLResponse:
         "<button class='sec mini'>← К проекту</button></a>"
         f"<a href='/ui/projects/{project_id}/business-planner'>"
         "<button class='ghost mini'>AI стратегический план</button></a>"
+        f"<a href='/ui/projects/{project_id}/performance'>"
+        "<button class='ghost mini'>AI эффективность</button></a>"
         f"<a href='/ui/projects/{project_id}/workflows'><button class='ghost mini'>AI процессы</button></a></div>"
         "<h2>AI исполнение</h2>"
         "<p class='muted'>AI превращает утверждённый стратегический план в управляемую систему "
@@ -3968,6 +3970,72 @@ def ui_project_execution(project_id: int) -> HTMLResponse:
         "window.exCreate=exCreate;window.exOpen=exOpen;window.exDone=exDone;loadApproved();loadList();"
     )
     return _page("AI исполнение", body, script, active="", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/performance", response_class=HTMLResponse)
+def ui_project_performance(project_id: int) -> HTMLResponse:
+    """Экран «AI эффективность» (AI Performance Intelligence Engine v0.7.9)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/execution'><button class='ghost mini'>AI исполнение</button></a>"
+        f"<a href='/ui/projects/{project_id}/operations'>"
+        "<button class='ghost mini'>AI Operations</button></a></div>"
+        "<h2>AI эффективность</h2>"
+        "<p class='muted'>AI измеряет эффективность исполнения бизнес-плана: факт vs план, "
+        "Performance Score, отклонения, причины и рекомендации. Только измерение и советы — планы, "
+        "KPI, бизнес не меняются.</p>"
+        "<div class='card'><div class='inline'>"
+        "<button class='mini' onclick='pfAnalyze()'>Проанализировать</button>"
+        "<span id='pf-status' class='muted'></span></div>"
+        "<div id='pf-list' class='muted' style='margin-top:8px'>—</div></div>"
+        "<div class='card'><h3>Performance Score</h3>"
+        "<div id='pf-score' style='font-size:32px;font-weight:700'>—</div>"
+        "<div id='pf-score-status' class='muted'></div></div>"
+        "<div class='card'><h3>План vs факт</h3><div id='pf-metrics' class='muted'>—</div></div>"
+        "<div class='card'><h3>Проблемы</h3><div id='pf-deviations' class='muted'>—</div></div>"
+        "<div class='card'><h3>Причины</h3><div id='pf-causes' class='muted'>—</div></div>"
+        "<div class='card'><h3>Улучшения</h3><div id='pf-recs' class='muted'>—</div></div>"
+        "<div id='pf-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('pf-msg');"
+        "function metricRows(ms){if(!ms||!ms.length)return \"<span class='muted'>Метрик нет — нужен план (цель/исполнение).</span>\";"
+        "let h=\"<table class='kw'><tr><th>метрика</th><th>план</th><th>факт</th><th>Δ</th>"
+        '<th>Δ%</th><th>статус</th></tr>";for(const m of ms){h+=`<tr><td>${esc(m.metric)}</td>'
+        "<td>${m.target_value}</td><td>${m.actual_value}</td><td>${m.difference}</td>"
+        "<td>${m.difference_percent}</td><td>${esc(m.status)}</td></tr>`;}return h+'</table>';}"
+        "async function loadList(){const d=await api('GET','/projects/'+PID+'/performance');"
+        "const a=d.snapshots||[];const sm=d.summary||{};"
+        "document.getElementById('pf-list').innerHTML=a.length?"
+        "a.map(v=>`<div class='prow'>#${v.id} <span class='badge'>${esc(v.status)}</span> "
+        "<span class='badge'>score ${v.performance_score}</span> "
+        "<button class='mini sec' onclick=\"pfOpen(${v.id})\">Открыть</button></div>`).join(''):"
+        "\"<span class='muted'>Снимков нет — нажмите «Проанализировать».</span>\";}"
+        "async function pfOpen(id){try{const d=await api('GET','/performance/'+id);const s=d.snapshot;"
+        "document.getElementById('pf-score').textContent=s.performance_score+' / 100';"
+        "document.getElementById('pf-score-status').textContent='Статус: '+s.status;"
+        "document.getElementById('pf-metrics').innerHTML=metricRows(d.metrics);"
+        "document.getElementById('pf-metrics').classList.remove('muted');"
+        "const devs=d.deviations||[];document.getElementById('pf-deviations').innerHTML=devs.length?"
+        "devs.map(x=>`<div class='card'><b>${esc(x.title)}</b> <span class='badge'>${esc(x.impact)}</span> "
+        "<span class='badge'>${esc(x.deviation_type)}</span><div class='muted'>${esc(x.description||'')}</div></div>`).join(''):"
+        "\"<span class='muted'>Отклонений нет.</span>\";"
+        "const causes=[];for(const x of devs){for(const c of (x.root_causes||[]))if(!causes.includes(c))causes.push(c);}"
+        "document.getElementById('pf-causes').innerHTML=causes.length?causes.map(c=>`<div>• ${esc(c)}</div>`).join(''):"
+        "\"<span class='muted'>Причин не выявлено.</span>\";"
+        "const recs=d.recommendations||[];document.getElementById('pf-recs').innerHTML=recs.length?"
+        "recs.map(r=>`<div class='prow'>• ${esc(r.title)} <span class='badge'>${esc(r.priority)}</span></div>`).join(''):'—';}"
+        "catch(x){err(eEl,x)}}"
+        "async function pfAnalyze(){try{document.getElementById('pf-status').textContent='Анализирую…';"
+        "const s=await api('POST','/projects/'+PID+'/performance/analyze',{});"
+        "document.getElementById('pf-status').textContent='Готово.';loadList();pfOpen(s.snapshot.id);}catch(x){err(eEl,x)}}"
+        "window.pfAnalyze=pfAnalyze;window.pfOpen=pfOpen;loadList();"
+        "(async()=>{try{const d=await api('GET','/projects/'+PID+'/performance');"
+        "if((d.snapshots||[]).length)pfOpen(d.snapshots[0].id);}catch(e){}})();"
+    )
+    return _page("AI эффективность", body, script, active="", active_pid=project_id)
 
 
 @router.get("/projects/{project_id}/sales-intelligence", response_class=HTMLResponse)

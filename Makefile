@@ -61,6 +61,7 @@ BIN := $(VENV)/bin
         forecast-create forecast-generate forecast-report \
         goal-create plan-generate plan-report \
         execution-create execution-generate execution-report \
+        performance-analyze performance-report \
         smoke
 
 help: ## Показать список команд
@@ -567,6 +568,12 @@ execution-generate: ## Сгенерировать исполнение: make exe
 
 execution-report: ## Отчёт по исполнению: make execution-report execution_plan_id=7
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.execution_report --execution-plan-id "$(execution_plan_id)"
+
+performance-analyze: ## Анализ эффективности: make performance-analyze project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.performance_analyze --project-id "$(project_id)"
+
+performance-report: ## Отчёт по эффективности: make performance-report snapshot_id=7
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.performance_report --snapshot-id "$(snapshot_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

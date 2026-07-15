@@ -369,6 +369,12 @@ ACTION_EXECUTION_TASK_ASSIGNED = "execution.task_assigned"
 ACTION_EXECUTION_TASK_COMPLETED = "execution.task_completed"
 ACTION_EXECUTION_BLOCKER_DETECTED = "execution.blocker_detected"
 
+# --- AI Performance Intelligence Engine (v0.7.9) --- #
+ACTION_PERFORMANCE_SNAPSHOT_CREATED = "performance.snapshot_created"
+ACTION_PERFORMANCE_METRIC_CREATED = "performance.metric_created"
+ACTION_PERFORMANCE_DEVIATION_DETECTED = "performance.deviation_detected"
+ACTION_PERFORMANCE_RECOMMENDATION_CREATED = "performance.recommendation_created"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"
