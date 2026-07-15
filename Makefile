@@ -55,6 +55,7 @@ BIN := $(VENV)/bin
         business-os-analyze business-os-plan business-os-apply \
         chief-briefing chief-tasks chief-memory \
         workflow-create workflow-status workflow-analyze \
+        operations-analyze operations-report \
         smoke
 
 help: ## Показать список команд
@@ -510,6 +511,12 @@ workflow-status: ## Статус процессов: make workflow-status projec
 
 workflow-analyze: ## Здоровье процесса: make workflow-analyze workflow_id=5
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.workflow_analyze --workflow-id "$(workflow_id)"
+
+operations-analyze: ## Операционный анализ: make operations-analyze project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.operations_analyze --project-id "$(project_id)"
+
+operations-report: ## Операционный отчёт: make operations-report project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.operations_report --project-id "$(project_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

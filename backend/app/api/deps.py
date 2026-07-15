@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
     from app.services.ai_executive_service import AIExecutiveService
     from app.services.ai_learning_service import AILearningService
+    from app.services.ai_operations_control_service import AIOperationsControlService
     from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
     from app.services.ai_workflow_manager_service import AIWorkflowManagerService
     from app.services.auth_session_service import AuthSessionService
@@ -523,6 +524,13 @@ def get_ai_workflow_manager_service() -> "AIWorkflowManagerService":
     from app.services.ai_workflow_manager_service import AIWorkflowManagerService
 
     return AIWorkflowManagerService(settings=get_settings())
+
+
+def get_ai_operations_control_service() -> "AIOperationsControlService":
+    """Построить AI Operations Control Center (аналитика + советы; действий не выполняет)."""
+    from app.services.ai_operations_control_service import AIOperationsControlService
+
+    return AIOperationsControlService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

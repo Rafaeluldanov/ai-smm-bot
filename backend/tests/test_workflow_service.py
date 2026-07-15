@@ -134,17 +134,38 @@ def test_workflow_health(db_session: Session) -> None:
 
 
 def test_resolve_keeps_step_blocked_if_other_open_blocker(db_session: Session) -> None:
-    """resolve одного блокера не разблокирует этап, пока есть другой открытый блокер на нём."""
+    """resolve одного блокера не разблокирует этап, пока есть другой открытый блокер на нём;
+    снятие последнего блокера действительно разблокирует."""
     pid, uid = _project(db_session, "wfsvc7")
     svc = _svc()
     wid = _workflow(db_session, pid)
     sid = svc.generate_workflow_steps(db_session, wid)[0]["id"]
     a = svc.create_blocker(db_session, wid, blocker_type="dependency", title="A", step_id=sid)
-    svc.create_blocker(db_session, wid, blocker_type="resource", title="B", step_id=sid)
+    b = svc.create_blocker(db_session, wid, blocker_type="resource", title="B", step_id=sid)
     assert repo.get_step(db_session, sid).status == "blocked"
     svc.resolve_blocker(db_session, a["id"])
     # второй блокер ещё открыт → этап остаётся blocked
     assert repo.get_step(db_session, sid).status == "blocked"
+    # снятие ВТОРОГО (последнего) блокера действительно разблокирует этап
+    svc.resolve_blocker(db_session, b["id"])
+    assert repo.get_step(db_session, sid).status == "pending"
+
+
+def test_resolve_blocker_is_step_scoped(db_session: Session) -> None:
+    """Открытый блокер на ДРУГОМ этапе не мешает разблокировать этот (step-scoped guard)."""
+    pid, uid = _project(db_session, "wfsvc7b")
+    svc = _svc()
+    wid = _workflow(db_session, pid)
+    steps = svc.generate_workflow_steps(db_session, wid)
+    s1, s2 = steps[0]["id"], steps[1]["id"]
+    svc.create_blocker(db_session, wid, blocker_type="dependency", title="X", step_id=s1)
+    by = svc.create_blocker(db_session, wid, blocker_type="resource", title="Y", step_id=s2)
+    assert repo.get_step(db_session, s1).status == "blocked"
+    assert repo.get_step(db_session, s2).status == "blocked"
+    svc.resolve_blocker(db_session, by["id"])
+    # S2 разблокирован; открытый блокер на S1 к нему не относится
+    assert repo.get_step(db_session, s2).status == "pending"
+    assert repo.get_step(db_session, s1).status == "blocked"
 
 
 def test_resolve_restores_owned_step_to_assigned(db_session: Session) -> None:

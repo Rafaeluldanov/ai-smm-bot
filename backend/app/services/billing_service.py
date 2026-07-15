@@ -161,6 +161,10 @@ USAGE_CHIEF_TASKS = "chief_tasks"
 USAGE_WORKFLOW_CREATE = "workflow_create"
 USAGE_WORKFLOW_ANALYSIS = "workflow_analysis"
 
+# Типы usage для AI Operations Control Center (v0.7.3). Аналитика/советы — бесплатно (0 units).
+USAGE_OPERATIONS_ANALYSIS = "operations_analysis"
+USAGE_OPERATIONS_REPORT = "operations_report"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -298,6 +302,8 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_CHIEF_TASKS: 0,
     USAGE_WORKFLOW_CREATE: 0,
     USAGE_WORKFLOW_ANALYSIS: 0,
+    USAGE_OPERATIONS_ANALYSIS: 0,
+    USAGE_OPERATIONS_REPORT: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

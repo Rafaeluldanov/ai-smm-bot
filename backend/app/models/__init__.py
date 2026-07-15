@@ -71,6 +71,9 @@ from app.models.notification_telegram_binding import NotificationTelegramBinding
 from app.models.notification_telegram_update_log import NotificationTelegramUpdateLog
 from app.models.onboarding_session import OnboardingSession
 from app.models.onboarding_step_result import OnboardingStepResult
+from app.models.operations_recommendation import OperationsRecommendation
+from app.models.operations_risk import OperationsRisk
+from app.models.operations_snapshot import OperationsSnapshot
 from app.models.payment import (
     BillingProfile,
     PaymentInvoice,
@@ -172,6 +175,9 @@ __all__ = [
     "NotificationTelegramUpdateLog",
     "OnboardingSession",
     "OnboardingStepResult",
+    "OperationsRecommendation",
+    "OperationsRisk",
+    "OperationsSnapshot",
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",

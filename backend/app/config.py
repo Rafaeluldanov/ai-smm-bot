@@ -559,6 +559,11 @@ class Settings(BaseSettings):
     # меняет CRM/бюджет/продажи/live/публикации; assign/complete лишь меняют статус.
     workflow_manager_enabled: bool = True
 
+    # AI Operations Control Center (v0.7.3). Единая операционная панель: снапшоты состояния +
+    # риски + рекомендации + health-score. Аналитический/управленческий слой — НЕ выполняет
+    # действий и НЕ меняет CRM/бюджет/продажи/live/публикации; собирает сигналы и советует.
+    operations_center_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -919,6 +924,11 @@ class Settings(BaseSettings):
     def workflow_manager_enabled_effective(self) -> bool:
         """Доступен ли AI Workflow Manager (процессы/этапы/блокеры/health/UI/API)."""
         return bool(self.workflow_manager_enabled)
+
+    @property
+    def operations_center_enabled_effective(self) -> bool:
+        """Доступен ли AI Operations Control Center (снапшоты/риски/рекомендации/UI/API)."""
+        return bool(self.operations_center_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

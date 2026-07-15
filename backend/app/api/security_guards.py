@@ -205,6 +205,38 @@ def require_action_access(
     _guard_project(db, settings, user, action.project_id)
 
 
+def require_operations_risk_access(
+    risk_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к операционному риску (через риск → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import operations_repository
+
+    risk = operations_repository.get_risk(db, risk_id)
+    if risk is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, risk.project_id)
+
+
+def require_operations_recommendation_access(
+    recommendation_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к операционной рекомендации (через рекомендацию → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import operations_repository
+
+    recommendation = operations_repository.get_recommendation(db, recommendation_id)
+    if recommendation is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, recommendation.project_id)
+
+
 def require_workflow_access(
     workflow_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

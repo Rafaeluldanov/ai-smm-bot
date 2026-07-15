@@ -331,6 +331,14 @@ ACTION_STRATEGY_ACCEPTED = "strategy.accepted"
 ACTION_STRATEGY_REJECTED = "strategy.rejected"
 ACTION_STRATEGY_APPLIED = "strategy.applied"
 
+# --- AI Operations Control Center (v0.7.3) --- #
+ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
+ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"
+ACTION_OPERATIONS_RISK_RESOLVED = "operations.risk_resolved"
+ACTION_OPERATIONS_RECOMMENDATION_CREATED = "operations.recommendation_created"
+ACTION_OPERATIONS_RECOMMENDATION_ACCEPTED = "operations.recommendation_accepted"
+ACTION_OPERATIONS_RECOMMENDATION_REJECTED = "operations.recommendation_rejected"
+
 # --- AI Workflow Manager / Business Execution Layer (v0.7.2) --- #
 ACTION_WORKFLOW_CREATED = "workflow.created"
 ACTION_WORKFLOW_STEP_CREATED = "workflow.step_created"
