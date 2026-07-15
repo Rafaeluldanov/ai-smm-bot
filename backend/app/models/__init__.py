@@ -6,6 +6,7 @@ from app.models.account_membership import AccountMembership
 from app.models.ai_campaign import AICampaign
 from app.models.ai_campaign_recommendation import AICampaignRecommendation
 from app.models.ai_campaign_stage import AICampaignStage
+from app.models.ai_executive_plan import AIExecutivePlan
 from app.models.ai_lead_event import AILeadEvent
 from app.models.ai_learning_event import AILearningEvent
 from app.models.ai_learning_profile import AILearningProfile
@@ -22,8 +23,10 @@ from app.models.billing import (
     TariffPlan,
     UsageEvent,
 )
+from app.models.business_action import BusinessAction
 from app.models.business_growth_profile import BusinessGrowthProfile
 from app.models.business_growth_recommendation import BusinessGrowthRecommendation
+from app.models.business_objective import BusinessObjective
 from app.models.client_learning_profile import ClientLearningProfile
 from app.models.content_experiment import ContentExperiment
 from app.models.content_experiment_variant import ContentExperimentVariant
@@ -97,6 +100,7 @@ __all__ = [
     "AICampaign",
     "AICampaignRecommendation",
     "AICampaignStage",
+    "AIExecutivePlan",
     "AILeadEvent",
     "AILearningEvent",
     "AILearningProfile",
@@ -112,8 +116,10 @@ __all__ = [
     "Base",
     "BillingAccount",
     "BillingLedgerEntry",
+    "BusinessAction",
     "BusinessGrowthProfile",
     "BusinessGrowthRecommendation",
+    "BusinessObjective",
     "ClientLearningProfile",
     "ContentExperiment",
     "ContentRevenueAttribution",

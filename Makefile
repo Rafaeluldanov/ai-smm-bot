@@ -52,6 +52,7 @@ BIN := $(VENV)/bin
         campaign-create campaign-plan campaign-apply \
         sales-analyze sales-report sales-lead \
         growth-analyze growth-report growth-apply \
+        business-os-analyze business-os-plan business-os-apply \
         smoke
 
 help: ## Показать список команд
@@ -480,6 +481,15 @@ growth-report: ## Отчёт роста бизнеса: make growth-report proje
 
 growth-apply: ## Применить рекомендацию роста: make growth-apply project_id=1 rec_id=5
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.growth_apply --project-id "$(project_id)" --recommendation-id "$(rec_id)"
+
+business-os-analyze: ## Исполнительный анализ бизнеса: make business-os-analyze project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.business_os_analyze --project-id "$(project_id)"
+
+business-os-plan: ## Исполнительный план: make business-os-plan project_id=1 [objective_id=3]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.business_os_plan --project-id "$(project_id)" $(if $(objective_id),--objective-id "$(objective_id)",)
+
+business-os-apply: ## Применить бизнес-действие: make business-os-apply action_id=5
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.business_os_apply --action-id "$(action_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

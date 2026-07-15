@@ -331,6 +331,14 @@ ACTION_STRATEGY_ACCEPTED = "strategy.accepted"
 ACTION_STRATEGY_REJECTED = "strategy.rejected"
 ACTION_STRATEGY_APPLIED = "strategy.applied"
 
+# --- Autonomous Business OS / AI Executive Layer (v0.7.0) --- #
+ACTION_BUSINESS_OS_ANALYZED = "business_os.analyzed"
+ACTION_BUSINESS_OS_PLAN_CREATED = "business_os.plan_created"
+ACTION_BUSINESS_OS_ACTION_CREATED = "business_os.action_created"
+ACTION_BUSINESS_OS_ACCEPTED = "business_os.accepted"
+ACTION_BUSINESS_OS_REJECTED = "business_os.rejected"
+ACTION_BUSINESS_OS_APPLIED = "business_os.applied"
+
 # --- AI Business Growth Agent (v0.6.9) --- #
 ACTION_GROWTH_ANALYZED = "growth.analyzed"
 ACTION_GROWTH_RECOMMENDATION_CREATED = "growth.recommendation_created"

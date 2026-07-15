@@ -189,6 +189,22 @@ def require_campaign_access(
     _guard_project(db, settings, user, campaign.project_id)
 
 
+def require_action_access(
+    action_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к бизнес-действию Executive Layer (через действие → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import business_os_repository
+
+    action = business_os_repository.get_action(db, action_id)
+    if action is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, action.project_id)
+
+
 def require_live_attempt_access(
     attempt_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

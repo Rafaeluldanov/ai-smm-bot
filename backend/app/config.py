@@ -541,6 +541,12 @@ class Settings(BaseSettings):
     # Analyze → Recommend → Review → Apply (с подтверждением APPLY_GROWTH_ACTION).
     business_growth_enabled: bool = True
     business_growth_auto_apply_enabled: bool = False
+
+    # Autonomous Business OS / AI Executive Layer (v0.7.0). Advisory + planning верхнего
+    # уровня. НЕ меняет бизнес/CRM/бюджет/live/публикации сам. `auto_apply` по умолчанию
+    # ВЫКЛЮЧЕН: изменения только через Approve → Apply (с подтверждением APPLY_BUSINESS_ACTION).
+    business_os_enabled: bool = True
+    business_os_auto_apply_enabled: bool = False
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -881,6 +887,16 @@ class Settings(BaseSettings):
         return max(0, int(self.experiment_suggestions_expire_days or 0)) * 86400
 
     # --- Автовыбор темы: производные свойства (v0.4.4) ---
+
+    @property
+    def business_os_enabled_effective(self) -> bool:
+        """Доступен ли Autonomous Business OS (анализ/план/действия/UI/API)."""
+        return bool(self.business_os_enabled)
+
+    @property
+    def business_os_auto_apply_enabled_effective(self) -> bool:
+        """Может ли Executive Layer САМ применять действия (по умолчанию false — только approve)."""
+        return bool(self.business_os_enabled and self.business_os_auto_apply_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

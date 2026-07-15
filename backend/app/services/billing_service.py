@@ -148,6 +148,11 @@ USAGE_BUSINESS_GROWTH_ANALYSIS = "business_growth_analysis"
 USAGE_BUSINESS_GROWTH_REPORT = "business_growth_report"
 USAGE_BUSINESS_GROWTH_APPLY = "business_growth_apply"
 
+# Типы usage для Autonomous Business OS (v0.7.0). Advisory + planning — бесплатно (0 units).
+USAGE_BUSINESS_OS_ANALYSIS = "business_os_analysis"
+USAGE_BUSINESS_OS_PLAN = "business_os_plan"
+USAGE_BUSINESS_OS_APPLY = "business_os_apply"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -278,6 +283,9 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_BUSINESS_GROWTH_ANALYSIS: 0,
     USAGE_BUSINESS_GROWTH_REPORT: 0,
     USAGE_BUSINESS_GROWTH_APPLY: 0,
+    USAGE_BUSINESS_OS_ANALYSIS: 0,
+    USAGE_BUSINESS_OS_PLAN: 0,
+    USAGE_BUSINESS_OS_APPLY: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

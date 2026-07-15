@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Annotated
 if TYPE_CHECKING:
     from app.services.ab_testing_service import ABTestingService
     from app.services.ai_campaign_manager_service import AICampaignManagerService
+    from app.services.ai_executive_service import AIExecutiveService
     from app.services.ai_learning_service import AILearningService
     from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
     from app.services.auth_session_service import AuthSessionService
@@ -499,6 +500,13 @@ def get_business_growth_agent_service() -> "BusinessGrowthAgentService":
     from app.services.business_growth_agent_service import BusinessGrowthAgentService
 
     return BusinessGrowthAgentService(settings=get_settings())
+
+
+def get_ai_executive_service() -> "AIExecutiveService":
+    """Построить AI Executive Layer / Autonomous Business OS (advisory + planning)."""
+    from app.services.ai_executive_service import AIExecutiveService
+
+    return AIExecutiveService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":
