@@ -453,7 +453,12 @@ class AIWorkflowManagerService:
         repo.resolve_blocker(db, blocker)
         if blocker.step_id is not None:
             step = repo.get_step(db, blocker.step_id)
-            if step is not None and step.status == "blocked":
+            # Разблокируем этап только если на нём НЕ осталось других открытых блокеров.
+            still_blocked = any(
+                b.step_id == blocker.step_id
+                for b in repo.list_blockers(db, blocker.workflow_id, status="open")
+            )
+            if step is not None and step.status == "blocked" and not still_blocked:
                 restored = "assigned" if step.owner_user_id is not None else "pending"
                 repo.update_step_status(db, step, restored)
         self._write_audit(

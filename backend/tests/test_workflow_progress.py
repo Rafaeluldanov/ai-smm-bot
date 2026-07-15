@@ -79,3 +79,19 @@ def test_health_penalises_blockers_and_overdue(db_session: Session) -> None:
     assert health["open_blockers"] == 1
     assert health["health_score"] < 100
     assert any("роч" in r.lower() or "блокер" in r.lower() for r in health["risks"])
+
+
+def test_health_counts_stuck_steps(db_session: Session) -> None:
+    """Этап in_progress без изменений ≥7 дней считается застрявшим (health penalty + risk)."""
+    pid = _project(db_session, "wfp5")
+    svc = _svc()
+    wid = _wf(db_session, pid)
+    steps = svc.generate_workflow_steps(db_session, wid)
+    svc.update_step_status(db_session, steps[0]["id"], "in_progress")
+    step = repo.get_step(db_session, steps[0]["id"])
+    step.updated_at = datetime.now(UTC) - timedelta(days=8)
+    db_session.commit()
+    health = svc.analyze_workflow_health(db_session, wid)
+    assert health["stuck_steps"] == 1
+    assert health["health_score"] < 100
+    assert any("движени" in r.lower() for r in health["risks"])
