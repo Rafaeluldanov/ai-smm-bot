@@ -530,6 +530,11 @@ class Settings(BaseSettings):
     # изменения только через Approve → Apply (с подтверждением APPLY_CAMPAIGN).
     ai_campaign_enabled: bool = True
     ai_campaign_auto_apply_enabled: bool = False
+
+    # AI Sales & Lead Intelligence (v0.6.8). Аналитический слой «контент → лид → выручка».
+    # НЕ отправляет сообщения клиентам, НЕ меняет CRM, НЕ продаёт, НЕ включает live.
+    sales_intelligence_enabled: bool = True
+    sales_intelligence_default_attribution_model: str = "last_touch"
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -870,6 +875,17 @@ class Settings(BaseSettings):
         return max(0, int(self.experiment_suggestions_expire_days or 0)) * 86400
 
     # --- Автовыбор темы: производные свойства (v0.4.4) ---
+
+    @property
+    def sales_intelligence_enabled_effective(self) -> bool:
+        """Доступен ли AI Sales & Lead Intelligence (анализ/атрибуция/UI/API)."""
+        return bool(self.sales_intelligence_enabled)
+
+    @property
+    def sales_intelligence_default_attribution_model_safe(self) -> str:
+        """Модель атрибуции по умолчанию в допустимых значениях."""
+        model = str(self.sales_intelligence_default_attribution_model or "last_touch")
+        return model if model in ("first_touch", "last_touch", "multi_touch") else "last_touch"
 
     @property
     def ai_campaign_enabled_effective(self) -> bool:

@@ -42,8 +42,10 @@ _ROUTES = [
     ("get", "/campaigns/1"),
     ("post", "/campaigns/1/generate"),
     ("get", "/campaigns/1/strategy"),
+    ("get", "/campaigns/1/explanation"),
     ("get", "/campaigns/1/recommendations"),
     ("post", "/campaigns/1/recommendations/1/accept"),
+    ("post", "/campaigns/1/recommendations/1/reject"),
     ("post", "/campaigns/1/approve"),
     ("post", "/campaigns/1/apply"),
     ("get", "/campaigns/1/calendar-preview"),
@@ -101,8 +103,14 @@ def test_review_approve_apply_flow(client: TestClient, db_session: Session) -> N
     )
     assert ok.status_code == 200
     assert ok.json()["live_enabled"] is False
+    # Реальные сигналы (не только echo-константа): только черновик, активный календарь не тронут.
+    from app.models.autopilot_calendar_plan import AutopilotCalendarPlan
+    from app.models.crm_bot_smm import CrmPublishingPlan
     from app.models.post_publication import PostPublication
 
+    plans = db_session.query(AutopilotCalendarPlan).filter_by(project_id=pid).all()
+    assert plans and all(p.status == "draft" for p in plans)
+    assert db_session.query(CrmPublishingPlan).filter_by(project_id=pid).count() == 0
     assert db_session.query(PostPublication).filter_by(status="published").count() == 0
 
 
@@ -122,3 +130,23 @@ def test_tenant_isolation_other_user_blocked(client: TestClient, db_session: Ses
     db_session.commit()
     r = client.get(f"/campaigns/{cid}", headers=_h(other.id))
     assert r.status_code in (403, 404)
+
+
+def test_tenant_isolation_mutating_routes_blocked(client: TestClient, db_session: Session) -> None:
+    """Чужой (авторизованный) пользователь не может менять кампанию (guard, не 401)."""
+    pid, uid = _seed(db_session, "capi6")
+    cid = _create(client, pid, uid)
+    client.post(f"/campaigns/{cid}/generate", headers=_h(uid))
+    other = user_repository.create_user(db_session, email="capi-other2@e.com", password_hash="x")
+    db_session.commit()
+    h = _h(other.id)
+    # Мутирующие роуты под require_campaign_access → 403/404 для чужого аккаунта.
+    assert client.post(f"/campaigns/{cid}/generate", headers=h).status_code in (403, 404)
+    assert client.post(f"/campaigns/{cid}/approve", headers=h).status_code in (403, 404)
+    assert client.post(
+        f"/campaigns/{cid}/apply", headers=h, json={"confirmation": "APPLY_CAMPAIGN"}
+    ).status_code in (403, 404)
+    # Project-scoped create тоже закрыт для чужого проекта.
+    assert client.post(
+        f"/projects/{pid}/campaigns", headers=h, json={"name": "X", "goal": "sales"}
+    ).status_code in (403, 404)

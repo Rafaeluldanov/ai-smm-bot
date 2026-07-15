@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from app.services.ab_testing_service import ABTestingService
     from app.services.ai_campaign_manager_service import AICampaignManagerService
     from app.services.ai_learning_service import AILearningService
+    from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
     from app.services.auth_session_service import AuthSessionService
     from app.services.auth_token_service import AuthTokenService
     from app.services.automation_settings_service import AutomationSettingsService
@@ -483,6 +484,13 @@ def get_ai_campaign_manager_service() -> "AICampaignManagerService":
     from app.services.ai_campaign_manager_service import AICampaignManagerService
 
     return AICampaignManagerService(settings=get_settings())
+
+
+def get_ai_sales_intelligence_service() -> "AISalesIntelligenceService":
+    """Построить AI Sales & Lead Intelligence (аналитика; CRM/отправки/live НЕ трогает)."""
+    from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
+
+    return AISalesIntelligenceService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

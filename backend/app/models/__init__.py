@@ -6,6 +6,7 @@ from app.models.account_membership import AccountMembership
 from app.models.ai_campaign import AICampaign
 from app.models.ai_campaign_recommendation import AICampaignRecommendation
 from app.models.ai_campaign_stage import AICampaignStage
+from app.models.ai_lead_event import AILeadEvent
 from app.models.ai_learning_event import AILearningEvent
 from app.models.ai_learning_profile import AILearningProfile
 from app.models.app_mention import AppMention
@@ -24,6 +25,7 @@ from app.models.billing import (
 from app.models.client_learning_profile import ClientLearningProfile
 from app.models.content_experiment import ContentExperiment
 from app.models.content_experiment_variant import ContentExperimentVariant
+from app.models.content_revenue_attribution import ContentRevenueAttribution
 from app.models.content_strategy_profile import ContentStrategyProfile
 from app.models.content_strategy_recommendation import ContentStrategyRecommendation
 from app.models.crm_bot_smm import (
@@ -77,6 +79,7 @@ from app.models.project_autopilot_profile import ProjectAutopilotProfile
 from app.models.project_live_readiness_profile import ProjectLiveReadinessProfile
 from app.models.project_yandex_sync_profile import ProjectYandexSyncProfile
 from app.models.public_media_link import PublicMediaLink
+from app.models.sales_intelligence_profile import SalesIntelligenceProfile
 from app.models.schedule_media_decision import ScheduleMediaDecision
 from app.models.schedule_run import ScheduleRun
 from app.models.schedule_topic_decision import ScheduleTopicDecision
@@ -92,6 +95,7 @@ __all__ = [
     "AICampaign",
     "AICampaignRecommendation",
     "AICampaignStage",
+    "AILeadEvent",
     "AILearningEvent",
     "AILearningProfile",
     "Account",
@@ -108,9 +112,11 @@ __all__ = [
     "BillingLedgerEntry",
     "ClientLearningProfile",
     "ContentExperiment",
+    "ContentRevenueAttribution",
     "ContentStrategyProfile",
     "ContentStrategyRecommendation",
     "ContentExperimentVariant",
+    "SalesIntelligenceProfile",
     "CrmBotProjectConfig",
     "CrmContentSource",
     "CrmKeyword",

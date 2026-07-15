@@ -3111,6 +3111,60 @@ def ui_learning_index() -> HTMLResponse:
     return _page("Обучение", body, script, active="learning")
 
 
+@router.get("/projects/{project_id}/sales-intelligence", response_class=HTMLResponse)
+def ui_project_sales_intelligence(project_id: int) -> HTMLResponse:
+    """Экран «AI продажи из контента» (AI Sales & Lead Intelligence v0.6.8)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/campaigns'><button class='ghost mini'>AI кампании</button></a>"
+        f"<a href='/ui/projects/{project_id}/metrics'><button class='ghost mini'>Метрики</button></a></div>"
+        "<h2>AI продажи из контента</h2>"
+        "<div class='card'><div class='inline'>"
+        "<button class='mini sec' onclick='siAnalyze()'>Проанализировать</button>"
+        "<span id='si-status' class='muted'></span></div></div>"
+        "<div class='card'><h3>Воронка</h3><div id='si-funnel' class='kv'>"
+        "<div>Клики</div><div id='si-clicks'>—</div>"
+        "<div>Лиды</div><div id='si-leads'>—</div>"
+        "<div>Сделки</div><div id='si-deals'>—</div>"
+        "<div>Выручка</div><div id='si-revenue'>—</div></div></div>"
+        "<div class='grid'>"
+        "<div class='card'><h3>Что приносит деньги — посты</h3><div id='si-posts' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучшие кампании</h3><div id='si-campaigns' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучшие темы</h3><div id='si-topics' class='muted'>—</div></div>"
+        "<div class='card'><h3>Лучший CTA / площадка</h3><div id='si-cta' class='muted'>—</div></div>"
+        "</div>"
+        "<div class='card'><h3>Рекомендации AI</h3><div id='si-actions' class='muted'>—</div></div>"
+        "<div id='si-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('si-msg');"
+        "function lst(id,arr){const el=document.getElementById(id);el.classList.remove('muted');"
+        "el.innerHTML=(arr&&arr.length)?arr.map(v=>`<div>• ${esc(''+v)}</div>`).join(''):\"<span class='muted'>пока нет данных</span>\";}"
+        "async function load(){try{"
+        "const si=await api('GET','/projects/'+PID+'/sales-intelligence');"
+        "const rs=si.revenue_summary||{};"
+        "document.getElementById('si-leads').textContent=rs.leads||0;"
+        "document.getElementById('si-deals').textContent=rs.deals||0;"
+        "document.getElementById('si-revenue').textContent=(rs.total_revenue||0);"
+        "document.getElementById('si-clicks').textContent=((si.conversion_patterns||{}).click_signals||{}).clicks||0;"
+        "lst('si-topics',si.best_lead_topics);"
+        "lst('si-actions',si.recommendations);"
+        "const rev=await api('GET','/projects/'+PID+'/sales-intelligence/revenue');"
+        "const an=rev.analysis||{};"
+        "lst('si-posts',(an.top_content||[]).map(c=>`${esc(c.title||('пост #'+c.post_id))} — ${c.revenue}`));"
+        "lst('si-campaigns',(an.top_campaigns||[]).map(c=>`${esc(c.name||('кампания #'+c.campaign_id))} — ${c.revenue} (score ${c.campaign_revenue_score})`));"
+        "lst('si-cta',[(an.best_cta||[]).join(', ')||'—','Площадка: '+(an.best_platform||'—')]);"
+        "}catch(x){err(eEl,x)}}"
+        "async function siAnalyze(){try{document.getElementById('si-status').textContent='Считаю атрибуцию…';"
+        "await api('POST','/projects/'+PID+'/sales-intelligence/analyze',{});"
+        "document.getElementById('si-status').textContent='Готово.';load();}catch(x){err(eEl,x)}}"
+        "window.siAnalyze=siAnalyze;load();"
+    )
+    return _page("AI продажи из контента", body, script, active="", active_pid=project_id)
+
+
 @router.get("/projects/{project_id}/campaigns", response_class=HTMLResponse)
 def ui_project_campaigns(project_id: int) -> HTMLResponse:
     """Экран «AI кампании» (AI Campaign Manager v0.6.7)."""

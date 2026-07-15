@@ -50,6 +50,7 @@ BIN := $(VENV)/bin
         ai-learning-profile ai-learning-analyze ai-learning-recommend \
         strategy-analyze strategy-recommend strategy-apply \
         campaign-create campaign-plan campaign-apply \
+        sales-analyze sales-report sales-lead \
         smoke
 
 help: ## Показать список команд
@@ -460,6 +461,15 @@ campaign-plan: ## Спланировать кампанию: make campaign-plan 
 
 campaign-apply: ## Применить кампанию (черновик): make campaign-apply campaign_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.ai_campaign_apply --campaign-id "$(campaign_id)"
+
+sales-analyze: ## Анализ продаж из контента: make sales-analyze project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.sales_intelligence_analyze --project-id "$(project_id)"
+
+sales-report: ## Отчёт продаж из контента: make sales-report project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.sales_intelligence_report --project-id "$(project_id)"
+
+sales-lead: ## Записать лид/выручку: make sales-lead project_id=1 event=deal_won value=50000 [post_id=12]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.sales_intelligence_lead --project-id "$(project_id)" --event "$(event)" $(if $(value),--value "$(value)",) $(if $(post_id),--post-id "$(post_id)",) $(if $(campaign_id),--campaign-id "$(campaign_id)",)
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

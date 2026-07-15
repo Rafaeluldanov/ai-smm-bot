@@ -331,10 +331,18 @@ ACTION_STRATEGY_ACCEPTED = "strategy.accepted"
 ACTION_STRATEGY_REJECTED = "strategy.rejected"
 ACTION_STRATEGY_APPLIED = "strategy.applied"
 
+# --- AI Sales & Lead Intelligence (v0.6.8) --- #
+ACTION_SALES_INTELLIGENCE_ANALYZED = "sales_intelligence.analyzed"
+ACTION_SALES_INTELLIGENCE_LEAD_CREATED = "sales_intelligence.lead_created"
+ACTION_SALES_INTELLIGENCE_ATTRIBUTION_CREATED = "sales_intelligence.attribution_created"
+ACTION_SALES_INTELLIGENCE_RESET = "sales_intelligence.reset"
+
 # --- AI Campaign Manager (v0.6.7) --- #
 ACTION_CAMPAIGN_CREATED = "campaign.created"
 ACTION_CAMPAIGN_PLANNED = "campaign.planned"
 ACTION_CAMPAIGN_RECOMMENDATION_GENERATED = "campaign.recommendation_generated"
+ACTION_CAMPAIGN_RECOMMENDATION_ACCEPTED = "campaign.recommendation_accepted"
+ACTION_CAMPAIGN_RECOMMENDATION_REJECTED = "campaign.recommendation_rejected"
 ACTION_CAMPAIGN_APPROVED = "campaign.approved"
 ACTION_CAMPAIGN_APPLIED = "campaign.applied"
 

@@ -138,6 +138,11 @@ USAGE_AI_CAMPAIGN_CREATE = "ai_campaign_create"
 USAGE_AI_CAMPAIGN_PLAN = "ai_campaign_plan"
 USAGE_AI_CAMPAIGN_APPLY = "ai_campaign_apply"
 
+# Типы usage для AI Sales & Lead Intelligence (v0.6.8). Аналитика — бесплатно (0 units).
+USAGE_SALES_INTELLIGENCE_ANALYSIS = "sales_intelligence_analysis"
+USAGE_SALES_INTELLIGENCE_REPORT = "sales_intelligence_report"
+USAGE_SALES_INTELLIGENCE_LEAD = "sales_intelligence_lead"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -262,6 +267,9 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_AI_CAMPAIGN_CREATE: 0,
     USAGE_AI_CAMPAIGN_PLAN: 0,
     USAGE_AI_CAMPAIGN_APPLY: 0,
+    USAGE_SALES_INTELLIGENCE_ANALYSIS: 0,
+    USAGE_SALES_INTELLIGENCE_REPORT: 0,
+    USAGE_SALES_INTELLIGENCE_LEAD: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

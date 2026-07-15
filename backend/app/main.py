@@ -47,6 +47,7 @@ from app.api.posts import router as posts_router
 from app.api.projects import router as projects_router
 from app.api.review_workflow import router as review_workflow_router
 from app.api.saas_onboarding import router as saas_router
+from app.api.sales_intelligence import router as sales_intelligence_router
 from app.api.schedule_automation import router as schedule_automation_router
 from app.api.scheduler_worker import router as scheduler_worker_router
 from app.api.security_middleware import (
@@ -114,6 +115,7 @@ def create_app() -> FastAPI:
     app.include_router(ai_learning_router)
     app.include_router(content_strategy_router)
     app.include_router(ai_campaigns_router)
+    app.include_router(sales_intelligence_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

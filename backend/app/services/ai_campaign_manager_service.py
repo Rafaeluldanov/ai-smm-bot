@@ -81,6 +81,16 @@ _GOAL_LABELS: dict[str, str] = {
     "education": "Обучение аудитории",
     "recruitment": "Найм",
 }
+# Цель кампании → цель календаря (AUTOPILOT_CALENDAR_GOALS: sales/leads/reach/trust/
+# expertise/mixed) — чтобы черновик отражал именно ЭТУ кампанию, а не проектный дефолт.
+_CAMPAIGN_TO_CALENDAR_GOAL: dict[str, str] = {
+    "sales": "sales",
+    "awareness": "reach",
+    "launch": "reach",
+    "engagement": "trust",
+    "education": "expertise",
+    "recruitment": "trust",
+}
 
 
 class AICampaignError(Exception):
@@ -217,6 +227,8 @@ class AICampaignManagerService:
     ) -> list[dict[str, Any]]:
         """Создать этапы кампании (воронка). Пере-генерация заменяет прежние этапы."""
         campaign = self._require_campaign(db, campaign_id)
+        if campaign.status in ("active", "completed"):
+            raise AICampaignError("Нельзя перепланировать применённую/завершённую кампанию")
         snapshot = snapshot or self._snapshot(db, campaign.project_id)
         strategy = strategy or self.build_campaign_strategy(db, campaign_id, snapshot)
         repo.delete_stages(db, campaign_id)  # пере-генерация плана этой кампании
@@ -246,9 +258,9 @@ class AICampaignManagerService:
                 duration_days=duration,
             )
             created.append(repo.public_stage_view(stage))
-        repo.update_campaign(
-            db, campaign, status="review" if campaign.status != "approved" else campaign.status
-        )
+        # План (пере)создан → всегда возвращаем в review и снимаем прежнее одобрение,
+        # чтобы изменённый план требовал повторного approve перед apply.
+        repo.update_campaign(db, campaign, status="review", approved_at=None)
         self._write_audit(
             db, audit_actions.ACTION_CAMPAIGN_PLANNED, campaign, user_id, {"stages": len(created)}
         )
@@ -399,6 +411,14 @@ class AICampaignManagerService:
         if rec.status == "applied":
             raise AICampaignError("Рекомендация уже применена")
         repo.accept_recommendation(db, rec)
+        campaign = self._require_campaign(db, campaign_id)
+        self._write_audit(
+            db,
+            audit_actions.ACTION_CAMPAIGN_RECOMMENDATION_ACCEPTED,
+            campaign,
+            user_id,
+            {"rec_id": rec.id},
+        )
         return repo.public_recommendation_view(rec)
 
     def reject_recommendation(
@@ -409,15 +429,26 @@ class AICampaignManagerService:
         if rec.status == "applied":
             raise AICampaignError("Рекомендация уже применена")
         repo.reject_recommendation(db, rec)
+        campaign = self._require_campaign(db, campaign_id)
+        self._write_audit(
+            db,
+            audit_actions.ACTION_CAMPAIGN_RECOMMENDATION_REJECTED,
+            campaign,
+            user_id,
+            {"rec_id": rec.id},
+        )
         return repo.public_recommendation_view(rec)
 
     def approve_campaign(
         self, db: Session, campaign_id: int, user_id: int | None = None
     ) -> dict[str, Any]:
-        """Одобрить кампанию (status=approved) — обязательный шаг перед apply."""
+        """Одобрить кампанию (status=approved) — обязательный шаг перед apply.
+
+        Требует пройденного планирования (status=review, где созданы этапы воронки).
+        """
         campaign = self._require_campaign(db, campaign_id)
-        if campaign.status not in ("planning", "review", "approved"):
-            raise AICampaignError("Кампанию можно одобрить только после планирования")
+        if campaign.status not in ("review", "approved"):
+            raise AICampaignError("Сначала спланируйте кампанию (generate) — нужен этап review")
         repo.update_campaign(db, campaign, status="approved", approved_at=datetime.now(UTC))
         self._write_audit(
             db,
@@ -445,7 +476,7 @@ class AICampaignManagerService:
         if confirmation != APPLY_CONFIRMATION:
             raise AICampaignError("Требуется подтверждение APPLY_CAMPAIGN")
 
-        draft_created = self._create_calendar_draft(db, campaign.project_id, user_id)
+        draft_created = self._create_calendar_draft(db, campaign, user_id)
         repo.update_campaign(db, campaign, status="active", applied_at=datetime.now(UTC))
         self._write_audit(
             db,
@@ -477,11 +508,10 @@ class AICampaignManagerService:
             )
 
             assistant = AutopilotCalendarAssistantService(settings=self._resolve_settings())
-            recommended = assistant.recommend_calendar(db, campaign.project_id)
             preview = assistant.create_calendar_plan(
                 db,
                 campaign.project_id,
-                {"preset": recommended.get("recommended_preset"), "goal": recommended.get("goal")},
+                self._calendar_payload(assistant, db, campaign),
                 current_user_id=None,
                 dry_run=True,  # гарантированно без записи
             )
@@ -569,19 +599,27 @@ class AICampaignManagerService:
         }
         return base.get(stage_type, "Этап кампании.")
 
-    def _create_calendar_draft(self, db: Session, project_id: int, user_id: int | None) -> bool:
-        """Создать ЧЕРНОВИК календаря (status=draft). Не активный, не live."""
+    @staticmethod
+    def _calendar_payload(assistant: Any, db: Session, campaign: AICampaign) -> dict[str, Any]:
+        """Payload календаря для ЭТОЙ кампании: preset из проекта + цель из цели кампании."""
+        recommended = assistant.recommend_calendar(db, campaign.project_id)
+        goal = _CAMPAIGN_TO_CALENDAR_GOAL.get(campaign.goal) or recommended.get("goal") or "mixed"
+        return {"preset": recommended.get("recommended_preset"), "goal": goal}
+
+    def _create_calendar_draft(
+        self, db: Session, campaign: AICampaign, user_id: int | None
+    ) -> bool:
+        """Создать ЧЕРНОВИК календаря (status=draft) под цель кампании. Не активный, не live."""
         try:
             from app.services.autopilot_calendar_assistant_service import (
                 AutopilotCalendarAssistantService,
             )
 
             assistant = AutopilotCalendarAssistantService(settings=self._resolve_settings())
-            recommended = assistant.recommend_calendar(db, project_id)
             assistant.create_calendar_plan(
                 db,
-                project_id,
-                {"preset": recommended.get("recommended_preset"), "goal": recommended.get("goal")},
+                campaign.project_id,
+                self._calendar_payload(assistant, db, campaign),
                 current_user_id=user_id,
                 dry_run=False,  # dry_run=False → черновик (status=draft), НЕ публикация/актив
             )

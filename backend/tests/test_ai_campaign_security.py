@@ -55,10 +55,65 @@ def test_no_publish_no_active_calendar_no_ads_api() -> None:
             assert ads not in src.lower(), f"{module}: {ads}"
 
 
-def test_apply_only_creates_draft() -> None:
-    src = _source("app.services.ai_campaign_manager_service")
-    assert "create_calendar_plan" in src
-    assert "dry_run=False" in src  # черновик (draft) при apply
+def test_apply_only_creates_draft_behaviorally(db_session: Session) -> None:
+    """apply создаёт ТОЛЬКО черновик (status=draft), активный календарь не трогает."""
+    from app.models.autopilot_calendar_plan import AutopilotCalendarPlan
+    from app.models.crm_bot_smm import CrmPublishingPlan
+
+    owner = user_repository.create_user(db_session, email="camdraft@e.com", password_hash="x")
+    account = account_repository.create_account(
+        db_session, name="d", slug="camdraft", owner_user_id=owner.id
+    )
+    project = project_repository.create_project(
+        db_session, ProjectCreate(name="d", slug="camdraft")
+    )
+    project.account_id = account.id
+    db_session.commit()
+    svc = AICampaignManagerService(
+        settings=Settings(media_proxy_public_base_url="https://m.example.com")
+    )
+    cid = svc.create_campaign(db_session, project.id, name="C", goal="sales")["id"]
+    svc.plan_campaign(db_session, cid)
+    svc.approve_campaign(db_session, cid)
+    svc.apply_campaign(db_session, cid, confirmation="APPLY_CAMPAIGN")
+    plans = db_session.query(AutopilotCalendarPlan).filter_by(project_id=project.id).all()
+    assert plans and all(p.status == "draft" for p in plans)
+    assert db_session.query(CrmPublishingPlan).filter_by(project_id=project.id).count() == 0
+
+
+def test_all_lifecycle_changes_are_audited(db_session: Session) -> None:
+    """create → plan → approve → apply пишут строки в AuditLog."""
+    from app.models.audit_log import AuditLogEntry
+
+    owner = user_repository.create_user(db_session, email="camaudit@e.com", password_hash="x")
+    account = account_repository.create_account(
+        db_session, name="a", slug="camaudit", owner_user_id=owner.id
+    )
+    project = project_repository.create_project(
+        db_session, ProjectCreate(name="a", slug="camaudit")
+    )
+    project.account_id = account.id
+    db_session.commit()
+    svc = AICampaignManagerService(
+        settings=Settings(media_proxy_public_base_url="https://m.example.com")
+    )
+    cid = svc.create_campaign(db_session, project.id, name="C", goal="sales", user_id=owner.id)[
+        "id"
+    ]
+    svc.plan_campaign(db_session, cid, user_id=owner.id)
+    svc.approve_campaign(db_session, cid, user_id=owner.id)
+    svc.apply_campaign(db_session, cid, confirmation="APPLY_CAMPAIGN", user_id=owner.id)
+    actions = {
+        row.action for row in db_session.query(AuditLogEntry).filter_by(project_id=project.id).all()
+    }
+    for expected in (
+        "campaign.created",
+        "campaign.planned",
+        "campaign.recommendation_generated",
+        "campaign.approved",
+        "campaign.applied",
+    ):
+        assert expected in actions, expected
 
 
 def test_config_auto_apply_off_by_default() -> None:
