@@ -564,6 +564,12 @@ class Settings(BaseSettings):
     # действий и НЕ меняет CRM/бюджет/продажи/live/публикации; собирает сигналы и советует.
     operations_center_enabled: bool = True
 
+    # AI Decision Engine (v0.7.4). Проблема → сценарии → оценка → рекомендация. Аналитический/
+    # рекомендательный слой — НЕ применяет решения и НЕ меняет бизнес/CRM/бюджет/live/публикации;
+    # apply лишь создаёт ЧЕРНОВИК процесса при accepted + APPLY_DECISION. `auto_apply` default off.
+    decision_engine_enabled: bool = True
+    decision_engine_auto_apply_enabled: bool = False
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -929,6 +935,16 @@ class Settings(BaseSettings):
     def operations_center_enabled_effective(self) -> bool:
         """Доступен ли AI Operations Control Center (снапшоты/риски/рекомендации/UI/API)."""
         return bool(self.operations_center_enabled)
+
+    @property
+    def decision_engine_enabled_effective(self) -> bool:
+        """Доступен ли AI Decision Engine (решения/сценарии/оценка/рекомендации/UI/API)."""
+        return bool(self.decision_engine_enabled)
+
+    @property
+    def decision_engine_auto_apply_enabled_effective(self) -> bool:
+        """Может ли Decision Engine САМ применять решения (по умолчанию false — только approve)."""
+        return bool(self.decision_engine_enabled and self.decision_engine_auto_apply_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

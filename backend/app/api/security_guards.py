@@ -205,6 +205,41 @@ def require_action_access(
     _guard_project(db, settings, user, action.project_id)
 
 
+def require_ai_decision_access(
+    decision_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к AI-решению Decision Engine (через решение → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import decision_repository
+
+    decision = decision_repository.get_decision(db, decision_id)
+    if decision is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, decision.project_id)
+
+
+def require_decision_scenario_access(
+    scenario_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к сценарию решения (через сценарий → решение → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import decision_repository
+
+    scenario = decision_repository.get_scenario(db, scenario_id)
+    if scenario is None:
+        raise _NOT_FOUND
+    decision = decision_repository.get_decision(db, scenario.decision_id)
+    if decision is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, decision.project_id)
+
+
 def require_operations_risk_access(
     risk_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

@@ -331,6 +331,15 @@ ACTION_STRATEGY_ACCEPTED = "strategy.accepted"
 ACTION_STRATEGY_REJECTED = "strategy.rejected"
 ACTION_STRATEGY_APPLIED = "strategy.applied"
 
+# --- AI Decision Engine (v0.7.4) --- #
+ACTION_DECISION_CREATED = "decision.created"
+ACTION_DECISION_ANALYZED = "decision.analyzed"
+ACTION_DECISION_SCENARIO_CREATED = "decision.scenario_created"
+ACTION_DECISION_SCENARIO_SELECTED = "decision.scenario_selected"
+ACTION_DECISION_SCENARIO_REJECTED = "decision.scenario_rejected"
+ACTION_DECISION_ACCEPTED = "decision.accepted"
+ACTION_DECISION_APPLIED = "decision.applied"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"

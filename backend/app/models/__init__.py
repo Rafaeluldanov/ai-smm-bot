@@ -7,6 +7,7 @@ from app.models.ai_business_task import AIBusinessTask
 from app.models.ai_campaign import AICampaign
 from app.models.ai_campaign_recommendation import AICampaignRecommendation
 from app.models.ai_campaign_stage import AICampaignStage
+from app.models.ai_decision import AIDecision
 from app.models.ai_executive_plan import AIExecutivePlan
 from app.models.ai_lead_event import AILeadEvent
 from app.models.ai_learning_event import AILearningEvent
@@ -45,6 +46,8 @@ from app.models.crm_bot_smm import (
     CrmPublishingPlan,
     CrmSmmResource,
 )
+from app.models.decision_scenario import DecisionScenario
+from app.models.decision_signal import DecisionSignal
 from app.models.email_template_override import EmailTemplateOverride
 from app.models.executive_briefing import ExecutiveBriefing
 from app.models.experiment_suggestion import ExperimentSuggestion
@@ -110,6 +113,7 @@ __all__ = [
     "AICampaign",
     "AICampaignRecommendation",
     "AICampaignStage",
+    "AIDecision",
     "AIExecutivePlan",
     "AILeadEvent",
     "AILearningEvent",
@@ -146,6 +150,8 @@ __all__ = [
     "CrmPromotionCategory",
     "CrmPublishingPlan",
     "CrmSmmResource",
+    "DecisionScenario",
+    "DecisionSignal",
     "EmailTemplateOverride",
     "ExecutiveBriefing",
     "ExperimentSuggestion",

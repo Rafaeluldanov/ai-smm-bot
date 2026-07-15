@@ -165,6 +165,10 @@ USAGE_WORKFLOW_ANALYSIS = "workflow_analysis"
 USAGE_OPERATIONS_ANALYSIS = "operations_analysis"
 USAGE_OPERATIONS_REPORT = "operations_report"
 
+# Типы usage для AI Decision Engine (v0.7.4). Аналитика/рекомендации — бесплатно (0 units).
+USAGE_DECISION_ANALYSIS = "decision_analysis"
+USAGE_DECISION_REPORT = "decision_report"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -304,6 +308,8 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_WORKFLOW_ANALYSIS: 0,
     USAGE_OPERATIONS_ANALYSIS: 0,
     USAGE_OPERATIONS_REPORT: 0,
+    USAGE_DECISION_ANALYSIS: 0,
+    USAGE_DECISION_REPORT: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

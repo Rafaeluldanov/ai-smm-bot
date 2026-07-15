@@ -19,6 +19,7 @@ from app.api.business_os import router as business_os_router
 from app.api.chief_of_staff import router as chief_of_staff_router
 from app.api.content_strategy import router as content_strategy_router
 from app.api.crm_bot_smm import router as crm_bot_smm_router
+from app.api.decisions import router as decisions_router
 from app.api.email_templates import router as email_templates_router
 from app.api.experiment_suggestions import router as experiment_suggestions_router
 from app.api.experiments import router as experiments_router
@@ -126,6 +127,7 @@ def create_app() -> FastAPI:
     app.include_router(chief_of_staff_router)
     app.include_router(workflows_router)
     app.include_router(operations_router)
+    app.include_router(decisions_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

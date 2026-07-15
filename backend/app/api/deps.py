@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     from app.services.ab_testing_service import ABTestingService
     from app.services.ai_campaign_manager_service import AICampaignManagerService
     from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
+    from app.services.ai_decision_engine_service import AIDecisionEngineService
     from app.services.ai_executive_service import AIExecutiveService
     from app.services.ai_learning_service import AILearningService
     from app.services.ai_operations_control_service import AIOperationsControlService
@@ -531,6 +532,13 @@ def get_ai_operations_control_service() -> "AIOperationsControlService":
     from app.services.ai_operations_control_service import AIOperationsControlService
 
     return AIOperationsControlService(settings=get_settings())
+
+
+def get_ai_decision_engine_service() -> "AIDecisionEngineService":
+    """Построить AI Decision Engine (аналитика + рекомендации; решений не применяет)."""
+    from app.services.ai_decision_engine_service import AIDecisionEngineService
+
+    return AIDecisionEngineService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

@@ -56,6 +56,7 @@ BIN := $(VENV)/bin
         chief-briefing chief-tasks chief-memory \
         workflow-create workflow-status workflow-analyze \
         operations-analyze operations-report \
+        decision-create decision-analyze decision-report \
         smoke
 
 help: ## Показать список команд
@@ -517,6 +518,15 @@ operations-analyze: ## Операционный анализ: make operations-an
 
 operations-report: ## Операционный отчёт: make operations-report project_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.operations_report --project-id "$(project_id)"
+
+decision-create: ## Создать решение: make decision-create project_id=1 type=efficiency title="..."
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.decision_create --project-id "$(project_id)" --type "$(type)" --title "$(title)" $(if $(problem),--problem "$(problem)",)
+
+decision-analyze: ## Анализ решения: make decision-analyze decision_id=5
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.decision_analyze --decision-id "$(decision_id)"
+
+decision-report: ## Отчёт по решению: make decision-report decision_id=5
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.decision_report --decision-id "$(decision_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
