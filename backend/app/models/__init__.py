@@ -28,6 +28,7 @@ from app.models.billing import (
 from app.models.business_action import BusinessAction
 from app.models.business_decision_memory import BusinessDecisionMemory
 from app.models.business_forecast import BusinessForecast
+from app.models.business_goal import BusinessGoal
 from app.models.business_growth_profile import BusinessGrowthProfile
 from app.models.business_growth_recommendation import BusinessGrowthRecommendation
 from app.models.business_objective import BusinessObjective
@@ -87,6 +88,7 @@ from app.models.payment import (
     PaymentTransaction,
     PaymentWebhookLog,
 )
+from app.models.plan_milestone import PlanMilestone
 from app.models.platform_live_readiness import PlatformLiveReadiness
 from app.models.post import Post
 from app.models.post_analytics_snapshot import PostAnalyticsSnapshot
@@ -98,12 +100,14 @@ from app.models.project_autopilot_profile import ProjectAutopilotProfile
 from app.models.project_live_readiness_profile import ProjectLiveReadinessProfile
 from app.models.project_yandex_sync_profile import ProjectYandexSyncProfile
 from app.models.public_media_link import PublicMediaLink
+from app.models.quarter_objective import QuarterObjective
 from app.models.sales_intelligence_profile import SalesIntelligenceProfile
 from app.models.scenario_comparison import ScenarioComparison
 from app.models.schedule_media_decision import ScheduleMediaDecision
 from app.models.schedule_run import ScheduleRun
 from app.models.schedule_topic_decision import ScheduleTopicDecision
 from app.models.scheduler_worker_lease import SchedulerWorkerLease
+from app.models.strategic_plan import StrategicPlan
 from app.models.strategy_simulation import StrategySimulation
 from app.models.telegram_live_run_attempt import TelegramLiveRunAttempt
 from app.models.telegram_live_runbook import TelegramLiveRunbook
@@ -139,6 +143,7 @@ __all__ = [
     "BusinessAction",
     "BusinessDecisionMemory",
     "BusinessForecast",
+    "BusinessGoal",
     "BusinessGrowthProfile",
     "BusinessGrowthRecommendation",
     "BusinessObjective",
@@ -198,6 +203,7 @@ __all__ = [
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",
+    "PlanMilestone",
     "PlatformLiveReadiness",
     "Post",
     "PostAnalyticsSnapshot",
@@ -209,8 +215,10 @@ __all__ = [
     "ProjectLiveReadinessProfile",
     "ProjectYandexSyncProfile",
     "PublicMediaLink",
+    "QuarterObjective",
     "ScheduleRun",
     "SchedulerWorkerLease",
+    "StrategicPlan",
     "StrategySimulation",
     "TariffPlan",
     "TelegramLiveRunAttempt",

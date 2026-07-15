@@ -272,6 +272,41 @@ def require_forecast_access(
     _guard_project(db, settings, user, forecast.project_id)
 
 
+def require_goal_access(
+    goal_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к бизнес-цели Business Planner (через цель → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import business_planner_repository
+
+    goal = business_planner_repository.get_goal(db, goal_id)
+    if goal is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, goal.project_id)
+
+
+def require_plan_access(
+    plan_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к стратегическому плану (через план → цель → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import business_planner_repository
+
+    plan = business_planner_repository.get_plan(db, plan_id)
+    if plan is None:
+        raise _NOT_FOUND
+    goal = business_planner_repository.get_goal(db, plan.goal_id)
+    if goal is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, goal.project_id)
+
+
 def require_operations_risk_access(
     risk_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

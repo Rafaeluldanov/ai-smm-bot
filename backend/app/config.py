@@ -582,6 +582,12 @@ class Settings(BaseSettings):
     # бизнес/CRM/бюджет, НЕ выполняет стратегии, НЕ ходит во внешние API; только прогноз/roadmap.
     business_forecasting_enabled: bool = True
 
+    # AI Business Planner (v0.7.7). Business Goal → Gap Analysis → Strategic Plan → Quarter
+    # Objectives → KPI → Milestones → Workflow Draft. Planning-слой — превращает цель в план. НЕ
+    # выполняет план, НЕ меняет бизнес/CRM/бюджет, НЕ запускает рекламу/публикации; approve/convert
+    # меняют лишь статус / создают ЧЕРНОВИК процесса (только при status=approved).
+    business_planner_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -967,6 +973,11 @@ class Settings(BaseSettings):
     def business_forecasting_enabled_effective(self) -> bool:
         """Доступен ли AI Business Forecasting Engine (прогнозы/KPI/roadmap/outlook/UI/API)."""
         return bool(self.business_forecasting_enabled)
+
+    @property
+    def business_planner_enabled_effective(self) -> bool:
+        """Доступен ли AI Business Planner (цели/gap/план/кварталы/KPI/roadmap/draft/UI/API)."""
+        return bool(self.business_planner_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

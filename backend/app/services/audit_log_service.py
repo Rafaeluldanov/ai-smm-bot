@@ -353,6 +353,14 @@ ACTION_FORECAST_GENERATED = "forecast.generated"
 ACTION_FORECAST_METRIC_CREATED = "forecast.metric_created"
 ACTION_FORECAST_ROADMAP_CREATED = "forecast.roadmap_created"
 
+# --- AI Business Planner (v0.7.7) --- #
+ACTION_GOAL_CREATED = "goal.created"
+ACTION_PLAN_GENERATED = "plan.generated"
+ACTION_PLAN_APPROVED = "plan.approved"
+ACTION_PLAN_OBJECTIVE_CREATED = "objective.created"
+ACTION_PLAN_MILESTONE_CREATED = "milestone.created"
+ACTION_PLAN_WORKFLOW_DRAFT_CREATED = "workflow.draft_created"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"

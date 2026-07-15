@@ -59,6 +59,7 @@ BIN := $(VENV)/bin
         decision-create decision-analyze decision-report \
         simulation-create simulation-run simulation-report \
         forecast-create forecast-generate forecast-report \
+        goal-create plan-generate plan-report \
         smoke
 
 help: ## Показать список команд
@@ -547,6 +548,15 @@ forecast-generate: ## Сгенерировать прогноз бизнеса: 
 
 forecast-report: ## Отчёт по прогнозу бизнеса: make forecast-report forecast_id=7
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.forecast_report --forecast-id "$(forecast_id)"
+
+goal-create: ## Создать бизнес-цель: make goal-create project_id=1 type=revenue title="..." target=5000000 [current=1000000]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.goal_create --project-id "$(project_id)" --type "$(type)" --title "$(title)" --target "$(or $(target),0)" --current "$(or $(current),0)"
+
+plan-generate: ## Сгенерировать стратегический план: make plan-generate goal_id=5
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.plan_generate --goal-id "$(goal_id)"
+
+plan-report: ## Отчёт по плану: make plan-report plan_id=7
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.plan_report --plan-id "$(plan_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
