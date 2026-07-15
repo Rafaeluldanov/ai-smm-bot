@@ -205,6 +205,38 @@ def require_action_access(
     _guard_project(db, settings, user, action.project_id)
 
 
+def require_task_access(
+    task_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к задаче владельца Chief of Staff (через задачу → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import chief_of_staff_repository
+
+    task = chief_of_staff_repository.get_task(db, task_id)
+    if task is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, task.project_id)
+
+
+def require_decision_access(
+    decision_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к решению владельца Chief of Staff (через решение → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import chief_of_staff_repository
+
+    decision = chief_of_staff_repository.get_decision(db, decision_id)
+    if decision is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, decision.project_id)
+
+
 def require_live_attempt_access(
     attempt_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

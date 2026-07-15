@@ -547,6 +547,13 @@ class Settings(BaseSettings):
     # ВЫКЛЮЧЕН: изменения только через Approve → Apply (с подтверждением APPLY_BUSINESS_ACTION).
     business_os_enabled: bool = True
     business_os_auto_apply_enabled: bool = False
+
+    # AI Chief of Staff / Executive Assistant Layer (v0.7.1). Персональный AI-ассистент
+    # владельца: брифинги + задачи + память решений. Advisory + assistant — НЕ выполняет
+    # задачи и НЕ меняет CRM/бюджет/продажи/live/публикации сам. Память лишь ДОБАВЛЯЕТ
+    # контекст будущим рекомендациям.
+    chief_of_staff_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -897,6 +904,11 @@ class Settings(BaseSettings):
     def business_os_auto_apply_enabled_effective(self) -> bool:
         """Может ли Executive Layer САМ применять действия (по умолчанию false — только approve)."""
         return bool(self.business_os_enabled and self.business_os_auto_apply_enabled)
+
+    @property
+    def chief_of_staff_enabled_effective(self) -> bool:
+        """Доступен ли AI Chief of Staff (брифинги/задачи/память решений/UI/API)."""
+        return bool(self.chief_of_staff_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

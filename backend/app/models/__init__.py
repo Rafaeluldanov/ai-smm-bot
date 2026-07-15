@@ -3,6 +3,7 @@
 from app.db.base import Base
 from app.models.account import Account
 from app.models.account_membership import AccountMembership
+from app.models.ai_business_task import AIBusinessTask
 from app.models.ai_campaign import AICampaign
 from app.models.ai_campaign_recommendation import AICampaignRecommendation
 from app.models.ai_campaign_stage import AICampaignStage
@@ -24,6 +25,7 @@ from app.models.billing import (
     UsageEvent,
 )
 from app.models.business_action import BusinessAction
+from app.models.business_decision_memory import BusinessDecisionMemory
 from app.models.business_growth_profile import BusinessGrowthProfile
 from app.models.business_growth_recommendation import BusinessGrowthRecommendation
 from app.models.business_objective import BusinessObjective
@@ -43,6 +45,7 @@ from app.models.crm_bot_smm import (
     CrmSmmResource,
 )
 from app.models.email_template_override import EmailTemplateOverride
+from app.models.executive_briefing import ExecutiveBriefing
 from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.live_autopilot_incident import LiveAutopilotIncident
@@ -97,6 +100,7 @@ from app.models.webhook_subscription import WebhookSubscription
 from app.models.yandex_auto_sync_run import YandexAutoSyncRun
 
 __all__ = [
+    "AIBusinessTask",
     "AICampaign",
     "AICampaignRecommendation",
     "AICampaignStage",
@@ -117,6 +121,7 @@ __all__ = [
     "BillingAccount",
     "BillingLedgerEntry",
     "BusinessAction",
+    "BusinessDecisionMemory",
     "BusinessGrowthProfile",
     "BusinessGrowthRecommendation",
     "BusinessObjective",
@@ -135,6 +140,7 @@ __all__ = [
     "CrmPublishingPlan",
     "CrmSmmResource",
     "EmailTemplateOverride",
+    "ExecutiveBriefing",
     "ExperimentSuggestion",
     "ExternalImageCandidate",
     "LiveAutopilotIncident",

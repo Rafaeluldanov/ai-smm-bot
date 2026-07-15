@@ -140,11 +140,8 @@ def test_tenant_isolation_action_routes(client: TestClient, db_session: Session)
     # Все три мутирующих роута /actions/{id}/* защищены require_action_access.
     assert client.post(f"/actions/{aid}/accept", headers=_h(other.id)).status_code in (403, 404)
     assert client.post(f"/actions/{aid}/reject", headers=_h(other.id)).status_code in (403, 404)
-    assert (
-        client.post(
-            f"/actions/{aid}/apply",
-            headers=_h(other.id),
-            json={"confirmation": "APPLY_BUSINESS_ACTION"},
-        ).status_code
-        in (403, 404)
-    )
+    assert client.post(
+        f"/actions/{aid}/apply",
+        headers=_h(other.id),
+        json={"confirmation": "APPLY_BUSINESS_ACTION"},
+    ).status_code in (403, 404)

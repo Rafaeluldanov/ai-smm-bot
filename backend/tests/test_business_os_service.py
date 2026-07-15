@@ -363,10 +363,7 @@ def test_audit_log_written_for_plan_accept_apply(db_session: Session) -> None:
     action_id = svc.create_executive_plan(db_session, pid)["actions"][0]["id"]
     svc.accept_action(db_session, action_id)
     svc.apply_action(db_session, action_id, confirmation=APPLY_CONFIRMATION)
-    actions = {
-        e.action
-        for e in db_session.query(AuditLogEntry).filter_by(project_id=pid).all()
-    }
+    actions = {e.action for e in db_session.query(AuditLogEntry).filter_by(project_id=pid).all()}
     assert "business_os.plan_created" in actions
     assert "business_os.accepted" in actions
     assert "business_os.applied" in actions

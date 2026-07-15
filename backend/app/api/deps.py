@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Annotated
 if TYPE_CHECKING:
     from app.services.ab_testing_service import ABTestingService
     from app.services.ai_campaign_manager_service import AICampaignManagerService
+    from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
     from app.services.ai_executive_service import AIExecutiveService
     from app.services.ai_learning_service import AILearningService
     from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
@@ -507,6 +508,13 @@ def get_ai_executive_service() -> "AIExecutiveService":
     from app.services.ai_executive_service import AIExecutiveService
 
     return AIExecutiveService(settings=get_settings())
+
+
+def get_ai_chief_of_staff_service() -> "AIChiefOfStaffService":
+    """Построить AI Chief of Staff / Executive Assistant Layer (advisory + assistant)."""
+    from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
+
+    return AIChiefOfStaffService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

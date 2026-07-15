@@ -53,6 +53,7 @@ BIN := $(VENV)/bin
         sales-analyze sales-report sales-lead \
         growth-analyze growth-report growth-apply \
         business-os-analyze business-os-plan business-os-apply \
+        chief-briefing chief-tasks chief-memory \
         smoke
 
 help: ## Показать список команд
@@ -490,6 +491,15 @@ business-os-plan: ## Исполнительный план: make business-os-pla
 
 business-os-apply: ## Применить бизнес-действие: make business-os-apply action_id=5
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.business_os_apply --action-id "$(action_id)"
+
+chief-briefing: ## Брифинг руководителя: make chief-briefing project_id=1 [weekly=1]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.chief_briefing --project-id "$(project_id)" $(if $(weekly),--weekly,)
+
+chief-tasks: ## Задачи руководителя: make chief-tasks project_id=1 [task_id=5 action=accept]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.chief_tasks $(if $(project_id),--project-id "$(project_id)",) $(if $(task_id),--task-id "$(task_id)",) $(if $(action),--action "$(action)",)
+
+chief-memory: ## Память решений: make chief-memory project_id=1 [key=sales_style value=soft decision_type=restriction]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.chief_memory $(if $(project_id),--project-id "$(project_id)",) $(if $(decision_type),--decision-type "$(decision_type)",) $(if $(key),--key "$(key)",) $(if $(value),--value "$(value)",) $(if $(disable),--disable "$(disable)",)
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

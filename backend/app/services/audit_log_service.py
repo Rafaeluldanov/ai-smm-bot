@@ -331,6 +331,15 @@ ACTION_STRATEGY_ACCEPTED = "strategy.accepted"
 ACTION_STRATEGY_REJECTED = "strategy.rejected"
 ACTION_STRATEGY_APPLIED = "strategy.applied"
 
+# --- AI Chief of Staff / Executive Assistant Layer (v0.7.1) --- #
+ACTION_CHIEF_BRIEFING_GENERATED = "chief.briefing_generated"
+ACTION_CHIEF_TASK_CREATED = "chief.task_created"
+ACTION_CHIEF_TASK_ACCEPTED = "chief.task_accepted"
+ACTION_CHIEF_TASK_REJECTED = "chief.task_rejected"
+ACTION_CHIEF_TASK_COMPLETED = "chief.task_completed"
+ACTION_CHIEF_MEMORY_CREATED = "chief.memory_created"
+ACTION_CHIEF_MEMORY_DELETED = "chief.memory_deleted"
+
 # --- Autonomous Business OS / AI Executive Layer (v0.7.0) --- #
 ACTION_BUSINESS_OS_ANALYZED = "business_os.analyzed"
 ACTION_BUSINESS_OS_PLAN_CREATED = "business_os.plan_created"
