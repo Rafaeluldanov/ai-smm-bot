@@ -347,6 +347,12 @@ ACTION_SIMULATION_COMPLETED = "simulation.completed"
 ACTION_SIMULATION_COMPARED = "simulation.compared"
 ACTION_SIMULATION_RECOMMENDED = "simulation.recommended"
 
+# --- AI Business Forecasting Engine (v0.7.6) --- #
+ACTION_FORECAST_CREATED = "forecast.created"
+ACTION_FORECAST_GENERATED = "forecast.generated"
+ACTION_FORECAST_METRIC_CREATED = "forecast.metric_created"
+ACTION_FORECAST_ROADMAP_CREATED = "forecast.roadmap_created"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"

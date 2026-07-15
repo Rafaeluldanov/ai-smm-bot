@@ -14,6 +14,7 @@ from app.api.autonomous_runs import router as autonomous_runs_router
 from app.api.autopilot import router as autopilot_router
 from app.api.autopilot_calendar import router as autopilot_calendar_router
 from app.api.billing import router as billing_router
+from app.api.business_forecasting import router as business_forecasting_router
 from app.api.business_growth import router as business_growth_router
 from app.api.business_os import router as business_os_router
 from app.api.chief_of_staff import router as chief_of_staff_router
@@ -130,6 +131,7 @@ def create_app() -> FastAPI:
     app.include_router(operations_router)
     app.include_router(decisions_router)
     app.include_router(strategy_simulator_router)
+    app.include_router(business_forecasting_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

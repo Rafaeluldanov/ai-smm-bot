@@ -27,9 +27,11 @@ from app.models.billing import (
 )
 from app.models.business_action import BusinessAction
 from app.models.business_decision_memory import BusinessDecisionMemory
+from app.models.business_forecast import BusinessForecast
 from app.models.business_growth_profile import BusinessGrowthProfile
 from app.models.business_growth_recommendation import BusinessGrowthRecommendation
 from app.models.business_objective import BusinessObjective
+from app.models.business_roadmap import BusinessRoadmap
 from app.models.business_workflow import BusinessWorkflow
 from app.models.client_learning_profile import ClientLearningProfile
 from app.models.content_experiment import ContentExperiment
@@ -52,6 +54,7 @@ from app.models.email_template_override import EmailTemplateOverride
 from app.models.executive_briefing import ExecutiveBriefing
 from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
+from app.models.forecast_metric import ForecastMetric
 from app.models.forecast_result import ForecastResult
 from app.models.live_autopilot_incident import LiveAutopilotIncident
 from app.models.live_autopilot_monitor_snapshot import LiveAutopilotMonitorSnapshot
@@ -135,9 +138,11 @@ __all__ = [
     "BillingLedgerEntry",
     "BusinessAction",
     "BusinessDecisionMemory",
+    "BusinessForecast",
     "BusinessGrowthProfile",
     "BusinessGrowthRecommendation",
     "BusinessObjective",
+    "BusinessRoadmap",
     "BusinessWorkflow",
     "ClientLearningProfile",
     "ContentExperiment",
@@ -159,6 +164,7 @@ __all__ = [
     "ExecutiveBriefing",
     "ExperimentSuggestion",
     "ExternalImageCandidate",
+    "ForecastMetric",
     "ForecastResult",
     "LiveAutopilotIncident",
     "LiveAutopilotMonitorSnapshot",

@@ -256,6 +256,22 @@ def require_simulation_access(
     _guard_project(db, settings, user, simulation.project_id)
 
 
+def require_forecast_access(
+    forecast_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к прогнозу бизнеса (через прогноз → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import business_forecast_repository
+
+    forecast = business_forecast_repository.get_forecast(db, forecast_id)
+    if forecast is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, forecast.project_id)
+
+
 def require_operations_risk_access(
     risk_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

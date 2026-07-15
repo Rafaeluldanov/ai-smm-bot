@@ -576,6 +576,12 @@ class Settings(BaseSettings):
     # стратегии; только прогноз и рекомендация.
     strategy_simulator_enabled: bool = True
 
+    # AI Business Forecasting Engine (v0.7.6). Business State → Forecast Model → KPI Projection →
+    # Risk Adjustment → Business Outlook → Owner Review. Долгосрочный прогноз развития бизнеса на
+    # 3/6/12 месяцев. НЕ гарантирует прибыль, НЕ обещает финансовый результат, НЕ меняет
+    # бизнес/CRM/бюджет, НЕ выполняет стратегии, НЕ ходит во внешние API; только прогноз/roadmap.
+    business_forecasting_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -956,6 +962,11 @@ class Settings(BaseSettings):
     def strategy_simulator_enabled_effective(self) -> bool:
         """Доступен ли AI Strategy Simulator (симуляции/прогнозы/сравнения/рекомендации/UI/API)."""
         return bool(self.strategy_simulator_enabled)
+
+    @property
+    def business_forecasting_enabled_effective(self) -> bool:
+        """Доступен ли AI Business Forecasting Engine (прогнозы/KPI/roadmap/outlook/UI/API)."""
+        return bool(self.business_forecasting_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

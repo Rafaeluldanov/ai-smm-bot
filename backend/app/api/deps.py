@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Annotated
 
 if TYPE_CHECKING:
     from app.services.ab_testing_service import ABTestingService
+    from app.services.ai_business_forecasting_service import AIBusinessForecastingService
     from app.services.ai_campaign_manager_service import AICampaignManagerService
     from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
     from app.services.ai_decision_engine_service import AIDecisionEngineService
@@ -547,6 +548,13 @@ def get_ai_strategy_simulator_service() -> "AIStrategySimulatorService":
     from app.services.ai_strategy_simulator_service import AIStrategySimulatorService
 
     return AIStrategySimulatorService(settings=get_settings())
+
+
+def get_ai_business_forecasting_service() -> "AIBusinessForecastingService":
+    """Построить AI Business Forecasting Engine (прогноз/KPI/roadmap; ничего не выполняет)."""
+    from app.services.ai_business_forecasting_service import AIBusinessForecastingService
+
+    return AIBusinessForecastingService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

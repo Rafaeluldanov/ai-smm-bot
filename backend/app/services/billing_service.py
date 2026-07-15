@@ -173,6 +173,10 @@ USAGE_DECISION_REPORT = "decision_report"
 USAGE_STRATEGY_SIMULATION = "strategy_simulation"
 USAGE_FORECAST_REPORT = "forecast_report"
 
+# Типы usage для AI Business Forecasting Engine (v0.7.6). Прогноз/roadmap — бесплатно (0 units).
+# (USAGE_FORECAST_REPORT переиспользуется из v0.7.5 — отчёт по прогнозу тоже бесплатен.)
+USAGE_BUSINESS_FORECAST = "business_forecast"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -316,6 +320,7 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_DECISION_REPORT: 0,
     USAGE_STRATEGY_SIMULATION: 0,
     USAGE_FORECAST_REPORT: 0,
+    USAGE_BUSINESS_FORECAST: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

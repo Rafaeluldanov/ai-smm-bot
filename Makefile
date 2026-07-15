@@ -58,6 +58,7 @@ BIN := $(VENV)/bin
         operations-analyze operations-report \
         decision-create decision-analyze decision-report \
         simulation-create simulation-run simulation-report \
+        forecast-create forecast-generate forecast-report \
         smoke
 
 help: ## Показать список команд
@@ -537,6 +538,15 @@ simulation-run: ## Запустить моделирование стратег�
 
 simulation-report: ## Отчёт по симуляции стратегии: make simulation-report simulation_id=7
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.simulation_report --simulation-id "$(simulation_id)"
+
+forecast-create: ## Создать прогноз бизнеса: make forecast-create project_id=1 [horizon=12_months]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.forecast_create --project-id "$(project_id)" $(if $(horizon),--horizon "$(horizon)",) $(if $(title),--title "$(title)",)
+
+forecast-generate: ## Сгенерировать прогноз бизнеса: make forecast-generate forecast_id=7
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.forecast_generate --forecast-id "$(forecast_id)"
+
+forecast-report: ## Отчёт по прогнозу бизнеса: make forecast-report forecast_id=7
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.forecast_report --forecast-id "$(forecast_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"
