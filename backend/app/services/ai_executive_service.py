@@ -37,6 +37,9 @@ logger = get_logger(__name__)
 # Подтверждение, обязательное для применения бизнес-действия.
 APPLY_CONFIRMATION = "APPLY_BUSINESS_ACTION"
 
+# Максимальная длина title (совпадает с BusinessAction.title String(255)) — для дедупа.
+_TITLE_MAX = 255
+
 # Вес типа возможности при оценке impact (0..1).
 _TYPE_IMPACT: dict[str, float] = {
     "revenue": 1.0,
@@ -201,10 +204,12 @@ class AIExecutiveService:
             expected_outcomes=expected_outcomes,
             confidence_score=confidence,
         )
-        actions = self._generate_actions(db, project_id, plan.id, opportunities, user_id)
-        # Топ-приоритетные действия в план (по убыванию приоритета); plan уже в сессии.
-        top = sorted(actions, key=lambda a: a["priority"], reverse=True)[:3]
-        plan.priority_actions = [a["title"] for a in top]
+        # Создаём новые действия из возможностей (dedup по (action_type, title)),
+        # затем привязываем ВСЕ открытые действия проекта к новому плану — иначе повторный
+        # analyze с теми же сигналами дал бы пустой план (все возможности задедуплены).
+        self._generate_actions(db, project_id, plan.id, opportunities, user_id)
+        open_actions = repo.reassign_open_actions_to_plan(db, project_id, plan.id)
+        plan.priority_actions = [a.title for a in open_actions[:3]]  # уже по убыванию приоритета
         db.commit()
 
         self._write_audit(
@@ -212,11 +217,11 @@ class AIExecutiveService:
             audit_actions.ACTION_BUSINESS_OS_PLAN_CREATED,
             project_id,
             user_id,
-            {"plan_id": plan.id, "actions": len(actions)},
+            {"plan_id": plan.id, "actions": len(open_actions)},
         )
         return {
             "plan": repo.public_plan_view(plan),
-            "actions": actions,
+            "actions": [repo.public_action_view(a) for a in open_actions],
         }
 
     def get_plan(self, db: Session, project_id: int) -> dict[str, Any]:
@@ -293,12 +298,15 @@ class AIExecutiveService:
         if not self._resolve_settings().business_os_enabled_effective:
             return []
         account_id = self._account_id(db, project_id)
+        # Ключ дедупа сравнивается с уже сохранёнными title (обрезаны до 255 в create_action),
+        # поэтому кандидата тоже нормализуем через _TITLE_MAX — иначе длинные заголовки
+        # (>255) обходили бы дедуп и плодили дубликаты при каждом analyze.
         existing = {(a.action_type, a.title) for a in repo.list_actions(db, project_id, limit=1000)}
         created: list[dict[str, Any]] = []
         for opp in opportunities:
             opp_type = str(opp.get("type", "content"))
             action_type = _OPP_TO_ACTION.get(opp_type, "content")
-            title = str(opp.get("title", "")).strip()
+            title = str(opp.get("title", "")).strip()[:_TITLE_MAX]
             if not title or (action_type, title) in existing:
                 continue
             priority = self._priority_score(opp)

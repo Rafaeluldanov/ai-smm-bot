@@ -20,6 +20,9 @@ _OBJECTIVE_FIELDS: frozenset[str] = frozenset(
     {"title", "description", "target_value", "current_value", "unit", "deadline", "status"}
 )
 
+# Открытые (ещё не терминальные) статусы бизнес-действия — единый источник для reassign и сводки.
+_OPEN_ACTION_STATUSES: tuple[str, ...] = ("generated", "accepted")
+
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -244,6 +247,32 @@ def apply_action(db: Session, action: BusinessAction) -> BusinessAction:
     return set_action_status(db, action, "applied", stamp_applied=True)
 
 
+def list_open_actions(db: Session, project_id: int) -> list[BusinessAction]:
+    """Открытые (generated/accepted) действия проекта по убыванию приоритета."""
+    stmt = (
+        select(BusinessAction)
+        .where(BusinessAction.project_id == project_id)
+        .where(BusinessAction.status.in_(_OPEN_ACTION_STATUSES))
+        .order_by(BusinessAction.priority.desc(), BusinessAction.id.desc())
+    )
+    return list(db.execute(stmt).scalars().all())
+
+
+def reassign_open_actions_to_plan(
+    db: Session, project_id: int, plan_id: int
+) -> list[BusinessAction]:
+    """Привязать все ещё открытые (generated/accepted) действия проекта к новому плану.
+
+    Терминальные действия (applied/rejected) остаются за своими историческими планами.
+    Возвращает открытые действия проекта по убыванию приоритета — актуальный набор плана.
+    """
+    actions = list_open_actions(db, project_id)
+    for action in actions:
+        action.plan_id = plan_id
+    db.commit()
+    return actions
+
+
 # ---------------------------------------------------------------------------- #
 # Public views                                                                 #
 # ---------------------------------------------------------------------------- #
@@ -307,7 +336,9 @@ def public_action_view(action: BusinessAction) -> dict[str, Any]:
 def build_business_summary(db: Session, project_id: int) -> dict[str, Any]:
     """Сводка бизнеса: последний план + счётчики целей/действий."""
     plan = get_latest_plan(db, project_id)
-    open_actions = list_actions(db, project_id, status="generated")
+    # «Открытые» действия = generated + accepted (тот же набор, что reassign/get_plan),
+    # иначе счётчик сводки расходился бы с планом после accept.
+    open_actions = list_open_actions(db, project_id)
     return {
         "project_id": project_id,
         "has_plan": plan is not None,

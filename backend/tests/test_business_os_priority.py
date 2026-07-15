@@ -65,3 +65,27 @@ def test_actions_sorted_by_priority(db_session: Session) -> None:
     actions = svc.prioritize_actions(db_session, pid)
     priorities = [a["priority"] for a in actions]
     assert priorities == sorted(priorities, reverse=True)
+
+
+def test_plan_priority_actions_are_top_by_priority(db_session: Session) -> None:
+    """plan.priority_actions = заголовки топ-3 открытых действий по убыванию приоритета."""
+    from app.repositories import business_os_repository as repo
+
+    pid = _project(db_session, "exprio2")
+    svc = AIExecutiveService(settings=_SETTINGS)
+    plan1_id = svc.create_executive_plan(db_session, pid)["plan"]["id"]
+    # Три действия с различными приоритетами на первом плане.
+    for title, prio in (("низкий", 30.0), ("высокий", 70.0), ("средний", 50.0)):
+        repo.create_action(
+            db_session,
+            project_id=pid,
+            account_id=None,
+            plan_id=plan1_id,
+            action_type="content",
+            title=title,
+            priority=prio,
+        )
+    out = svc.create_executive_plan(db_session, pid)
+    assert out["plan"]["priority_actions"] == ["высокий", "средний", "низкий"]
+    returned = [a["priority"] for a in out["actions"]]
+    assert returned == sorted(returned, reverse=True)

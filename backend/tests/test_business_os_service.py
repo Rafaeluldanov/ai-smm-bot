@@ -158,3 +158,215 @@ def test_explain_and_summary(db_session: Session) -> None:
 def test_missing_project_raises(db_session: Session) -> None:
     with pytest.raises(AIExecutiveError):
         _svc().analyze_business_state(db_session, 999999)
+
+
+# --- Регрессии по итогам adversarial-review (v0.7.0) --- #
+
+
+def test_reanalyze_keeps_plan_populated(db_session: Session) -> None:
+    """Повторный analyze с теми же сигналами не должен давать пустой план (dedup-регрессия)."""
+    pid = _project(db_session, "exsvc9")
+    _seed_revenue(db_session, pid)
+    svc = _svc()
+    svc.create_executive_plan(db_session, pid)
+    total_after_first = len(svc.list_actions(db_session, pid))
+    out2 = svc.create_executive_plan(db_session, pid)
+    # второй план не пустой: действия привязаны и приоритеты выставлены
+    assert out2["actions"], "повторный план должен показывать открытые действия"
+    assert out2["plan"]["priority_actions"]
+    got = svc.get_plan(db_session, pid)
+    assert got["actions"], "get_plan (последний план) должен показывать открытые действия"
+    assert any("Приоритет" in r for r in svc.explain_plan(db_session, pid)["reasons"])
+    # dedup: повторный analyze НЕ плодит дубликаты действий
+    assert len(svc.list_actions(db_session, pid)) == total_after_first
+
+
+def test_foreign_objective_binding_rejected(db_session: Session) -> None:
+    """Нельзя построить план проекта P2 по цели чужого проекта P1 (tenant isolation)."""
+    p1 = _project(db_session, "exsvcf1")
+    p2 = _project(db_session, "exsvcf2")
+    svc = _svc()
+    obj_p1 = svc.create_objective(db_session, p1, type="revenue_growth", title="Цель P1")
+    with pytest.raises(AIExecutiveError):
+        svc.create_executive_plan(db_session, p2, objective_id=obj_p1["id"])
+    # happy-path: своя цель привязывается
+    obj_p2 = svc.create_objective(db_session, p2, type="lead_growth", title="Цель P2")
+    out = svc.create_executive_plan(db_session, p2, objective_id=obj_p2["id"])
+    assert out["plan"]["objective_id"] == obj_p2["id"]
+
+
+def test_cross_status_dedup_applied_rejected_not_recreated(db_session: Session) -> None:
+    """Applied/rejected действия не появляются заново при повторной генерации."""
+    pid = _project(db_session, "exsvc10")
+    _seed_revenue(db_session, pid)
+    svc = _svc()
+    actions = svc.create_executive_plan(db_session, pid)["actions"]
+    assert len(actions) >= 2
+    keys = {(a["action_type"], a["title"]) for a in actions}
+    svc.reject_action(db_session, actions[0]["id"])
+    svc.accept_action(db_session, actions[1]["id"])
+    svc.apply_action(db_session, actions[1]["id"], confirmation=APPLY_CONFIRMATION)
+    fresh = svc.generate_actions(db_session, pid)
+    assert all((f["action_type"], f["title"]) not in keys for f in fresh)
+    # каждый (type,title) остаётся в единственном экземпляре
+    all_actions = svc.list_actions(db_session, pid)
+    seen = [(a["action_type"], a["title"]) for a in all_actions]
+    assert len(seen) == len(set(seen))
+
+
+def test_apply_terminal_states_blocked(db_session: Session) -> None:
+    """Терминальные статусы блокируют apply/accept/reject (двойной apply, apply-after-reject)."""
+    pid = _project(db_session, "exsvc11")
+    _seed_revenue(db_session, pid)
+    svc = _svc()
+    actions = svc.create_executive_plan(db_session, pid)["actions"]
+    a_reject, a_apply = actions[0]["id"], actions[1]["id"]
+
+    svc.reject_action(db_session, a_reject)
+    with pytest.raises(AIExecutiveError):  # apply после reject
+        svc.apply_action(db_session, a_reject, confirmation=APPLY_CONFIRMATION)
+
+    svc.accept_action(db_session, a_apply)
+    svc.apply_action(db_session, a_apply, confirmation=APPLY_CONFIRMATION)
+    with pytest.raises(AIExecutiveError):  # повторный apply
+        svc.apply_action(db_session, a_apply, confirmation=APPLY_CONFIRMATION)
+    with pytest.raises(AIExecutiveError):  # accept после applied
+        svc.accept_action(db_session, a_apply)
+    with pytest.raises(AIExecutiveError):  # reject после applied
+        svc.reject_action(db_session, a_apply)
+
+
+def test_apply_draft_campaign_stays_non_live_draft(db_session: Session) -> None:
+    """apply campaign-действия создаёт ЧЕРНОВИК кампании (draft), не live/active."""
+    from app.models.ai_campaign import AICampaign
+    from app.repositories import business_os_repository as repo
+
+    pid = _project(db_session, "exsvc12")
+    svc = _svc()
+    # Строим campaign-действие напрямую (opportunity-паттерн кампании требует атрибуции).
+    action = repo.create_action(
+        db_session,
+        project_id=pid,
+        account_id=None,
+        plan_id=None,
+        action_type="campaign",
+        title="Повторить успешную кампанию",
+        priority=50.0,
+        apply_payload={"draft_campaign": {"goal": "awareness", "name": "Кампания роста"}},
+    )
+    svc.accept_action(db_session, action.id)
+    res = svc.apply_action(db_session, action.id, confirmation=APPLY_CONFIRMATION)
+    assert res["applied"]["draft_campaign"] is True
+    assert res["live_enabled"] is False
+    campaigns = db_session.query(AICampaign).filter_by(project_id=pid).all()
+    assert len(campaigns) == 1 and campaigns[0].status == "draft"
+
+
+def test_reassign_moves_open_keeps_terminal(db_session: Session) -> None:
+    """Повторный analyze: открытые (accepted) действия переезжают в новый план,
+    терминальные (applied/rejected) остаются за старым планом."""
+    from app.repositories import business_os_repository as repo
+
+    pid = _project(db_session, "exsvc15")
+    svc = _svc()
+    plan1_id = svc.create_executive_plan(db_session, pid)["plan"]["id"]
+
+    def mk(title: str, priority: float = 10.0) -> int:
+        return repo.create_action(
+            db_session,
+            project_id=pid,
+            account_id=None,
+            plan_id=plan1_id,
+            action_type="content",
+            title=title,
+            priority=priority,
+        ).id
+
+    a, b, c = mk("Отклонённое A"), mk("Применённое B"), mk("Открытое C")
+    svc.reject_action(db_session, a)
+    svc.accept_action(db_session, b)
+    svc.apply_action(db_session, b, confirmation=APPLY_CONFIRMATION)
+    svc.accept_action(db_session, c)  # accepted, но не applied → всё ещё открытое
+
+    out2 = svc.create_executive_plan(db_session, pid)
+    plan2_id = out2["plan"]["id"]
+    # терминальные держатся за историческим планом
+    assert repo.get_action(db_session, a).plan_id == plan1_id
+    assert repo.get_action(db_session, b).plan_id == plan1_id
+    # открытое accepted переехало в новый план
+    assert repo.get_action(db_session, c).plan_id == plan2_id
+    assert {x["title"] for x in out2["actions"]} == {"Открытое C"}
+    assert out2["plan"]["priority_actions"] == ["Открытое C"]
+    assert {x["title"] for x in svc.get_plan(db_session, pid)["actions"]} == {"Открытое C"}
+
+
+def test_reassign_is_tenant_scoped(db_session: Session) -> None:
+    """reassign при analyze проекта A не трогает действия проекта B."""
+    from app.repositories import business_os_repository as repo
+
+    pa = _project(db_session, "exsvca")
+    pb = _project(db_session, "exsvcb")
+    svc = _svc()
+    svc.create_executive_plan(db_session, pa)
+    b_plan_id = svc.create_executive_plan(db_session, pb)["plan"]["id"]
+    b_action = repo.create_action(
+        db_session,
+        project_id=pb,
+        account_id=None,
+        plan_id=b_plan_id,
+        action_type="content",
+        title="Только B",
+        priority=10.0,
+    )
+    svc.create_executive_plan(db_session, pa)  # повторный analyze A
+    assert repo.get_action(db_session, b_action.id).plan_id == b_plan_id
+    assert {x["title"] for x in svc.get_plan(db_session, pb)["actions"]} == {"Только B"}
+
+
+def test_business_summary_open_count_includes_accepted(db_session: Session) -> None:
+    """actions_open в сводке = generated+accepted (согласовано с get_plan/reassign)."""
+    pid = _project(db_session, "exsvc16")
+    _seed_revenue(db_session, pid)
+    svc = _svc()
+    actions = svc.create_executive_plan(db_session, pid)["actions"]
+    total_open = len(actions)
+    svc.accept_action(db_session, actions[0]["id"])  # accepted тоже «открытое»
+    summary = svc.get_business_summary(db_session, pid)
+    assert summary["actions_open"] == total_open
+
+
+def test_long_title_is_deduped_after_db_truncation(db_session: Session) -> None:
+    """Заголовок >255 символов не должен обходить дедуп (сравниваем с обрезанным до 255)."""
+    pid = _project(db_session, "exsvc14")
+    svc = _svc()
+    opp = {
+        "type": "content",
+        "title": "Ж" * 400,
+        "confidence": 80,
+        "reason": "длинная возможность",
+        "signals": ["content"],
+    }
+    first = svc._generate_actions(db_session, pid, None, [opp], None)
+    second = svc._generate_actions(db_session, pid, None, [opp], None)
+    assert len(first) == 1
+    assert second == []  # дубликат не создаётся, несмотря на длину > 255
+    assert len(svc.list_actions(db_session, pid)) == 1
+
+
+def test_audit_log_written_for_plan_accept_apply(db_session: Session) -> None:
+    """analyze/plan/accept/apply пишут события в AuditLog (project-scoped)."""
+    from app.models.audit_log import AuditLogEntry
+
+    pid = _project(db_session, "exsvc13")
+    _seed_revenue(db_session, pid)
+    svc = _svc()
+    action_id = svc.create_executive_plan(db_session, pid)["actions"][0]["id"]
+    svc.accept_action(db_session, action_id)
+    svc.apply_action(db_session, action_id, confirmation=APPLY_CONFIRMATION)
+    actions = {
+        e.action
+        for e in db_session.query(AuditLogEntry).filter_by(project_id=pid).all()
+    }
+    assert "business_os.plan_created" in actions
+    assert "business_os.accepted" in actions
+    assert "business_os.applied" in actions
