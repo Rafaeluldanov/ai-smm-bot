@@ -61,6 +61,7 @@ from app.api.security_middleware import (
     SecurityHeadersMiddleware,
 )
 from app.api.seo import router as seo_router
+from app.api.strategy_simulator import router as strategy_simulator_router
 from app.api.telegram_live_rollout import router as telegram_live_rollout_router
 from app.api.telegram_live_runbook import router as telegram_live_runbook_router
 from app.api.topic_decisions import router as topic_decisions_router
@@ -128,6 +129,7 @@ def create_app() -> FastAPI:
     app.include_router(workflows_router)
     app.include_router(operations_router)
     app.include_router(decisions_router)
+    app.include_router(strategy_simulator_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

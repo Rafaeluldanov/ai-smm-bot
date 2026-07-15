@@ -570,6 +570,12 @@ class Settings(BaseSettings):
     decision_engine_enabled: bool = True
     decision_engine_auto_apply_enabled: bool = False
 
+    # AI Strategy Simulator (v0.7.5). Decision Scenario → Simulation → Forecast → Comparison →
+    # Recommendation. Аналитический слой — моделирует последствия сценария на 30/60/90 дней. НЕ
+    # гарантирует прибыль, НЕ меняет бизнес/CRM/бюджет/live/публикации/рекламу, НЕ выполняет
+    # стратегии; только прогноз и рекомендация.
+    strategy_simulator_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -945,6 +951,11 @@ class Settings(BaseSettings):
     def decision_engine_auto_apply_enabled_effective(self) -> bool:
         """Может ли Decision Engine САМ применять решения (по умолчанию false — только approve)."""
         return bool(self.decision_engine_enabled and self.decision_engine_auto_apply_enabled)
+
+    @property
+    def strategy_simulator_enabled_effective(self) -> bool:
+        """Доступен ли AI Strategy Simulator (симуляции/прогнозы/сравнения/рекомендации/UI/API)."""
+        return bool(self.strategy_simulator_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

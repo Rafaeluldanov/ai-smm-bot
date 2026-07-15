@@ -57,6 +57,7 @@ BIN := $(VENV)/bin
         workflow-create workflow-status workflow-analyze \
         operations-analyze operations-report \
         decision-create decision-analyze decision-report \
+        simulation-create simulation-run simulation-report \
         smoke
 
 help: ## Показать список команд
@@ -527,6 +528,15 @@ decision-analyze: ## Анализ решения: make decision-analyze decision
 
 decision-report: ## Отчёт по решению: make decision-report decision_id=5
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.decision_report --decision-id "$(decision_id)"
+
+simulation-create: ## Создать симуляцию стратегии: make simulation-create project_id=1 scenario_id=5 [period=90_days]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.simulation_create --project-id "$(project_id)" --scenario-id "$(scenario_id)" $(if $(period),--period "$(period)",) $(if $(title),--title "$(title)",)
+
+simulation-run: ## Запустить моделирование стратегии: make simulation-run simulation_id=7
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.simulation_run --simulation-id "$(simulation_id)"
+
+simulation-report: ## Отчёт по симуляции стратегии: make simulation-report simulation_id=7
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.simulation_report --simulation-id "$(simulation_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

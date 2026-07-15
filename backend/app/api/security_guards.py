@@ -240,6 +240,22 @@ def require_decision_scenario_access(
     _guard_project(db, settings, user, decision.project_id)
 
 
+def require_simulation_access(
+    simulation_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к стратегической симуляции (через симуляцию → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import strategy_simulation_repository
+
+    simulation = strategy_simulation_repository.get_simulation(db, simulation_id)
+    if simulation is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, simulation.project_id)
+
+
 def require_operations_risk_access(
     risk_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

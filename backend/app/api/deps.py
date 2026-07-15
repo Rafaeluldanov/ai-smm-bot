@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.services.ai_learning_service import AILearningService
     from app.services.ai_operations_control_service import AIOperationsControlService
     from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
+    from app.services.ai_strategy_simulator_service import AIStrategySimulatorService
     from app.services.ai_workflow_manager_service import AIWorkflowManagerService
     from app.services.auth_session_service import AuthSessionService
     from app.services.auth_token_service import AuthTokenService
@@ -539,6 +540,13 @@ def get_ai_decision_engine_service() -> "AIDecisionEngineService":
     from app.services.ai_decision_engine_service import AIDecisionEngineService
 
     return AIDecisionEngineService(settings=get_settings())
+
+
+def get_ai_strategy_simulator_service() -> "AIStrategySimulatorService":
+    """Построить AI Strategy Simulator (моделирование/прогноз/сравнение; ничего не выполняет)."""
+    from app.services.ai_strategy_simulator_service import AIStrategySimulatorService
+
+    return AIStrategySimulatorService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

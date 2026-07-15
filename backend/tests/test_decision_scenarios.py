@@ -110,7 +110,10 @@ def test_owner_risk_aversion_lowers_risky_score(db_session: Session) -> None:
         pid = _project(db_session, slug)
         if with_restriction:
             AIChiefOfStaffService(settings=_SETTINGS).save_decision_memory(
-                db_session, pid, decision_type="restriction", key="sales_style",
+                db_session,
+                pid,
+                decision_type="restriction",
+                key="sales_style",
                 value={"style": "soft"},
             )
         did = _did(db_session, pid, dtype="growth")

@@ -52,6 +52,7 @@ from app.models.email_template_override import EmailTemplateOverride
 from app.models.executive_briefing import ExecutiveBriefing
 from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
+from app.models.forecast_result import ForecastResult
 from app.models.live_autopilot_incident import LiveAutopilotIncident
 from app.models.live_autopilot_monitor_snapshot import LiveAutopilotMonitorSnapshot
 from app.models.live_publish_attempt import LivePublishAttempt
@@ -95,10 +96,12 @@ from app.models.project_live_readiness_profile import ProjectLiveReadinessProfil
 from app.models.project_yandex_sync_profile import ProjectYandexSyncProfile
 from app.models.public_media_link import PublicMediaLink
 from app.models.sales_intelligence_profile import SalesIntelligenceProfile
+from app.models.scenario_comparison import ScenarioComparison
 from app.models.schedule_media_decision import ScheduleMediaDecision
 from app.models.schedule_run import ScheduleRun
 from app.models.schedule_topic_decision import ScheduleTopicDecision
 from app.models.scheduler_worker_lease import SchedulerWorkerLease
+from app.models.strategy_simulation import StrategySimulation
 from app.models.telegram_live_run_attempt import TelegramLiveRunAttempt
 from app.models.telegram_live_runbook import TelegramLiveRunbook
 from app.models.topic import Topic
@@ -156,9 +159,11 @@ __all__ = [
     "ExecutiveBriefing",
     "ExperimentSuggestion",
     "ExternalImageCandidate",
+    "ForecastResult",
     "LiveAutopilotIncident",
     "LiveAutopilotMonitorSnapshot",
     "LivePublishAttempt",
+    "ScenarioComparison",
     "ScheduleMediaDecision",
     "ScheduleTopicDecision",
     "BillingProfile",
@@ -200,6 +205,7 @@ __all__ = [
     "PublicMediaLink",
     "ScheduleRun",
     "SchedulerWorkerLease",
+    "StrategySimulation",
     "TariffPlan",
     "TelegramLiveRunAttempt",
     "TelegramLiveRunbook",

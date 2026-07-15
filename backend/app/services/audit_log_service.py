@@ -340,6 +340,13 @@ ACTION_DECISION_SCENARIO_REJECTED = "decision.scenario_rejected"
 ACTION_DECISION_ACCEPTED = "decision.accepted"
 ACTION_DECISION_APPLIED = "decision.applied"
 
+# --- AI Strategy Simulator (v0.7.5) --- #
+ACTION_SIMULATION_CREATED = "simulation.created"
+ACTION_SIMULATION_STARTED = "simulation.started"
+ACTION_SIMULATION_COMPLETED = "simulation.completed"
+ACTION_SIMULATION_COMPARED = "simulation.compared"
+ACTION_SIMULATION_RECOMMENDED = "simulation.recommended"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"
