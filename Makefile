@@ -54,6 +54,7 @@ BIN := $(VENV)/bin
         growth-analyze growth-report growth-apply \
         business-os-analyze business-os-plan business-os-apply \
         chief-briefing chief-tasks chief-memory \
+        workflow-create workflow-status workflow-analyze \
         smoke
 
 help: ## Показать список команд
@@ -500,6 +501,15 @@ chief-tasks: ## Задачи руководителя: make chief-tasks project_
 
 chief-memory: ## Память решений: make chief-memory project_id=1 [key=sales_style value=soft decision_type=restriction]
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.chief_memory $(if $(project_id),--project-id "$(project_id)",) $(if $(decision_type),--decision-type "$(decision_type)",) $(if $(key),--key "$(key)",) $(if $(value),--value "$(value)",) $(if $(disable),--disable "$(disable)",)
+
+workflow-create: ## Создать процесс: make workflow-create project_id=1 name="Рост" type=sales [goal="..."]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.workflow_create --project-id "$(project_id)" --name "$(name)" --type "$(type)" $(if $(goal),--goal "$(goal)",)
+
+workflow-status: ## Статус процессов: make workflow-status project_id=1 | workflow_id=5
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.workflow_status $(if $(project_id),--project-id "$(project_id)",) $(if $(workflow_id),--workflow-id "$(workflow_id)",)
+
+workflow-analyze: ## Здоровье процесса: make workflow-analyze workflow_id=5
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.workflow_analyze --workflow-id "$(workflow_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

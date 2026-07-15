@@ -331,6 +331,14 @@ ACTION_STRATEGY_ACCEPTED = "strategy.accepted"
 ACTION_STRATEGY_REJECTED = "strategy.rejected"
 ACTION_STRATEGY_APPLIED = "strategy.applied"
 
+# --- AI Workflow Manager / Business Execution Layer (v0.7.2) --- #
+ACTION_WORKFLOW_CREATED = "workflow.created"
+ACTION_WORKFLOW_STEP_CREATED = "workflow.step_created"
+ACTION_WORKFLOW_STEP_ASSIGNED = "workflow.step_assigned"
+ACTION_WORKFLOW_STEP_COMPLETED = "workflow.step_completed"
+ACTION_WORKFLOW_BLOCKER_CREATED = "workflow.blocker_created"
+ACTION_WORKFLOW_BLOCKER_RESOLVED = "workflow.blocker_resolved"
+
 # --- AI Chief of Staff / Executive Assistant Layer (v0.7.1) --- #
 ACTION_CHIEF_BRIEFING_GENERATED = "chief.briefing_generated"
 ACTION_CHIEF_TASK_CREATED = "chief.task_created"

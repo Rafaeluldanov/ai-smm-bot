@@ -64,6 +64,7 @@ from app.api.telegram_live_runbook import router as telegram_live_runbook_router
 from app.api.topic_decisions import router as topic_decisions_router
 from app.api.topics import router as topics_router
 from app.api.ui import router as ui_router
+from app.api.workflows import router as workflows_router
 from app.api.yandex_auto_sync import router as yandex_auto_sync_router
 from app.config import get_settings, production_security_errors
 from app.core.logging import configure_logging, get_logger
@@ -122,6 +123,7 @@ def create_app() -> FastAPI:
     app.include_router(business_growth_router)
     app.include_router(business_os_router)
     app.include_router(chief_of_staff_router)
+    app.include_router(workflows_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

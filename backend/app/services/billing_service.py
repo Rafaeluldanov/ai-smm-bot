@@ -157,6 +157,10 @@ USAGE_BUSINESS_OS_APPLY = "business_os_apply"
 USAGE_CHIEF_BRIEFING = "chief_briefing"
 USAGE_CHIEF_TASKS = "chief_tasks"
 
+# Типы usage для AI Workflow Manager (v0.7.2). Workflow management — бесплатно (0 units).
+USAGE_WORKFLOW_CREATE = "workflow_create"
+USAGE_WORKFLOW_ANALYSIS = "workflow_analysis"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -292,6 +296,8 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_BUSINESS_OS_APPLY: 0,
     USAGE_CHIEF_BRIEFING: 0,
     USAGE_CHIEF_TASKS: 0,
+    USAGE_WORKFLOW_CREATE: 0,
+    USAGE_WORKFLOW_ANALYSIS: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

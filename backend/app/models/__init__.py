@@ -29,6 +29,7 @@ from app.models.business_decision_memory import BusinessDecisionMemory
 from app.models.business_growth_profile import BusinessGrowthProfile
 from app.models.business_growth_recommendation import BusinessGrowthRecommendation
 from app.models.business_objective import BusinessObjective
+from app.models.business_workflow import BusinessWorkflow
 from app.models.client_learning_profile import ClientLearningProfile
 from app.models.content_experiment import ContentExperiment
 from app.models.content_experiment_variant import ContentExperimentVariant
@@ -97,6 +98,8 @@ from app.models.telegram_live_runbook import TelegramLiveRunbook
 from app.models.topic import Topic
 from app.models.user import User
 from app.models.webhook_subscription import WebhookSubscription
+from app.models.workflow_blocker import WorkflowBlocker
+from app.models.workflow_step import WorkflowStep
 from app.models.yandex_auto_sync_run import YandexAutoSyncRun
 
 __all__ = [
@@ -125,6 +128,7 @@ __all__ = [
     "BusinessGrowthProfile",
     "BusinessGrowthRecommendation",
     "BusinessObjective",
+    "BusinessWorkflow",
     "ClientLearningProfile",
     "ContentExperiment",
     "ContentRevenueAttribution",
@@ -191,5 +195,7 @@ __all__ = [
     "UsageEvent",
     "User",
     "WebhookSubscription",
+    "WorkflowBlocker",
+    "WorkflowStep",
     "YandexAutoSyncRun",
 ]

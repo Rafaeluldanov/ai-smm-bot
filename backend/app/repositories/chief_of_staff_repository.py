@@ -244,9 +244,7 @@ def save_decision(
     key = key[:KEY_MAX_LENGTH]
     existing = get_active_decision_by_key(db, project_id, key)
     if existing is not None:
-        return _update_active_decision(
-            db, existing, decision_type, value, reason, user_id
-        )
+        return _update_active_decision(db, existing, decision_type, value, reason, user_id)
     decision = BusinessDecisionMemory(
         project_id=project_id,
         account_id=account_id,

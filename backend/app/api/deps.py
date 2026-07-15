@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from app.services.ai_executive_service import AIExecutiveService
     from app.services.ai_learning_service import AILearningService
     from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
+    from app.services.ai_workflow_manager_service import AIWorkflowManagerService
     from app.services.auth_session_service import AuthSessionService
     from app.services.auth_token_service import AuthTokenService
     from app.services.automation_settings_service import AutomationSettingsService
@@ -515,6 +516,13 @@ def get_ai_chief_of_staff_service() -> "AIChiefOfStaffService":
     from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
 
     return AIChiefOfStaffService(settings=get_settings())
+
+
+def get_ai_workflow_manager_service() -> "AIWorkflowManagerService":
+    """Построить AI Workflow Manager / Business Execution Layer (workflow management)."""
+    from app.services.ai_workflow_manager_service import AIWorkflowManagerService
+
+    return AIWorkflowManagerService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

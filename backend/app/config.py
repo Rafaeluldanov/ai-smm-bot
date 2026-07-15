@@ -554,6 +554,11 @@ class Settings(BaseSettings):
     # контекст будущим рекомендациям.
     chief_of_staff_enabled: bool = True
 
+    # AI Workflow Manager / Business Execution Layer (v0.7.2). Управление процессами:
+    # процессы + этапы + блокеры + health. Workflow management — НЕ выполняет задачи и НЕ
+    # меняет CRM/бюджет/продажи/live/публикации; assign/complete лишь меняют статус.
+    workflow_manager_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -909,6 +914,11 @@ class Settings(BaseSettings):
     def chief_of_staff_enabled_effective(self) -> bool:
         """Доступен ли AI Chief of Staff (брифинги/задачи/память решений/UI/API)."""
         return bool(self.chief_of_staff_enabled)
+
+    @property
+    def workflow_manager_enabled_effective(self) -> bool:
+        """Доступен ли AI Workflow Manager (процессы/этапы/блокеры/health/UI/API)."""
+        return bool(self.workflow_manager_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

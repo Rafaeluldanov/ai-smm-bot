@@ -205,6 +205,60 @@ def require_action_access(
     _guard_project(db, settings, user, action.project_id)
 
 
+def require_workflow_access(
+    workflow_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к бизнес-процессу Workflow Manager (через процесс → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import workflow_repository
+
+    workflow = workflow_repository.get_workflow(db, workflow_id)
+    if workflow is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, workflow.project_id)
+
+
+def require_workflow_step_access(
+    step_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к этапу процесса (через этап → процесс → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import workflow_repository
+
+    step = workflow_repository.get_step(db, step_id)
+    if step is None:
+        raise _NOT_FOUND
+    workflow = workflow_repository.get_workflow(db, step.workflow_id)
+    if workflow is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, workflow.project_id)
+
+
+def require_workflow_blocker_access(
+    blocker_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к блокеру процесса (через блокер → процесс → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import workflow_repository
+
+    blocker = workflow_repository.get_blocker(db, blocker_id)
+    if blocker is None:
+        raise _NOT_FOUND
+    workflow = workflow_repository.get_workflow(db, blocker.workflow_id)
+    if workflow is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, workflow.project_id)
+
+
 def require_task_access(
     task_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

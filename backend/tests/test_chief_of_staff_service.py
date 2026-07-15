@@ -240,13 +240,9 @@ def test_audit_entries_written(db_session: Session) -> None:
     tid = svc.generate_daily_briefing(db_session, pid)["tasks"][0]["id"]
     svc.accept_task(db_session, tid)
     svc.complete_task(db_session, tid)
-    d = svc.save_decision_memory(
-        db_session, pid, decision_type="preference", key="k", value={}
-    )
+    d = svc.save_decision_memory(db_session, pid, decision_type="preference", key="k", value={})
     svc.disable_decision(db_session, d["id"])
-    actions = {
-        e.action for e in db_session.query(AuditLogEntry).filter_by(project_id=pid).all()
-    }
+    actions = {e.action for e in db_session.query(AuditLogEntry).filter_by(project_id=pid).all()}
     for expected in (
         "chief.briefing_generated",
         "chief.task_created",
