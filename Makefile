@@ -62,6 +62,7 @@ BIN := $(VENV)/bin
         goal-create plan-generate plan-report \
         execution-create execution-generate execution-report \
         performance-analyze performance-report \
+        learning-analyze learning-report \
         smoke
 
 help: ## Показать список команд
@@ -574,6 +575,12 @@ performance-analyze: ## Анализ эффективности: make performanc
 
 performance-report: ## Отчёт по эффективности: make performance-report snapshot_id=7
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.performance_report --snapshot-id "$(snapshot_id)"
+
+learning-analyze: ## Анализ цикла обучения: make learning-analyze project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.learning_analyze --project-id "$(project_id)"
+
+learning-report: ## Отчёт по обучению: make learning-report project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.learning_report --project-id "$(project_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

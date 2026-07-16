@@ -28,6 +28,7 @@ from app.api.experiment_suggestions import router as experiment_suggestions_rout
 from app.api.experiments import router as experiments_router
 from app.api.external_images import router as external_images_router
 from app.api.health import router as health_router
+from app.api.improvement import router as improvement_router
 from app.api.integrations_vk import router as integrations_vk_router
 from app.api.live_autopilot_monitoring import router as live_autopilot_monitoring_router
 from app.api.live_readiness import router as live_readiness_router
@@ -138,6 +139,7 @@ def create_app() -> FastAPI:
     app.include_router(business_planner_router)
     app.include_router(execution_router)
     app.include_router(performance_router)
+    app.include_router(improvement_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)

@@ -3979,6 +3979,8 @@ def ui_project_performance(project_id: int) -> HTMLResponse:
         f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
         "<button class='sec mini'>← К проекту</button></a>"
         f"<a href='/ui/projects/{project_id}/execution'><button class='ghost mini'>AI исполнение</button></a>"
+        f"<a href='/ui/projects/{project_id}/improvement'>"
+        "<button class='ghost mini'>AI улучшения</button></a>"
         f"<a href='/ui/projects/{project_id}/operations'>"
         "<button class='ghost mini'>AI Operations</button></a></div>"
         "<h2>AI эффективность</h2>"
@@ -4036,6 +4038,72 @@ def ui_project_performance(project_id: int) -> HTMLResponse:
         "if((d.snapshots||[]).length)pfOpen(d.snapshots[0].id);}catch(e){}})();"
     )
     return _page("AI эффективность", body, script, active="", active_pid=project_id)
+
+
+@router.get("/projects/{project_id}/improvement", response_class=HTMLResponse)
+def ui_project_improvement(project_id: int) -> HTMLResponse:
+    """Экран «AI улучшения» (AI Continuous Improvement Engine v0.8.0)."""
+    body = (
+        f"<div class='inline'><a href='/ui/projects/{project_id}/dashboard'>"
+        "<button class='sec mini'>← К проекту</button></a>"
+        f"<a href='/ui/projects/{project_id}/performance'>"
+        "<button class='ghost mini'>AI эффективность</button></a>"
+        f"<a href='/ui/projects/{project_id}/decisions'><button class='ghost mini'>AI решения</button></a></div>"
+        "<h2>AI улучшения</h2>"
+        "<p class='muted'>AI учится на истории решений и результатов: сохраняет опыт, находит "
+        "паттерны успеха и провалов и предлагает улучшения. Только обучение и советы — бизнес, "
+        "стратегия и KPI не меняются; улучшения не применяются автоматически.</p>"
+        "<div class='card'><div class='inline'>"
+        "<button class='mini' onclick='ciAnalyze()'>Проанализировать цикл</button>"
+        "<span id='ci-status' class='muted'></span></div></div>"
+        "<div class='card'><h3>AI Insights</h3><div id='ci-insights' class='muted'>—</div></div>"
+        "<div class='card'><h3>Что работает (Patterns)</h3><div id='ci-success' class='muted'>—</div></div>"
+        "<div class='card'><h3>Что не работает (Failures)</h3><div id='ci-failure' class='muted'>—</div></div>"
+        "<div class='card'><h3>Улучшения (Backlog)</h3><div id='ci-improvements' class='muted'>—</div></div>"
+        "<div class='card'><h3>Learning History</h3><div id='ci-history' class='muted'>—</div></div>"
+        "<div id='ci-msg' class='muted'></div><div id='error' class='err'></div>"
+    )
+    script = (
+        f"const PID={project_id};const eEl=document.getElementById('error');"
+        "const msg=document.getElementById('ci-msg');"
+        "function patCard(p){return `<div class='card'><b>${esc(p.title)}</b> "
+        "<span class='badge'>${esc(p.pattern_type)}</span> <span class='badge'>увер. ${p.confidence_score}</span>"
+        "<div class='muted'>${esc(p.description||'')}</div>"
+        "${(p.signals||[]).map(s=>`<div class='muted'>• ${esc(''+s)}</div>`).join('')}</div>`;}"
+        "function impCard(i){return `<div class='prow'>• <b>${esc(i.title)}</b> "
+        "<span class='badge'>${esc(i.priority)}</span> <span class='badge'>${esc(i.status)}</span> "
+        "${(i.status==='identified'||i.status==='reviewed')?"
+        "`<button class='mini sec' onclick=\"ciApprove(${i.id})\">Approve</button> "
+        "<button class='mini ghost' onclick=\"ciReject(${i.id})\">Reject</button>`:''}</div>`;}"
+        "async function loadPatterns(){const d=await api('GET','/projects/'+PID+'/patterns');"
+        "const ps=d.patterns||[];"
+        "const succ=ps.filter(p=>p.pattern_type==='success_pattern');"
+        "const fail=ps.filter(p=>p.pattern_type!=='success_pattern');"
+        "document.getElementById('ci-success').innerHTML=succ.length?succ.map(patCard).join(''):"
+        "\"<span class='muted'>Успешных паттернов пока нет.</span>\";"
+        "document.getElementById('ci-failure').innerHTML=fail.length?fail.map(patCard).join(''):"
+        "\"<span class='muted'>Проблемных паттернов пока нет.</span>\";}"
+        "async function loadImprovements(){const d=await api('GET','/projects/'+PID+'/improvements');"
+        "const a=d.improvements||[];document.getElementById('ci-improvements').innerHTML=a.length?"
+        "a.map(impCard).join(''):\"<span class='muted'>Backlog пуст.</span>\";}"
+        "async function loadHistory(){const d=await api('GET','/projects/'+PID+'/improvement/history');"
+        "const ex=d.experiences||[];const sm=d.summary||{};"
+        "document.getElementById('ci-history').innerHTML=(ex.length?"
+        "`<div class='muted'>Опыта: ${sm.experiences_total}, паттернов: ${sm.patterns_total}, улучшений: ${sm.improvements_total}</div>`+"
+        "ex.map(e=>`<div class='prow'>#${e.id} <b>${esc(e.title)}</b> <span class='badge'>${esc(e.experience_type)}</span> "
+        "<span class='badge'>${esc(e.outcome)}</span></div>`).join(''):"
+        "\"<span class='muted'>Опыта пока нет — запустите анализ.</span>\");}"
+        "async function refresh(){await loadPatterns();await loadImprovements();await loadHistory();}"
+        "async function ciAnalyze(){try{document.getElementById('ci-status').textContent='Анализирую…';"
+        "const r=await api('POST','/projects/'+PID+'/improvement/analyze',{});"
+        "document.getElementById('ci-status').textContent='Готово.';"
+        "document.getElementById('ci-insights').innerHTML=(r.insights||[]).map(x=>`<div>• ${esc(x)}</div>`).join('');"
+        "document.getElementById('ci-insights').classList.remove('muted');await refresh();}catch(x){err(eEl,x)}}"
+        "async function ciApprove(id){try{await api('POST','/improvements/'+id+'/approve',{});loadImprovements();}catch(x){err(eEl,x)}}"
+        "async function ciReject(id){try{await api('POST','/improvements/'+id+'/reject',{});loadImprovements();}catch(x){err(eEl,x)}}"
+        "window.ciAnalyze=ciAnalyze;window.ciApprove=ciApprove;window.ciReject=ciReject;refresh();"
+    )
+    return _page("AI улучшения", body, script, active="", active_pid=project_id)
 
 
 @router.get("/projects/{project_id}/sales-intelligence", response_class=HTMLResponse)

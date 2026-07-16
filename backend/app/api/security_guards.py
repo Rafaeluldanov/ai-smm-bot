@@ -361,6 +361,22 @@ def require_performance_snapshot_access(
     _guard_project(db, settings, user, snapshot.project_id)
 
 
+def require_improvement_access(
+    improvement_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к улучшению Continuous Improvement (через улучшение → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import continuous_improvement_repository
+
+    improvement = continuous_improvement_repository.get_improvement(db, improvement_id)
+    if improvement is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, improvement.project_id)
+
+
 def require_operations_risk_access(
     risk_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

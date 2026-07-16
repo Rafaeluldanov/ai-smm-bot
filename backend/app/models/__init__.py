@@ -12,6 +12,7 @@ from app.models.ai_executive_plan import AIExecutivePlan
 from app.models.ai_lead_event import AILeadEvent
 from app.models.ai_learning_event import AILearningEvent
 from app.models.ai_learning_profile import AILearningProfile
+from app.models.ai_pattern import AIPattern
 from app.models.app_mention import AppMention
 from app.models.app_notification import AppNotification
 from app.models.audit_log import AuditLogEntry
@@ -57,10 +58,13 @@ from app.models.execution_objective import ExecutionObjective
 from app.models.execution_plan import ExecutionPlan
 from app.models.execution_task import ExecutionTask
 from app.models.executive_briefing import ExecutiveBriefing
+from app.models.experience_memory import ExperienceMemory
 from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.forecast_metric import ForecastMetric
 from app.models.forecast_result import ForecastResult
+from app.models.improvement_item import ImprovementItem
+from app.models.learning_event import LearningEvent
 from app.models.live_autopilot_incident import LiveAutopilotIncident
 from app.models.live_autopilot_monitor_snapshot import LiveAutopilotMonitorSnapshot
 from app.models.live_publish_attempt import LivePublishAttempt
@@ -136,6 +140,7 @@ __all__ = [
     "AILeadEvent",
     "AILearningEvent",
     "AILearningProfile",
+    "AIPattern",
     "Account",
     "AccountMembership",
     "AppMention",
@@ -179,10 +184,13 @@ __all__ = [
     "ExecutionPlan",
     "ExecutionTask",
     "ExecutiveBriefing",
+    "ExperienceMemory",
     "ExperimentSuggestion",
     "ExternalImageCandidate",
     "ForecastMetric",
     "ForecastResult",
+    "ImprovementItem",
+    "LearningEvent",
     "LiveAutopilotIncident",
     "LiveAutopilotMonitorSnapshot",
     "LivePublishAttempt",

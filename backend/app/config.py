@@ -600,6 +600,12 @@ class Settings(BaseSettings):
     # рекламу/публикации; только measure + advise.
     performance_intelligence_enabled: bool = True
 
+    # AI Continuous Improvement Engine (v0.8.0). Performance Result → Experience Memory → Learning
+    # Event → Pattern Analysis → Improvement Backlog → Owner Review. Learning-слой — цикл обучения
+    # бизнеса. НЕ меняет бизнес/стратегию/KPI/CRM/бюджет, НЕ выполняет задачи/улучшения, НЕ
+    # запускает рекламу/публикации; approve/reject меняют лишь статус.
+    continuous_improvement_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -1000,6 +1006,11 @@ class Settings(BaseSettings):
     def performance_intelligence_enabled_effective(self) -> bool:
         """Доступен ли AI Performance Intelligence (снимки/метрики/отклонения/рекомендации)."""
         return bool(self.performance_intelligence_enabled)
+
+    @property
+    def continuous_improvement_enabled_effective(self) -> bool:
+        """Доступен ли AI Continuous Improvement (опыт/события/паттерны/улучшения/UI/API)."""
+        return bool(self.continuous_improvement_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

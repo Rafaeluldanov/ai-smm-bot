@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from app.services.ai_business_planner_service import AIBusinessPlannerService
     from app.services.ai_campaign_manager_service import AICampaignManagerService
     from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
+    from app.services.ai_continuous_improvement_service import AIContinuousImprovementService
     from app.services.ai_decision_engine_service import AIDecisionEngineService
     from app.services.ai_execution_coordinator_service import AIExecutionCoordinatorService
     from app.services.ai_executive_service import AIExecutiveService
@@ -583,6 +584,13 @@ def get_ai_performance_intelligence_service() -> "AIPerformanceIntelligenceServi
     )
 
     return AIPerformanceIntelligenceService(settings=get_settings())
+
+
+def get_ai_continuous_improvement_service() -> "AIContinuousImprovementService":
+    """Построить AI Continuous Improvement (опыт→паттерны→улучшения; ничего не меняет/применяет)."""
+    from app.services.ai_continuous_improvement_service import AIContinuousImprovementService
+
+    return AIContinuousImprovementService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

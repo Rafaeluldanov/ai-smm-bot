@@ -375,6 +375,14 @@ ACTION_PERFORMANCE_METRIC_CREATED = "performance.metric_created"
 ACTION_PERFORMANCE_DEVIATION_DETECTED = "performance.deviation_detected"
 ACTION_PERFORMANCE_RECOMMENDATION_CREATED = "performance.recommendation_created"
 
+# --- AI Continuous Improvement Engine (v0.8.0) --- #
+ACTION_LEARNING_EXPERIENCE_CREATED = "learning.experience_created"
+ACTION_LEARNING_EVENT_CREATED = "learning.event_created"
+ACTION_LEARNING_PATTERN_CREATED = "learning.pattern_created"
+ACTION_LEARNING_IMPROVEMENT_CREATED = "learning.improvement_created"
+ACTION_LEARNING_IMPROVEMENT_APPROVED = "learning.improvement_approved"
+ACTION_LEARNING_IMPROVEMENT_REJECTED = "learning.improvement_rejected"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"
