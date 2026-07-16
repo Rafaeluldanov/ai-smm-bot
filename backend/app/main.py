@@ -56,6 +56,7 @@ from app.api.performance import router as performance_router
 from app.api.pilot import router as pilot_router
 from app.api.pilot_release import router as pilot_release_router
 from app.api.platform_connections import router as platform_connections_router
+from app.api.platform_recommendations import router as platform_recommendations_router
 from app.api.post_publications import router as post_publications_router
 from app.api.post_reviews import router as post_reviews_router
 from app.api.posts import router as posts_router
@@ -157,6 +158,7 @@ def create_app() -> FastAPI:
     app.include_router(post_publications_router)
     app.include_router(analytics_router)
     app.include_router(platform_connections_router)
+    app.include_router(platform_recommendations_router)
     app.include_router(media_proxy_router)
     app.include_router(media_proxy_tokens_router)
     app.include_router(media_public_router)

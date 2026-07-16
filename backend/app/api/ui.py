@@ -31,6 +31,7 @@ Dev-токен и активный ``account_id`` хранятся в ``localSto
 import html
 import json
 import re
+from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
@@ -250,6 +251,15 @@ h2[id],h3[id]{scroll-margin-top:72px}
 .tab.active{color:var(--accent);background:var(--surface);border-color:var(--border);font-weight:600}
 .tabpane{display:none}
 .tabpane.active{display:block}
+.rec-frequency .rec-freq-summary{font-size:18px;font-weight:700;color:var(--accent);margin:2px 0 8px}
+table.rec-week{border-collapse:collapse;width:100%;font-size:13px}
+table.rec-week th,table.rec-week td{border:1px solid var(--border);padding:6px 8px;text-align:left;vertical-align:top}
+table.rec-week th{background:var(--surface-soft);color:var(--muted);white-space:nowrap}
+.rec-checklist{display:flex;flex-direction:column;gap:8px}
+.rec-check{display:flex;gap:8px;align-items:flex-start;cursor:pointer}
+.rec-check input{margin-top:3px}
+details.rec-details{margin:6px 0;border:1px solid var(--border);border-radius:9px;padding:6px 10px;background:var(--surface-soft)}
+details.rec-details>summary{cursor:pointer;font-weight:600}
 .pw-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 6px}
 .pw-head .big{font-size:30px;line-height:1}
 .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:6px 0}
@@ -1211,6 +1221,145 @@ def _platform_guide_html(platform: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Вкладка «Рекомендации» (статическая база знаний Botfleet, read-only)         #
+# --------------------------------------------------------------------------- #
+
+_RECS_DISCLAIMER = (
+    "Практические рекомендации Botfleet, версия 2026. Алгоритмы платформ меняются. "
+    "Проверяйте выводы на собственной статистике."
+)
+
+
+def _recs_list(items: list[Any], escape: bool = True) -> str:
+    """Экранированный <ul> из списка строк (пустой список → пометка «—»)."""
+    if not items:
+        return "<p class='muted'>—</p>"
+    lis = "".join(f"<li>{html.escape(str(x))}</li>" for x in items)
+    return f"<ul>{lis}</ul>"
+
+
+def _recs_card(title: str, inner: str) -> str:
+    return f"<div class='card'><h3>{html.escape(title)}</h3>{inner}</div>"
+
+
+def _recs_weekly_table(weekly: dict[str, Any]) -> str:
+    """Компактная таблица недельного ритма (день → активность), всё экранировано."""
+    if not weekly:
+        return "<p class='muted'>Публикации по событию — фиксированного недельного ритма нет.</p>"
+    head = "".join(f"<th>{html.escape(d)}</th>" for d in weekly)
+    row = "".join(f"<td>{html.escape(str(v))}</td>" for v in weekly.values())
+    return (
+        "<div style='overflow-x:auto'><table class='rec-week'>"
+        f"<thead><tr>{head}</tr></thead><tbody><tr>{row}</tr></tbody></table></div>"
+    )
+
+
+def _recs_checklist(items: list[Any]) -> str:
+    """Чек-лист с визуальными checkbox (client-only, состояние НЕ пишется в БД)."""
+    if not items:
+        return "<p class='muted'>—</p>"
+    rows = "".join(
+        f"<label class='rec-check'><input type='checkbox'> {html.escape(str(x))}</label>"
+        for x in items
+    )
+    return f"<div class='rec-checklist'>{rows}</div>"
+
+
+def _recs_extra_sections(sections: list[Any]) -> str:
+    """Дополнительные именованные секции платформы (сворачиваемые), всё экранировано."""
+    if not sections:
+        return ""
+    blocks = []
+    for sec in sections:
+        title = html.escape(str(sec.get("title", "")))
+        items = _recs_list(sec.get("items", []))
+        blocks.append(f"<details class='rec-details'><summary>{title}</summary>{items}</details>")
+    return _recs_card("Дополнительно", "".join(blocks))
+
+
+def _recs_banner(version: str, disclaimer: str = "") -> str:
+    """Баннер с версией базы знаний и disclaimer из ресурса (read-only справка).
+
+    disclaimer берётся из версионируемого ресурса (единый источник правды); при пустом —
+    fallback на константу _RECS_DISCLAIMER.
+    """
+    text = disclaimer.strip() or _RECS_DISCLAIMER
+    return (
+        "<div class='callout'><b>SMM-рекомендации Botfleet</b> "
+        f"<span class='pill'>версия {html.escape(version)}</span>"
+        f"<p class='muted'>{html.escape(text)}</p>"
+        "<p class='muted'>Это справочная база знаний. Она не меняет настройки площадки "
+        "и не запускает автопостинг.</p></div>"
+    )
+
+
+def _render_recs_cards(
+    rec: dict[str, Any], include_principles: bool = True, include_checklist: bool = True
+) -> str:
+    """Карточки рекомендаций по платформе из dict сервиса (весь текст экранируется)."""
+    title = html.escape(str(rec.get("title", "")))
+    freq_block = (
+        "<div class='card rec-frequency'><h3>Частота</h3>"
+        f"<div class='rec-freq-summary'>{html.escape(str(rec.get('frequency_summary', '')))}</div>"
+        f"{_recs_list(rec.get('frequency', []))}</div>"
+    )
+    cross = rec.get("cross_platform_notes", [])
+    cross_card = _recs_card("Кросс-платформенная адаптация", _recs_list(cross)) if cross else ""
+    principles_card = ""
+    if include_principles:
+        principles_blocks = "".join(
+            f"<details class='rec-details'><summary>{html.escape(str(p.get('title', '')))}</summary>"
+            f"{_recs_list(p.get('points', []))}</details>"
+            for p in rec.get("universal_principles", [])
+        )
+        principles_card = _recs_card("Универсальные принципы Botfleet", principles_blocks)
+    return (
+        _recs_card(f"Роль платформы — {title}", f"<p>{html.escape(str(rec.get('role', '')))}</p>")
+        + freq_block
+        + _recs_card("Что публиковать", _recs_list(rec.get("formats", [])))
+        + _recs_card("Как работает охват", _recs_list(rec.get("signals", [])))
+        + _recs_card("Правила контента", _recs_list(rec.get("content_rules", [])))
+        + _recs_card("Что нельзя делать", _recs_list(rec.get("risks", [])))
+        + _recs_card("Что измерять (KPI)", _recs_list(rec.get("kpi", [])))
+        + _recs_card("План недели", _recs_weekly_table(rec.get("weekly_rhythm", {})))
+        + (
+            _recs_card("Перед публикацией", _recs_checklist(rec.get("pre_publish_checklist", [])))
+            if include_checklist
+            else ""
+        )
+        + cross_card
+        + _recs_extra_sections(rec.get("extra_sections", []))
+        + principles_card
+    )
+
+
+def _platform_recommendations_pane_html(platform: str) -> tuple[str, bool]:
+    """HTML вкладки «Рекомендации» для платформы. (html, present).
+
+    present=False, если у платформы нет записи в базе знаний (вкладка не добавляется).
+    Весь текст из ресурса экранируется (XSS невозможен). Никаких изменений платформы/автопостинга.
+    """
+    from app.services.platform_recommendations_service import (
+        PlatformRecommendationsError,
+        UnknownPlatformError,
+        get_platform_recommendations_service,
+    )
+
+    service = get_platform_recommendations_service()
+    try:
+        rec = service.get_platform_recommendations(platform)
+    except UnknownPlatformError:
+        return "", False
+    except PlatformRecommendationsError:
+        return (
+            "<div class='callout warn'><b>База рекомендаций временно недоступна</b></div>",
+            True,
+        )
+    banner = _recs_banner(str(rec.get("version", "")), str(rec.get("disclaimer", "")))
+    return banner + _render_recs_cards(rec), True
+
+
+# --------------------------------------------------------------------------- #
 # Дашборд проекта                                                             #
 # --------------------------------------------------------------------------- #
 
@@ -1650,6 +1799,7 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         if item is not None and (item.is_planned or item.support_level == "beta")
         else ""
     )
+    recs_pane, recs_present = _platform_recommendations_pane_html(platform)
     tabs = [
         ("overview", "Обзор"),
         ("settings", "Настройки"),
@@ -1658,6 +1808,8 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         ("preview", "Preview"),
         ("analytics", "Аналитика"),
     ]
+    if recs_present:
+        tabs.append(("recommendations", "Рекомендации"))
 
     def _tab_btn(index: int, key: str, name: str) -> str:
         active = " active" if index == 0 else ""
@@ -1736,7 +1888,13 @@ def ui_platform_workspace(project_id: int, platform: str) -> HTMLResponse:
         "в разделе аналитики (офлайн-демо, без вызовов внешних API).</p>"
         "<a href='/ui/analytics'><button class='mini sec'>Открыть аналитику</button></a>"
         "</div></div>"
-        "<div id='error' class='err'></div>"
+        # Рекомендации (статическая база знаний Botfleet, read-only; не меняет площадку)
+        + (
+            f"<div class='tabpane' id='pane-recommendations'>{recs_pane}</div>"
+            if recs_present
+            else ""
+        )
+        + "<div id='error' class='err'></div>"
     )
     vk_cfg = {
         "app_id": settings.vk_app_id or "",
@@ -2547,7 +2705,9 @@ def _guide_body() -> str:
         [
             "<div class='hero'><p>Botfleet — «флот ботов» для автопостинга: один проект "
             "готовит публикации сразу под несколько площадок. Это обзор; подробные "
-            "инструкции подключения — в разделе каждой платформы.</p></div>",
+            "инструкции подключения — в разделе каждой платформы.</p>"
+            "<p><a href='/ui/recommendations'><button class='mini sec'>"
+            "SMM-рекомендации Botfleet →</button></a></p></div>",
             "<div class='quicklinks'>"
             "<a href='#botfleet'>Что такое Botfleet</a>"
             "<a href='#projects'>Проекты</a>"
@@ -2663,6 +2823,135 @@ def ui_platform_guide(platform: str) -> HTMLResponse:
         + _platform_guide_html(platform)
     )
     return _page(f"Гайд · {label}", body, "", active="guide")
+
+
+_RECS_EXTRA_CHANNELS: frozenset[str] = frozenset({"website", "2gis", "email"})
+
+
+def _recs_summary_frequency(platforms: list[Any]) -> str:
+    """Сводная таблица частоты по всем платформам (title → frequency_summary)."""
+    rows = "".join(
+        f"<tr><td>{html.escape(str(p.get('title', '')))}</td>"
+        f"<td>{html.escape(str(p.get('frequency_summary', '')))}</td></tr>"
+        for p in platforms
+    )
+    return (
+        "<div style='overflow-x:auto'><table class='rec-week'>"
+        "<thead><tr><th>Платформа</th><th>Частота</th></tr></thead>"
+        f"<tbody>{rows}</tbody></table></div>"
+    )
+
+
+def _recs_weekly_calendar(weekly: dict[str, Any], titles: dict[str, Any]) -> str:
+    """Сводный недельный календарь: строки — платформы, колонки — дни недели."""
+    platforms = weekly.get("platforms", {})
+    if not platforms:
+        return "<p class='muted'>—</p>"
+    days = list(next(iter(platforms.values())).keys())
+    head = "<th>Платформа</th>" + "".join(f"<th>{html.escape(d)}</th>" for d in days)
+    body_rows = []
+    for slug, row in platforms.items():
+        cells = "".join(f"<td>{html.escape(str(row.get(d, '')))}</td>" for d in days)
+        body_rows.append(f"<tr><td>{html.escape(str(titles.get(slug, slug)))}</td>{cells}</tr>")
+    return (
+        "<div style='overflow-x:auto'><table class='rec-week'>"
+        f"<thead><tr>{head}</tr></thead><tbody>{''.join(body_rows)}</tbody></table></div>"
+    )
+
+
+def _recs_pipeline_html(pipeline: dict[str, Any]) -> str:
+    """Кросс-платформенный конвейер: таблица «исходник → адаптации» + правила + воронка."""
+    sources = pipeline.get("sources", [])
+    if not sources:
+        return ""
+    targets: list[str] = []
+    for src in sources:
+        for key in src.get("adaptations", {}):
+            if key not in targets:
+                targets.append(key)
+    head = "<th>Исходник</th>" + "".join(f"<th>{html.escape(t)}</th>" for t in targets)
+    rows = []
+    for src in sources:
+        adapt = src.get("adaptations", {})
+        cells = "".join(f"<td>{html.escape(str(adapt.get(t, '')))}</td>" for t in targets)
+        rows.append(f"<tr><td>{html.escape(str(src.get('source', '')))}</td>{cells}</tr>")
+    table = (
+        "<div style='overflow-x:auto'><table class='rec-week'>"
+        f"<thead><tr>{head}</tr></thead><tbody>{''.join(rows)}</tbody></table></div>"
+    )
+    funnel = html.escape(str(pipeline.get("funnel", "")))
+    return (
+        f"<p class='muted'>{html.escape(str(pipeline.get('description', '')))}</p>"
+        + table
+        + _recs_list(pipeline.get("rules", []))
+        + (f"<p><b>Воронка:</b> {funnel}</p>" if funnel else "")
+    )
+
+
+@router.get("/recommendations", response_class=HTMLResponse)
+def ui_recommendations() -> HTMLResponse:
+    """Общий экран «SMM-рекомендации Botfleet» (статическая база знаний, read-only)."""
+    from app.services.platform_recommendations_service import (
+        PlatformRecommendationsError,
+        get_platform_recommendations_service,
+    )
+
+    service = get_platform_recommendations_service()
+    try:
+        universal = service.get_universal_recommendations()
+        platforms = service.list_platforms()
+        full = {p["slug"]: service.get_platform_recommendations(p["slug"]) for p in platforms}
+    except PlatformRecommendationsError:
+        body = "<div class='callout warn'><b>База рекомендаций временно недоступна</b></div>"
+        return _page("SMM-рекомендации Botfleet", body, "", active="guide")
+
+    titles = {p["slug"]: p["title"] for p in platforms}
+    principles_blocks = "".join(
+        f"<details class='rec-details'><summary>{html.escape(str(p.get('title', '')))}</summary>"
+        f"{_recs_list(p.get('points', []))}</details>"
+        for p in universal.get("universal_principles", [])
+    )
+
+    def _platform_card(p: dict[str, Any]) -> str:
+        rec = full[p["slug"]]
+        summary = (
+            f"{html.escape(str(p.get('title', '')))} · "
+            f"<span class='muted'>{html.escape(str(p.get('frequency_summary', '')))}</span>"
+        )
+        # Чек-лист общий для всех — показываем один раз наверху экрана, не в каждой карточке.
+        return (
+            f"<details class='rec-details'><summary>{summary}</summary>"
+            f"{_render_recs_cards(rec, include_principles=False, include_checklist=False)}</details>"
+        )
+
+    main_cards = "".join(
+        _platform_card(p) for p in platforms if p["slug"] not in _RECS_EXTRA_CHANNELS
+    )
+    extra_cards = "".join(_platform_card(p) for p in platforms if p["slug"] in _RECS_EXTRA_CHANNELS)
+
+    body = (
+        "<h2>SMM-рекомендации Botfleet</h2>"
+        + _recs_banner(str(universal.get("version", "")), str(universal.get("disclaimer", "")))
+        + _recs_card("Универсальные принципы", principles_blocks)
+        + _recs_card("Сводная частота", _recs_summary_frequency(platforms))
+        + _recs_card(
+            "Недельный календарь", _recs_weekly_calendar(universal.get("weekly_rhythm", {}), titles)
+        )
+        + _recs_card(
+            "Кросс-платформенный конвейер",
+            _recs_pipeline_html(universal.get("cross_platform_pipeline", {})),
+        )
+        + _recs_card(
+            "Перед публикацией", _recs_checklist(universal.get("pre_publish_checklist", []))
+        )
+        + "<h3>Платформы</h3>"
+        + main_cards
+        + "<h3>Дополнительные каналы продвижения</h3>"
+        + "<p class='muted'>Сайт, 2ГИС и Email усиливают воронку и удержание.</p>"
+        + extra_cards
+        + "<div id='error' class='err'></div>"
+    )
+    return _page("SMM-рекомендации Botfleet", body, "", active="guide")
 
 
 @router.get("/settings", response_class=HTMLResponse)
