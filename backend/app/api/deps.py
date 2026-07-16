@@ -9,8 +9,12 @@ if TYPE_CHECKING:
     from app.services.ai_business_os_demo_service import AIBusinessOSDemoService
     from app.services.ai_business_os_report_service import AIBusinessOSReportService
     from app.services.ai_business_os_scenario_service import AIBusinessOSScenarioService
+    from app.services.ai_business_pilot_report_service import AIBusinessPilotReportService
+    from app.services.ai_business_pilot_scenario_service import AIBusinessPilotScenarioService
+    from app.services.ai_business_pilot_service import AIBusinessPilotService
     from app.services.ai_business_planner_service import AIBusinessPlannerService
     from app.services.ai_campaign_manager_service import AICampaignManagerService
+    from app.services.ai_ceo_dashboard_service import AICEODashboardService
     from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
     from app.services.ai_continuous_improvement_service import AIContinuousImprovementService
     from app.services.ai_decision_engine_service import AIDecisionEngineService
@@ -635,6 +639,34 @@ def get_ai_business_os_report_service() -> "AIBusinessOSReportService":
     from app.services.ai_business_os_report_service import AIBusinessOSReportService
 
     return AIBusinessOSReportService(settings=get_settings())
+
+
+def get_ai_business_pilot_service() -> "AIBusinessPilotService":
+    """Построить AI Business Pilot (workspace/профиль/health; advisory)."""
+    from app.services.ai_business_pilot_service import AIBusinessPilotService
+
+    return AIBusinessPilotService(settings=get_settings())
+
+
+def get_ai_business_pilot_scenario_service() -> "AIBusinessPilotScenarioService":
+    """Построить AI Business Pilot Scenario (pilot-прогон AI-цепочки; advisory)."""
+    from app.services.ai_business_pilot_scenario_service import AIBusinessPilotScenarioService
+
+    return AIBusinessPilotScenarioService(settings=get_settings())
+
+
+def get_ai_ceo_dashboard_service() -> "AICEODashboardService":
+    """Построить AI CEO Dashboard (business command center; read-only)."""
+    from app.services.ai_ceo_dashboard_service import AICEODashboardService
+
+    return AICEODashboardService(settings=get_settings())
+
+
+def get_ai_business_pilot_report_service() -> "AIBusinessPilotReportService":
+    """Построить AI Business Pilot Report (отчёт по пилоту; read-only)."""
+    from app.services.ai_business_pilot_report_service import AIBusinessPilotReportService
+
+    return AIBusinessPilotReportService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

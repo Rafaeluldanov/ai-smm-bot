@@ -53,6 +53,7 @@ from app.api.operations import router as operations_router
 from app.api.optimization import router as optimization_router
 from app.api.optimization_governance import router as optimization_governance_router
 from app.api.performance import router as performance_router
+from app.api.pilot import router as pilot_router
 from app.api.platform_connections import router as platform_connections_router
 from app.api.post_publications import router as post_publications_router
 from app.api.post_reviews import router as post_reviews_router
@@ -134,6 +135,7 @@ def create_app() -> FastAPI:
     app.include_router(business_growth_router)
     app.include_router(business_os_router)
     app.include_router(business_os_testing_router)
+    app.include_router(pilot_router)
     app.include_router(chief_of_staff_router)
     app.include_router(workflows_router)
     app.include_router(operations_router)

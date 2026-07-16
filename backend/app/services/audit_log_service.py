@@ -406,6 +406,13 @@ ACTION_DEMO_SCENARIO_STARTED = "demo.scenario_started"
 ACTION_DEMO_SCENARIO_COMPLETED = "demo.scenario_completed"
 ACTION_DEMO_REPORT_CREATED = "demo.report_created"
 
+# --- AI Business OS MVP Launch / Pilot (v0.9.1) --- #
+ACTION_PILOT_WORKSPACE_CREATED = "pilot.workspace_created"
+ACTION_PILOT_PROFILE_CREATED = "pilot.profile_created"
+ACTION_PILOT_SCENARIO_STARTED = "pilot.scenario_started"
+ACTION_PILOT_DASHBOARD_GENERATED = "pilot.dashboard_generated"
+ACTION_PILOT_REPORT_CREATED = "pilot.report_created"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"

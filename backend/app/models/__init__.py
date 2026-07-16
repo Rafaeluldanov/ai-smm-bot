@@ -109,6 +109,8 @@ from app.models.performance_deviation import PerformanceDeviation
 from app.models.performance_metric import PerformanceMetric
 from app.models.performance_recommendation import PerformanceRecommendation
 from app.models.performance_snapshot import PerformanceSnapshot
+from app.models.pilot_business_profile import PilotBusinessProfile
+from app.models.pilot_workspace import PilotWorkspace
 from app.models.plan_milestone import PlanMilestone
 from app.models.platform_live_readiness import PlatformLiveReadiness
 from app.models.post import Post
@@ -245,6 +247,8 @@ __all__ = [
     "PerformanceMetric",
     "PerformanceRecommendation",
     "PerformanceSnapshot",
+    "PilotBusinessProfile",
+    "PilotWorkspace",
     "PlanMilestone",
     "PlatformLiveReadiness",
     "Post",

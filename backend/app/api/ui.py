@@ -5094,6 +5094,52 @@ def ui_demo_business_os() -> HTMLResponse:
     return _page("AI Business OS Testing", body, script, active="")
 
 
+@router.get("/ceo/dashboard", response_class=HTMLResponse)
+def ui_ceo_dashboard() -> HTMLResponse:
+    """AI Business Command Center (v0.9.1): CEO Dashboard пилота."""
+    body = (
+        "<h2>AI Business Command Center</h2>"
+        "<p class='muted'>Панель пилота реальной компании. Всё advisory: AI анализирует и советует, "
+        "но НЕ меняет бизнес, НЕ выполняет workflow, НЕ шлёт сообщений, НЕ ходит во внешние сервисы.</p>"
+        "<div class='card'><div class='inline'>"
+        "<input id='ceo-company' size='18' placeholder='Компания' value='TEEON Pilot'> "
+        "<button class='mini' onclick='ceoSetup()'>Создать пилот и прогнать</button>"
+        "<span id='ceo-status' class='muted'></span></div></div>"
+        "<div class='card'><h3>Business Health</h3><div id='ceo-score' style='font-size:1.6em'>—</div></div>"
+        "<div class='card'><h3>Current Situation</h3><div id='ceo-state' class='muted'>—</div></div>"
+        "<div class='card'><h3>Risks</h3><div id='ceo-risks' class='muted'>—</div></div>"
+        "<div class='card'><h3>Opportunities</h3><div id='ceo-opps' class='muted'>—</div></div>"
+        "<div class='card'><h3>AI Actions Today</h3><div id='ceo-actions' class='muted'>—</div></div>"
+        "<div class='card'><h3>Forecast</h3><div id='ceo-forecast' class='muted'>—</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');let WS=0;"
+        "function lst(id,arr,empty){const el=document.getElementById(id);el.classList.remove('muted');"
+        "el.innerHTML=(arr&&arr.length)?arr.map(v=>`<div class='prow'>• ${esc(''+v)}</div>`).join(''):"
+        "`<span class='muted'>${empty}</span>`;}"
+        "async function ceoSetup(){const a=needAccount(eEl);if(!a)return;try{"
+        "const name=document.getElementById('ceo-company').value||'TEEON Pilot';"
+        "document.getElementById('ceo-status').textContent='Создаю пилот…';"
+        "const w=await api('POST','/pilot/workspaces',{account_id:a,company_name:name,industry:'apparel'});WS=w.id;"
+        "await api('POST','/pilot/workspaces/'+WS+'/profile',{current_revenue:5000000,target_revenue:10000000,products:['hoodie','tee']});"
+        "document.getElementById('ceo-status').textContent='Прогон AI-цепочки…';"
+        "await api('POST','/pilot/workspaces/'+WS+'/run',{});"
+        "document.getElementById('ceo-status').textContent='Готово.';await loadDash();}catch(x){err(eEl,x)}}"
+        "async function loadDash(){if(!WS)return;const d=await api('GET','/pilot/workspaces/'+WS+'/dashboard');"
+        "document.getElementById('ceo-score').textContent=(d.business_score||0)+'/100';"
+        "const st=document.getElementById('ceo-state');st.classList.remove('muted');st.textContent=d.current_state||'—';"
+        "lst('ceo-risks',d.risks,'Критичных рисков нет.');"
+        "lst('ceo-opps',d.opportunities,'Возможности не выявлены.');"
+        "lst('ceo-actions',d.today_actions,'Действий нет.');"
+        "const f=d.forecast||{};const fc=document.getElementById('ceo-forecast');fc.classList.remove('muted');"
+        "fc.innerHTML=f.available?`<div>Горизонт: ${esc(f.horizon||'')}, уверенность ${f.confidence_score}%, риск ${esc(f.risk_level||'')}</div>`:"
+        "\"<span class='muted'>Прогноз появится после прогона.</span>\";}"
+        "window.ceoSetup=ceoSetup;"
+    )
+    return _page("AI Business Command Center", body, script, active="")
+
+
 @router.get("/optimization", response_class=HTMLResponse)
 def ui_optimization_index() -> HTMLResponse:
     """Лендинг оптимизации: выбрать проект."""

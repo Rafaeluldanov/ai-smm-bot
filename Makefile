@@ -66,6 +66,7 @@ BIN := $(VENV)/bin
         optimization-analyze optimization-report \
         governance-analyze governance-report \
         demo-create demo-run demo-report \
+        pilot-create pilot-run pilot-report \
         smoke
 
 help: ## Показать список команд
@@ -605,6 +606,15 @@ demo-run: ## Прогон demo-сценария: make demo-run workspace_id=1 sc
 
 demo-report: ## Отчёт по прогону: make demo-report scenario_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.business_os_report --scenario-id "$(scenario_id)"
+
+pilot-create: ## Создать пилот: make pilot-create account_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.pilot_create --account-id "$(account_id)"
+
+pilot-run: ## Прогон пилота: make pilot-run workspace_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.pilot_run --workspace-id "$(workspace_id)"
+
+pilot-report: ## Отчёт по пилоту: make pilot-report workspace_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.pilot_report --workspace-id "$(workspace_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

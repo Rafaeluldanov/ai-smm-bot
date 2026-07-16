@@ -623,6 +623,12 @@ class Settings(BaseSettings):
     # demo-сценарии НЕ запускают workflow, НЕ меняют бизнес/CRM, НЕ отправляют сообщения.
     demo_mode: bool = True
 
+    # AI Business OS MVP Launch (v0.9.1). PILOT-режим для первого реального бизнес-пилота.
+    # При pilot_mode=true разрешено: pilot workspace/профиль, pilot-анализ, dashboard, отчёт.
+    # Всё ТОЛЬКО advisory: НЕ меняет бизнес/CRM, НЕ выполняет workflow, НЕ шлёт сообщений, НЕ
+    # запускает внешние API. При pilot_mode=false pilot-действия запрещены (HTTP 403).
+    pilot_mode: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -1043,6 +1049,11 @@ class Settings(BaseSettings):
     def demo_mode_effective(self) -> bool:
         """Активен ли DEMO-режим (E2E: demo-данные/сценарии/отчёты, без реальных действий)."""
         return bool(self.demo_mode)
+
+    @property
+    def pilot_mode_effective(self) -> bool:
+        """Активен ли PILOT-режим (workspace/профиль/анализ/dashboard/отчёт, только advisory)."""
+        return bool(self.pilot_mode)
 
     @property
     def business_growth_enabled_effective(self) -> bool:
