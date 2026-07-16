@@ -400,6 +400,12 @@ ACTION_GOVERNANCE_REJECTED = "governance.rejected"
 ACTION_GOVERNANCE_OWNER_ASSIGNED = "governance.owner_assigned"
 ACTION_GOVERNANCE_IMPACT_UPDATED = "governance.impact_updated"
 
+# --- AI Business OS MVP Testing Framework (v0.9.0) --- #
+ACTION_DEMO_WORKSPACE_CREATED = "demo.workspace_created"
+ACTION_DEMO_SCENARIO_STARTED = "demo.scenario_started"
+ACTION_DEMO_SCENARIO_COMPLETED = "demo.scenario_completed"
+ACTION_DEMO_REPORT_CREATED = "demo.report_created"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"

@@ -17,6 +17,7 @@ from app.api.billing import router as billing_router
 from app.api.business_forecasting import router as business_forecasting_router
 from app.api.business_growth import router as business_growth_router
 from app.api.business_os import router as business_os_router
+from app.api.business_os_testing import router as business_os_testing_router
 from app.api.business_planner import router as business_planner_router
 from app.api.chief_of_staff import router as chief_of_staff_router
 from app.api.content_strategy import router as content_strategy_router
@@ -132,6 +133,7 @@ def create_app() -> FastAPI:
     app.include_router(sales_intelligence_router)
     app.include_router(business_growth_router)
     app.include_router(business_os_router)
+    app.include_router(business_os_testing_router)
     app.include_router(chief_of_staff_router)
     app.include_router(workflows_router)
     app.include_router(operations_router)

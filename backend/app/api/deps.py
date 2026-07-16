@@ -6,6 +6,9 @@ from typing import TYPE_CHECKING, Annotated
 if TYPE_CHECKING:
     from app.services.ab_testing_service import ABTestingService
     from app.services.ai_business_forecasting_service import AIBusinessForecastingService
+    from app.services.ai_business_os_demo_service import AIBusinessOSDemoService
+    from app.services.ai_business_os_report_service import AIBusinessOSReportService
+    from app.services.ai_business_os_scenario_service import AIBusinessOSScenarioService
     from app.services.ai_business_planner_service import AIBusinessPlannerService
     from app.services.ai_campaign_manager_service import AICampaignManagerService
     from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
@@ -611,6 +614,27 @@ def get_ai_optimization_governance_service() -> "AIOptimizationGovernanceService
     )
 
     return AIOptimizationGovernanceService(settings=get_settings())
+
+
+def get_ai_business_os_demo_service() -> "AIBusinessOSDemoService":
+    """Построить AI Business OS Demo (demo-данные; без реальных действий)."""
+    from app.services.ai_business_os_demo_service import AIBusinessOSDemoService
+
+    return AIBusinessOSDemoService(settings=get_settings())
+
+
+def get_ai_business_os_scenario_service() -> "AIBusinessOSScenarioService":
+    """Построить AI Business OS Scenario runner (E2E-прогон; advisory-слои)."""
+    from app.services.ai_business_os_scenario_service import AIBusinessOSScenarioService
+
+    return AIBusinessOSScenarioService(settings=get_settings())
+
+
+def get_ai_business_os_report_service() -> "AIBusinessOSReportService":
+    """Построить AI Business OS Report (отчёт по прогону; только чтение)."""
+    from app.services.ai_business_os_report_service import AIBusinessOSReportService
+
+    return AIBusinessOSReportService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

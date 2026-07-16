@@ -617,6 +617,12 @@ class Settings(BaseSettings):
     # улучшения, НЕ запускает эксперименты, НЕ меняет бизнес/KPI/CRM/бюджет, НЕ выполняет задачи.
     optimization_governance_enabled: bool = True
 
+    # AI Business OS MVP Testing Framework (v0.9.0). DEMO-режим для E2E-тестирования AI-цепочки.
+    # При demo_mode=true разрешено: создавать demo-данные, запускать тестовые сценарии, формировать
+    # отчёты. ЗАПРЕЩЕНО всегда: реальные интеграции/пользователи/платежи/внешние API-действия;
+    # demo-сценарии НЕ запускают workflow, НЕ меняют бизнес/CRM, НЕ отправляют сообщения.
+    demo_mode: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -1032,6 +1038,11 @@ class Settings(BaseSettings):
     def optimization_governance_enabled_effective(self) -> bool:
         """Доступен ли AI Optimization Governance (portfolio/approval/ownership/impact/UI/API)."""
         return bool(self.optimization_governance_enabled)
+
+    @property
+    def demo_mode_effective(self) -> bool:
+        """Активен ли DEMO-режим (E2E: demo-данные/сценарии/отчёты, без реальных действий)."""
+        return bool(self.demo_mode)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

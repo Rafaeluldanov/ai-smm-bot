@@ -52,6 +52,8 @@ from app.models.crm_bot_smm import (
 )
 from app.models.decision_scenario import DecisionScenario
 from app.models.decision_signal import DecisionSignal
+from app.models.demo_scenario import DemoScenario
+from app.models.demo_workspace import DemoWorkspace
 from app.models.email_template_override import EmailTemplateOverride
 from app.models.execution_dependency import ExecutionDependency
 from app.models.execution_objective import ExecutionObjective
@@ -185,6 +187,8 @@ __all__ = [
     "CrmSmmResource",
     "DecisionScenario",
     "DecisionSignal",
+    "DemoScenario",
+    "DemoWorkspace",
     "EmailTemplateOverride",
     "ExecutionDependency",
     "ExecutionObjective",

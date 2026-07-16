@@ -201,6 +201,10 @@ USAGE_OPTIMIZATION_REPORT = "optimization_report"
 USAGE_GOVERNANCE_ANALYSIS = "governance_analysis"
 USAGE_GOVERNANCE_REPORT = "governance_report"
 
+# Типы usage для AI Business OS MVP Testing (v0.9.0). Demo-сценарий/отчёт — бесплатно (0 units).
+USAGE_DEMO_SCENARIO = "demo_scenario"
+USAGE_DEMO_REPORT = "demo_report"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -357,6 +361,8 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_OPTIMIZATION_REPORT: 0,
     USAGE_GOVERNANCE_ANALYSIS: 0,
     USAGE_GOVERNANCE_REPORT: 0,
+    USAGE_DEMO_SCENARIO: 0,
+    USAGE_DEMO_REPORT: 0,
 }
 _DEFAULT_ACTION_COST = 1
 

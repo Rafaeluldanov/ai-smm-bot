@@ -65,6 +65,7 @@ BIN := $(VENV)/bin
         learning-analyze learning-report \
         optimization-analyze optimization-report \
         governance-analyze governance-report \
+        demo-create demo-run demo-report \
         smoke
 
 help: ## Показать список команд
@@ -595,6 +596,15 @@ governance-analyze: ## Анализ governance: make governance-analyze project_
 
 governance-report: ## Отчёт по governance: make governance-report project_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.governance_report --project-id "$(project_id)"
+
+demo-create: ## Создать demo-компанию: make demo-create account_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.business_os_demo --account-id "$(account_id)"
+
+demo-run: ## Прогон demo-сценария: make demo-run workspace_id=1 scenario=growth
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.business_os_scenario --workspace-id "$(workspace_id)" --scenario "$(scenario)"
+
+demo-report: ## Отчёт по прогону: make demo-report scenario_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.business_os_report --scenario-id "$(scenario_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

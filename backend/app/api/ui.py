@@ -5034,6 +5034,66 @@ def ui_experiments_index() -> HTMLResponse:
     return _page("Эксперименты", body, script, active="experiments")
 
 
+@router.get("/demo/business-os", response_class=HTMLResponse)
+def ui_demo_business_os() -> HTMLResponse:
+    """AI Business OS Testing Center (v0.9.0): demo-прогон всей AI-цепочки E2E."""
+    body = (
+        "<h2>AI Business OS Testing Center</h2>"
+        "<p class='muted'>E2E-тестирование всей AI-цепочки на demo-компании. Это DEMO-режим: "
+        "реальных пользователей, CRM, платежей и внешних действий не создаётся; сценарии не "
+        "запускают workflow и не меняют бизнес.</p>"
+        "<div class='card'><h3>Demo Workspace</h3>"
+        "<div class='inline'><button class='mini' onclick='demoCreate()'>Создать demo-компанию</button>"
+        "<span id='demo-status' class='muted'></span></div>"
+        "<div id='demo-company' class='kv' style='margin-top:8px'>"
+        "<div>Компания</div><div id='dc-name'>—</div>"
+        "<div>Отрасль</div><div id='dc-ind'>—</div>"
+        "<div>Цель</div><div id='dc-goal'>—</div></div></div>"
+        "<div class='card'><h3>Scenario Launcher</h3><div class='inline'>"
+        "<button class='mini sec' onclick=\"demoRun('growth')\">Run Growth Scenario</button> "
+        "<button class='mini sec' onclick=\"demoRun('recovery')\">Run Recovery Scenario</button> "
+        "<button class='mini sec' onclick=\"demoRun('optimization')\">Run Optimization Scenario</button>"
+        "</div></div>"
+        "<div class='card'><h3>Pipeline</h3><div id='demo-pipeline' class='muted'>—</div></div>"
+        "<div class='card'><h3>Result</h3><div id='demo-result' class='muted'>Score: —</div></div>"
+        "<div class='card'><h3>History</h3><div id='demo-history' class='muted'>—</div></div>"
+        "<div id='error' class='err'></div>"
+    )
+    script = (
+        "const eEl=document.getElementById('error');let WS=0;"
+        "const STAGES=['decision','forecast','planner','execution','performance','learning','optimization','governance'];"
+        "async function health(){try{const h=await api('GET','/demo/health');"
+        "document.getElementById('demo-status').textContent='demo_mode='+h.demo_mode;}catch(x){}}"
+        "async function demoCreate(){const a=needAccount(eEl);if(!a)return;try{"
+        "const w=await api('POST','/demo/workspace/create',{account_id:a});WS=w.id;"
+        "document.getElementById('dc-name').textContent=w.company_name;"
+        "document.getElementById('dc-ind').textContent=w.industry;"
+        "document.getElementById('dc-goal').textContent='Выручка 5 млн → 10 млн (12 мес)';"
+        "document.getElementById('demo-status').textContent='workspace #'+WS;loadHistory();}catch(x){err(eEl,x)}}"
+        "function stageRow(st){const s=(st.stages||[]).reduce((m,x)=>{m[x.stage]=x;return m},{});"
+        "return STAGES.map(n=>{const v=s[n];const ok=v&&v.status==='pass';"
+        "return `<div class='prow'>${ok?'✓':'✗'} ${n} <span class='badge'>${ok?'PASS':'FAIL'}</span> "
+        "<span class='muted'>${esc((v&&v.detail)||'')}</span></div>`;}).join('');}"
+        "async function demoRun(t){if(!WS){err(eEl,new Error('Сначала создайте demo-компанию.'));return;}try{"
+        "document.getElementById('demo-status').textContent='Прогон '+t+'…';"
+        "const sc=await api('POST','/demo/scenario/'+t+'/run',{workspace_id:WS});"
+        "document.getElementById('demo-status').textContent='Готово: '+t;"
+        "const pl=document.getElementById('demo-pipeline');pl.classList.remove('muted');pl.innerHTML=stageRow(sc.result_data||{});"
+        "const rs=document.getElementById('demo-result');rs.classList.remove('muted');rs.innerHTML='<b>Score: '+sc.score+'/100</b>';"
+        "loadHistory();}catch(x){err(eEl,x)}}"
+        "async function loadHistory(){if(!WS)return;const d=await api('GET','/demo/scenarios?workspace_id='+WS);"
+        "const a=d.scenarios||[];const h=document.getElementById('demo-history');h.classList.remove('muted');"
+        "h.innerHTML=a.length?a.map(s=>`<div class='prow'>#${s.id} <b>${esc(s.scenario_type)}</b> "
+        "<span class='badge'>${esc(s.status)}</span> score ${s.score} "
+        "<button class='mini ghost' onclick=\"demoReport(${s.id})\">Отчёт</button></div>`).join(''):"
+        "\"<span class='muted'>Прогонов пока нет.</span>\";}"
+        "async function demoReport(id){try{const r=await api('GET','/demo/scenario/'+id+'/report');"
+        "alert(r.title+'\\n'+r.verdict+'\\nScore: '+r.overall_score+'/100 ('+r.passed_stages+'/'+r.total_stages+' PASS)');}catch(x){err(eEl,x)}}"
+        "window.demoCreate=demoCreate;window.demoRun=demoRun;window.demoReport=demoReport;health();"
+    )
+    return _page("AI Business OS Testing", body, script, active="")
+
+
 @router.get("/optimization", response_class=HTMLResponse)
 def ui_optimization_index() -> HTMLResponse:
     """Лендинг оптимизации: выбрать проект."""
