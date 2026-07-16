@@ -377,6 +377,41 @@ def require_improvement_access(
     _guard_project(db, settings, user, improvement.project_id)
 
 
+def require_optimization_access(
+    optimization_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к оптимизации (через оптимизацию → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import optimization_repository
+
+    optimization = optimization_repository.get_optimization(db, optimization_id)
+    if optimization is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, optimization.project_id)
+
+
+def require_optimization_experiment_access(
+    experiment_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к эксперименту оптимизации (эксперимент → оптимизация → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import optimization_repository
+
+    experiment = optimization_repository.get_experiment(db, experiment_id)
+    if experiment is None:
+        raise _NOT_FOUND
+    optimization = optimization_repository.get_optimization(db, experiment.optimization_id)
+    if optimization is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, optimization.project_id)
+
+
 def require_operations_risk_access(
     risk_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:

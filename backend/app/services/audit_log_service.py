@@ -383,6 +383,15 @@ ACTION_LEARNING_IMPROVEMENT_CREATED = "learning.improvement_created"
 ACTION_LEARNING_IMPROVEMENT_APPROVED = "learning.improvement_approved"
 ACTION_LEARNING_IMPROVEMENT_REJECTED = "learning.improvement_rejected"
 
+# --- AI Autonomous Optimization Engine (v0.8.1) --- #
+# NB: experiment.* пространство занято A/B content-experiments (ACTION_EXPERIMENT_CREATED/COMPLETED)
+# → optimization-эксперименты namespaced под optimization.experiment_* (без коллизий в audit trail).
+ACTION_OPTIMIZATION_CREATED = "optimization.created"
+ACTION_OPTIMIZATION_PRIORITIZED = "optimization.prioritized"
+ACTION_OPTIMIZATION_EXPERIMENT_CREATED = "optimization.experiment_created"
+ACTION_OPTIMIZATION_EXPERIMENT_COMPLETED = "optimization.experiment_completed"
+ACTION_OPTIMIZATION_EXPERIMENT_VALIDATED = "optimization.experiment_validated"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"

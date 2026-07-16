@@ -606,6 +606,12 @@ class Settings(BaseSettings):
     # запускает рекламу/публикации; approve/reject меняют лишь статус.
     continuous_improvement_enabled: bool = True
 
+    # AI Autonomous Optimization Engine (v0.8.1). Improvement Item → Optimization Score →
+    # Experiment → Measurement → Validation → Learning Update. Optimization-слой: оценивает,
+    # приоритизирует и проверяет улучшения. НЕ применяет улучшения, НЕ меняет бизнес/KPI/CRM/бюджет,
+    # НЕ выполняет задачи, НЕ запускает рекламу/публикации.
+    autonomous_optimization_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -1011,6 +1017,11 @@ class Settings(BaseSettings):
     def continuous_improvement_enabled_effective(self) -> bool:
         """Доступен ли AI Continuous Improvement (опыт/события/паттерны/улучшения/UI/API)."""
         return bool(self.continuous_improvement_enabled)
+
+    @property
+    def autonomous_optimization_enabled_effective(self) -> bool:
+        """Доступен ли AI Autonomous Optimization (оценка/эксперименты/валидация/UI/API)."""
+        return bool(self.autonomous_optimization_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

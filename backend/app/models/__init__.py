@@ -59,6 +59,7 @@ from app.models.execution_plan import ExecutionPlan
 from app.models.execution_task import ExecutionTask
 from app.models.executive_briefing import ExecutiveBriefing
 from app.models.experience_memory import ExperienceMemory
+from app.models.experiment_result import ExperimentResult
 from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.forecast_metric import ForecastMetric
@@ -90,6 +91,8 @@ from app.models.onboarding_step_result import OnboardingStepResult
 from app.models.operations_recommendation import OperationsRecommendation
 from app.models.operations_risk import OperationsRisk
 from app.models.operations_snapshot import OperationsSnapshot
+from app.models.optimization_experiment import OptimizationExperiment
+from app.models.optimization_item import OptimizationItem
 from app.models.payment import (
     BillingProfile,
     PaymentInvoice,
@@ -185,6 +188,7 @@ __all__ = [
     "ExecutionTask",
     "ExecutiveBriefing",
     "ExperienceMemory",
+    "ExperimentResult",
     "ExperimentSuggestion",
     "ExternalImageCandidate",
     "ForecastMetric",
@@ -220,6 +224,8 @@ __all__ = [
     "OperationsRecommendation",
     "OperationsRisk",
     "OperationsSnapshot",
+    "OptimizationExperiment",
+    "OptimizationItem",
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",

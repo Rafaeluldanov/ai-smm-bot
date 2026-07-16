@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.services.ai_executive_service import AIExecutiveService
     from app.services.ai_learning_service import AILearningService
     from app.services.ai_operations_control_service import AIOperationsControlService
+    from app.services.ai_optimization_engine_service import AIOptimizationEngineService
     from app.services.ai_performance_intelligence_service import (
         AIPerformanceIntelligenceService,
     )
@@ -591,6 +592,13 @@ def get_ai_continuous_improvement_service() -> "AIContinuousImprovementService":
     from app.services.ai_continuous_improvement_service import AIContinuousImprovementService
 
     return AIContinuousImprovementService(settings=get_settings())
+
+
+def get_ai_optimization_engine_service() -> "AIOptimizationEngineService":
+    """Построить AI Autonomous Optimization (оценка→приоритет→эксперименты; не применяет)."""
+    from app.services.ai_optimization_engine_service import AIOptimizationEngineService
+
+    return AIOptimizationEngineService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

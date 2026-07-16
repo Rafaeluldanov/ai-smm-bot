@@ -49,6 +49,7 @@ from app.api.notification_telegram import router as notification_telegram_router
 from app.api.notifications import router as notifications_router
 from app.api.onboarding import router as onboarding_router
 from app.api.operations import router as operations_router
+from app.api.optimization import router as optimization_router
 from app.api.performance import router as performance_router
 from app.api.platform_connections import router as platform_connections_router
 from app.api.post_publications import router as post_publications_router
@@ -140,6 +141,7 @@ def create_app() -> FastAPI:
     app.include_router(execution_router)
     app.include_router(performance_router)
     app.include_router(improvement_router)
+    app.include_router(optimization_router)
     app.include_router(notification_delivery_router)
     app.include_router(notification_safety_router)
     app.include_router(notification_telegram_router)
