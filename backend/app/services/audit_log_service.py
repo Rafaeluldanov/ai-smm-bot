@@ -413,6 +413,14 @@ ACTION_PILOT_SCENARIO_STARTED = "pilot.scenario_started"
 ACTION_PILOT_DASHBOARD_GENERATED = "pilot.dashboard_generated"
 ACTION_PILOT_REPORT_CREATED = "pilot.report_created"
 
+# --- First Business Pilot Release (v1.0.0) --- #
+ACTION_PILOT_GOAL_CREATED = "pilot.goal_created"
+ACTION_PILOT_KPI_CREATED = "pilot.kpi_created"
+ACTION_PILOT_INTELLIGENCE_GENERATED = "pilot.intelligence_generated"
+ACTION_PILOT_DAILY_BRIEF_GENERATED = "pilot.daily_brief_generated"
+ACTION_PILOT_FEEDBACK_CREATED = "pilot.feedback_created"
+ACTION_PILOT_FEEDBACK_UPDATED = "pilot.feedback_updated"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"

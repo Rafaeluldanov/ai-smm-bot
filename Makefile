@@ -67,6 +67,7 @@ BIN := $(VENV)/bin
         governance-analyze governance-report \
         demo-create demo-run demo-report \
         pilot-create pilot-run pilot-report \
+        pilot-onboarding pilot-brief pilot-feedback \
         smoke
 
 help: ## Показать список команд
@@ -615,6 +616,15 @@ pilot-run: ## Прогон пилота: make pilot-run workspace_id=1
 
 pilot-report: ## Отчёт по пилоту: make pilot-report workspace_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.pilot_report --workspace-id "$(workspace_id)"
+
+pilot-onboarding: ## Онбординг компании в пилот: make pilot-onboarding account_id=1 [company_name="TEEON Pilot"] [user_id=5]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.pilot_onboarding --account-id "$(account_id)" $(if $(company_name),--company-name "$(company_name)",) $(if $(user_id),--user-id "$(user_id)",)
+
+pilot-brief: ## CEO Daily Brief пилота: make pilot-brief workspace_id=1 [user_id=5]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.pilot_brief --workspace-id "$(workspace_id)" $(if $(user_id),--user-id "$(user_id)",)
+
+pilot-feedback: ## Feedback по рекомендации: make pilot-feedback workspace_id=1 decision=accepted [comment="..."] [result="..."] [recommendation_id=3] [user_id=5]
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.pilot_feedback --workspace-id "$(workspace_id)" --decision "$(decision)" $(if $(recommendation_id),--recommendation-id "$(recommendation_id)",) $(if $(comment),--comment "$(comment)",) $(if $(result),--result "$(result)",) $(if $(user_id),--user-id "$(user_id)",)
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

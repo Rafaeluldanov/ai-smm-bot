@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.services.ai_business_pilot_service import AIBusinessPilotService
     from app.services.ai_business_planner_service import AIBusinessPlannerService
     from app.services.ai_campaign_manager_service import AICampaignManagerService
+    from app.services.ai_ceo_daily_brief_service import AICEODailyBriefService
     from app.services.ai_ceo_dashboard_service import AICEODashboardService
     from app.services.ai_chief_of_staff_service import AIChiefOfStaffService
     from app.services.ai_continuous_improvement_service import AIContinuousImprovementService
@@ -29,6 +30,11 @@ if TYPE_CHECKING:
     from app.services.ai_performance_intelligence_service import (
         AIPerformanceIntelligenceService,
     )
+    from app.services.ai_pilot_feedback_service import AIPilotFeedbackService
+    from app.services.ai_pilot_intelligence_report_service import (
+        AIPilotIntelligenceReportService,
+    )
+    from app.services.ai_pilot_onboarding_service import AIPilotOnboardingService
     from app.services.ai_sales_intelligence_service import AISalesIntelligenceService
     from app.services.ai_strategy_simulator_service import AIStrategySimulatorService
     from app.services.ai_workflow_manager_service import AIWorkflowManagerService
@@ -667,6 +673,36 @@ def get_ai_business_pilot_report_service() -> "AIBusinessPilotReportService":
     from app.services.ai_business_pilot_report_service import AIBusinessPilotReportService
 
     return AIBusinessPilotReportService(settings=get_settings())
+
+
+def get_ai_pilot_onboarding_service() -> "AIPilotOnboardingService":
+    """Построить AI Pilot Onboarding (workspace→profile→goal→KPI; создание описания пилота)."""
+    from app.services.ai_pilot_onboarding_service import AIPilotOnboardingService
+
+    return AIPilotOnboardingService(settings=get_settings())
+
+
+def get_ai_pilot_intelligence_report_service() -> "AIPilotIntelligenceReportService":
+    """Построить AI Pilot Intelligence Report (SWOT + AI-рекомендации; read-only)."""
+    from app.services.ai_pilot_intelligence_report_service import (
+        AIPilotIntelligenceReportService,
+    )
+
+    return AIPilotIntelligenceReportService(settings=get_settings())
+
+
+def get_ai_ceo_daily_brief_service() -> "AICEODailyBriefService":
+    """Построить AI CEO Daily Brief (ежедневная сводка владельца; read-only)."""
+    from app.services.ai_ceo_daily_brief_service import AICEODailyBriefService
+
+    return AICEODailyBriefService(settings=get_settings())
+
+
+def get_ai_pilot_feedback_service() -> "AIPilotFeedbackService":
+    """Построить AI Pilot Feedback (feedback loop; только сохранение решений)."""
+    from app.services.ai_pilot_feedback_service import AIPilotFeedbackService
+
+    return AIPilotFeedbackService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

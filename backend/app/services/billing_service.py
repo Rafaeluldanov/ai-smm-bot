@@ -209,6 +209,11 @@ USAGE_DEMO_REPORT = "demo_report"
 USAGE_PILOT_ANALYSIS = "pilot_analysis"
 USAGE_PILOT_REPORT = "pilot_report"
 
+# Типы usage для First Business Pilot (v1.0.0). Intelligence/brief/feedback — бесплатно (0 units).
+USAGE_PILOT_INTELLIGENCE = "pilot_intelligence"
+USAGE_DAILY_BRIEF = "daily_brief"
+USAGE_FEEDBACK = "feedback"
+
 # Типы usage для Telegram live rollout (v0.6.0). Preview/dry-run/blocked — бесплатны; реальная
 # публикация списывает существующие publication-units (USAGE_AUTO_PUBLISH_ACTION).
 USAGE_TELEGRAM_LIVE_ROLLOUT_PREVIEW = "telegram_live_rollout_preview"
@@ -369,6 +374,9 @@ ACTION_COSTS: dict[str, int] = {
     USAGE_DEMO_REPORT: 0,
     USAGE_PILOT_ANALYSIS: 0,
     USAGE_PILOT_REPORT: 0,
+    USAGE_PILOT_INTELLIGENCE: 0,
+    USAGE_DAILY_BRIEF: 0,
+    USAGE_FEEDBACK: 0,
 }
 _DEFAULT_ACTION_COST = 1
 
