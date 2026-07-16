@@ -64,6 +64,7 @@ from app.models.experiment_suggestion import ExperimentSuggestion
 from app.models.external_image_candidate import ExternalImageCandidate
 from app.models.forecast_metric import ForecastMetric
 from app.models.forecast_result import ForecastResult
+from app.models.governance_review import GovernanceReview
 from app.models.improvement_item import ImprovementItem
 from app.models.learning_event import LearningEvent
 from app.models.live_autopilot_incident import LiveAutopilotIncident
@@ -92,7 +93,10 @@ from app.models.operations_recommendation import OperationsRecommendation
 from app.models.operations_risk import OperationsRisk
 from app.models.operations_snapshot import OperationsSnapshot
 from app.models.optimization_experiment import OptimizationExperiment
+from app.models.optimization_governance import OptimizationGovernance
+from app.models.optimization_impact import OptimizationImpact
 from app.models.optimization_item import OptimizationItem
+from app.models.optimization_owner_assignment import OptimizationOwnerAssignment
 from app.models.payment import (
     BillingProfile,
     PaymentInvoice,
@@ -193,6 +197,7 @@ __all__ = [
     "ExternalImageCandidate",
     "ForecastMetric",
     "ForecastResult",
+    "GovernanceReview",
     "ImprovementItem",
     "LearningEvent",
     "LiveAutopilotIncident",
@@ -225,7 +230,10 @@ __all__ = [
     "OperationsRisk",
     "OperationsSnapshot",
     "OptimizationExperiment",
+    "OptimizationGovernance",
+    "OptimizationImpact",
     "OptimizationItem",
+    "OptimizationOwnerAssignment",
     "PaymentInvoice",
     "PaymentTransaction",
     "PaymentWebhookLog",

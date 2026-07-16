@@ -612,6 +612,11 @@ class Settings(BaseSettings):
     # НЕ выполняет задачи, НЕ запускает рекламу/публикации.
     autonomous_optimization_enabled: bool = True
 
+    # AI Optimization Governance Engine (v0.8.2). Optimization Item → Governance Review → Approval →
+    # Ownership → Impact Tracking. Governance-слой: управляет портфелем улучшений. НЕ применяет
+    # улучшения, НЕ запускает эксперименты, НЕ меняет бизнес/KPI/CRM/бюджет, НЕ выполняет задачи.
+    optimization_governance_enabled: bool = True
+
     live_readiness_require_platform_confirmation: bool = True
     live_readiness_min_score_to_enable: int = 85
     live_readiness_allow_global_flag_override: bool = False
@@ -1022,6 +1027,11 @@ class Settings(BaseSettings):
     def autonomous_optimization_enabled_effective(self) -> bool:
         """Доступен ли AI Autonomous Optimization (оценка/эксперименты/валидация/UI/API)."""
         return bool(self.autonomous_optimization_enabled)
+
+    @property
+    def optimization_governance_enabled_effective(self) -> bool:
+        """Доступен ли AI Optimization Governance (portfolio/approval/ownership/impact/UI/API)."""
+        return bool(self.optimization_governance_enabled)
 
     @property
     def business_growth_enabled_effective(self) -> bool:

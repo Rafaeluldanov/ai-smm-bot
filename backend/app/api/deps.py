@@ -16,6 +16,9 @@ if TYPE_CHECKING:
     from app.services.ai_learning_service import AILearningService
     from app.services.ai_operations_control_service import AIOperationsControlService
     from app.services.ai_optimization_engine_service import AIOptimizationEngineService
+    from app.services.ai_optimization_governance_service import (
+        AIOptimizationGovernanceService,
+    )
     from app.services.ai_performance_intelligence_service import (
         AIPerformanceIntelligenceService,
     )
@@ -599,6 +602,15 @@ def get_ai_optimization_engine_service() -> "AIOptimizationEngineService":
     from app.services.ai_optimization_engine_service import AIOptimizationEngineService
 
     return AIOptimizationEngineService(settings=get_settings())
+
+
+def get_ai_optimization_governance_service() -> "AIOptimizationGovernanceService":
+    """Построить AI Optimization Governance (portfolio/approval/ownership/impact; не применяет)."""
+    from app.services.ai_optimization_governance_service import (
+        AIOptimizationGovernanceService,
+    )
+
+    return AIOptimizationGovernanceService(settings=get_settings())
 
 
 def get_content_strategy_service() -> "ContentStrategyService":

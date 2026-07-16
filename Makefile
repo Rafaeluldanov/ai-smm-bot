@@ -64,6 +64,7 @@ BIN := $(VENV)/bin
         performance-analyze performance-report \
         learning-analyze learning-report \
         optimization-analyze optimization-report \
+        governance-analyze governance-report \
         smoke
 
 help: ## Показать список команд
@@ -588,6 +589,12 @@ optimization-analyze: ## Анализ оптимизации: make optimization-
 
 optimization-report: ## Отчёт по оптимизации: make optimization-report project_id=1
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.optimization_report --project-id "$(project_id)"
+
+governance-analyze: ## Анализ governance: make governance-analyze project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.governance_analyze --project-id "$(project_id)"
+
+governance-report: ## Отчёт по governance: make governance-report project_id=1
+	PYTHONPATH=backend $(BIN)/python -m app.scripts.governance_report --project-id "$(project_id)"
 
 analytics-report: ## Отчёт аналитики: make analytics-report project_slug=teeon
 	PYTHONPATH=backend $(BIN)/python -m app.scripts.analytics_report --project-slug "$(project_slug)"

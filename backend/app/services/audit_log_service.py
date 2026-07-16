@@ -392,6 +392,14 @@ ACTION_OPTIMIZATION_EXPERIMENT_CREATED = "optimization.experiment_created"
 ACTION_OPTIMIZATION_EXPERIMENT_COMPLETED = "optimization.experiment_completed"
 ACTION_OPTIMIZATION_EXPERIMENT_VALIDATED = "optimization.experiment_validated"
 
+# --- AI Optimization Governance Engine (v0.8.2) --- #
+ACTION_GOVERNANCE_CREATED = "governance.created"
+ACTION_GOVERNANCE_REVIEW_CREATED = "governance.review_created"
+ACTION_GOVERNANCE_APPROVED = "governance.approved"
+ACTION_GOVERNANCE_REJECTED = "governance.rejected"
+ACTION_GOVERNANCE_OWNER_ASSIGNED = "governance.owner_assigned"
+ACTION_GOVERNANCE_IMPACT_UPDATED = "governance.impact_updated"
+
 # --- AI Operations Control Center (v0.7.3) --- #
 ACTION_OPERATIONS_SNAPSHOT_CREATED = "operations.snapshot_created"
 ACTION_OPERATIONS_RISK_CREATED = "operations.risk_created"

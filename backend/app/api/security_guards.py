@@ -412,6 +412,22 @@ def require_optimization_experiment_access(
     _guard_project(db, settings, user, optimization.project_id)
 
 
+def require_governance_access(
+    governance_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
+) -> None:
+    """Гард: доступ к governance-записи оптимизации (governance → проект → аккаунт)."""
+    if user is None:
+        if _auth_required(settings):
+            raise _AUTH_REQUIRED
+        return
+    from app.repositories import optimization_governance_repository
+
+    governance = optimization_governance_repository.get_governance(db, governance_id)
+    if governance is None:
+        raise _NOT_FOUND
+    _guard_project(db, settings, user, governance.project_id)
+
+
 def require_operations_risk_access(
     risk_id: int, db: DbSession, user: OptionalUser, settings: SettingsDep
 ) -> None:
